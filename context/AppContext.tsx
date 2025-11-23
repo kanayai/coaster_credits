@@ -22,6 +22,7 @@ interface AppContextType {
   // Actions
   switchUser: (userId: string) => void;
   addUser: (name: string) => void;
+  updateUserName: (userId: string, newName: string) => void;
   addCredit: (coasterId: string, date: string, notes: string, photo?: File) => void;
   addNewCoaster: (coaster: Omit<Coaster, 'id'>) => Promise<string>;
   searchOnlineCoaster: (query: string) => Promise<Partial<Coaster> | null>;
@@ -117,6 +118,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     showNotification(`Profile "${name}" created!`, 'success');
   };
 
+  const updateUserName = (userId: string, newName: string) => {
+    setUsers(prevUsers => prevUsers.map(u => 
+      u.id === userId ? { ...u, name: newName } : u
+    ));
+    if (activeUser.id === userId) {
+      setActiveUser(prev => ({ ...prev, name: newName }));
+    }
+    showNotification("Profile updated", 'success');
+  };
+
   const addToWishlist = (coasterId: string) => {
     if (isInWishlist(coasterId)) {
         showNotification("Already in bucket list", 'info');
@@ -205,6 +216,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       notification,
       switchUser,
       addUser,
+      updateUserName,
       addCredit,
       addNewCoaster,
       searchOnlineCoaster,
