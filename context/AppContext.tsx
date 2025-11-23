@@ -24,6 +24,7 @@ interface AppContextType {
   addUser: (name: string) => void;
   updateUserName: (userId: string, newName: string) => void;
   addCredit: (coasterId: string, date: string, notes: string, photo?: File) => void;
+  updateCredit: (creditId: string, date: string, notes: string, photo?: File) => void;
   addNewCoaster: (coaster: Omit<Coaster, 'id'>) => Promise<string>;
   searchOnlineCoaster: (query: string) => Promise<Partial<Coaster> | null>;
   changeView: (view: ViewState) => void;
@@ -185,6 +186,35 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setCurrentView('DASHBOARD');
   };
 
+  const updateCredit = (creditId: string, date: string, notes: string, photo?: File) => {
+    const processUpdate = (photoUrl?: string) => {
+      setCredits(prev => prev.map(c => {
+        if (c.id === creditId) {
+          return {
+            ...c,
+            date,
+            notes,
+            // Only update photoUrl if a new one is processed (photoUrl is passed as string)
+            // If it is undefined, we keep the existing one (spread c first)
+            ...(photoUrl !== undefined ? { photoUrl } : {})
+          };
+        }
+        return c;
+      }));
+      showNotification("Entry updated successfully", 'success');
+    };
+
+    if (photo) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        processUpdate(reader.result as string);
+      };
+      reader.readAsDataURL(photo);
+    } else {
+      processUpdate(); // Update text fields only
+    }
+  };
+
   const addNewCoaster = async (coasterData: Omit<Coaster, 'id'>): Promise<string> => {
     const newId = generateId('c');
     const newCoaster: Coaster = { ...coasterData, id: newId };
@@ -218,6 +248,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       addUser,
       updateUserName,
       addCredit,
+      updateCredit,
       addNewCoaster,
       searchOnlineCoaster,
       changeView,

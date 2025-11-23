@@ -1,14 +1,18 @@
 import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { Trash2, Calendar, MapPin, Tag, LayoutList, Palmtree, Flag, Layers, Factory, CalendarRange, CheckCircle2, Bookmark, ArrowRightCircle, PlusCircle } from 'lucide-react';
+import { Trash2, Calendar, MapPin, Tag, LayoutList, Palmtree, Flag, Layers, Factory, CalendarRange, CheckCircle2, Bookmark, ArrowRightCircle, PlusCircle, Edit2, X, Camera, Save } from 'lucide-react';
 import clsx from 'clsx';
 import { Credit, WishlistEntry } from '../types';
 
 type GroupMode = 'DATE' | 'PARK' | 'COUNTRY' | 'TYPE' | 'MANUFACTURER' | 'YEAR';
 
 const CoasterList: React.FC = () => {
-  const { credits, wishlist, coasters, activeUser, deleteCredit, removeFromWishlist, changeView, coasterListViewMode, setCoasterListViewMode } = useAppContext();
+  const { credits, wishlist, coasters, activeUser, deleteCredit, updateCredit, removeFromWishlist, changeView, coasterListViewMode, setCoasterListViewMode } = useAppContext();
   const [groupMode, setGroupMode] = useState<GroupMode>('DATE');
+
+  // Edit State
+  const [editingCredit, setEditingCredit] = useState<{ id: string, date: string, notes: string, name: string } | null>(null);
+  const [editPhoto, setEditPhoto] = useState<File | undefined>(undefined);
 
   const itemsToDisplay = useMemo(() => {
     if (coasterListViewMode === 'CREDITS') {
@@ -64,6 +68,25 @@ const CoasterList: React.FC = () => {
         return a.title.localeCompare(b.title);
       });
   }, [itemsToDisplay, groupMode, coasterListViewMode]);
+
+  const startEdit = (item: any) => {
+      if (item.type !== 'CREDIT') return;
+      setEditingCredit({
+          id: item.id,
+          date: item.date,
+          notes: item.notes || '',
+          name: item.coaster?.name || 'Unknown Coaster'
+      });
+      setEditPhoto(undefined);
+  };
+
+  const handleSaveEdit = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (editingCredit) {
+          updateCredit(editingCredit.id, editingCredit.date, editingCredit.notes, editPhoto);
+          setEditingCredit(null);
+      }
+  };
 
   const ModeButton = ({ mode, icon: Icon, label }: { mode: GroupMode, icon: React.ElementType, label: string }) => (
     <button
@@ -205,8 +228,8 @@ const CoasterList: React.FC = () => {
                                                 </div>
                                                 
                                                 {/* Action Buttons */}
-                                                <div className="flex gap-2">
-                                                    {isWishlist && (
+                                                <div className="flex gap-1">
+                                                    {isWishlist ? (
                                                         <button
                                                             onClick={() => changeView('ADD_CREDIT')}
                                                             className="text-primary hover:bg-primary/10 p-2 rounded-full transition-colors"
@@ -214,7 +237,16 @@ const CoasterList: React.FC = () => {
                                                         >
                                                             <ArrowRightCircle size={20} />
                                                         </button>
+                                                    ) : (
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); startEdit(item); }}
+                                                            className="text-slate-500 hover:text-white p-2 rounded-full hover:bg-slate-700/50 transition-colors"
+                                                            title="Edit Entry"
+                                                        >
+                                                            <Edit2 size={18} />
+                                                        </button>
                                                     )}
+                                                    
                                                     <button 
                                                         onClick={(e) => {
                                                             e.stopPropagation(); // Prevent card click
@@ -224,10 +256,10 @@ const CoasterList: React.FC = () => {
                                                                 if(window.confirm('Delete this credit?')) deleteCredit(item.id);
                                                             }
                                                         }}
-                                                        className="text-slate-500 hover:text-red-400 p-2 -mr-2 rounded-full hover:bg-red-500/10 transition-colors z-20 relative"
+                                                        className="text-slate-500 hover:text-red-400 p-2 rounded-full hover:bg-red-500/10 transition-colors"
                                                         title="Delete"
                                                     >
-                                                        <Trash2 size={24} strokeWidth={2} />
+                                                        <Trash2 size={18} />
                                                     </button>
                                                 </div>
                                             </div>
@@ -270,6 +302,84 @@ const CoasterList: React.FC = () => {
                       </div>
                   </div>
               ))}
+          </div>
+      )}
+
+      {/* Edit Modal */}
+      {editingCredit && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+              <div className="bg-slate-800 w-full max-w-md rounded-2xl border border-slate-700 shadow-2xl overflow-hidden animate-fade-in-down">
+                  <div className="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-900/50">
+                      <h3 className="font-bold text-white">Edit Entry</h3>
+                      <button 
+                          onClick={() => setEditingCredit(null)}
+                          className="text-slate-400 hover:text-white transition-colors"
+                      >
+                          <X size={20} />
+                      </button>
+                  </div>
+                  
+                  <form onSubmit={handleSaveEdit} className="p-5 space-y-4">
+                      <div className="text-sm font-medium text-primary mb-2">
+                          {editingCredit.name}
+                      </div>
+
+                      <div>
+                          <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Date Ridden</label>
+                          <input 
+                              type="date" 
+                              required
+                              value={editingCredit.date}
+                              onChange={(e) => setEditingCredit({ ...editingCredit, date: e.target.value })}
+                              className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white focus:ring-2 focus:ring-primary focus:outline-none"
+                          />
+                      </div>
+
+                      <div>
+                          <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Update Photo</label>
+                          <div className="relative">
+                            <input 
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => setEditPhoto(e.target.files?.[0])}
+                                className="hidden"
+                                id="edit-photo-upload"
+                            />
+                            <label htmlFor="edit-photo-upload" className="w-full bg-slate-900 border border-slate-600 border-dashed rounded-xl p-3 flex items-center justify-center gap-2 cursor-pointer hover:bg-slate-900/80 transition-colors text-slate-400">
+                                <Camera size={18} />
+                                <span className="text-sm">{editPhoto ? editPhoto.name : "Change/Add Photo"}</span>
+                            </label>
+                          </div>
+                      </div>
+
+                      <div>
+                          <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Notes</label>
+                          <textarea 
+                              value={editingCredit.notes}
+                              onChange={(e) => setEditingCredit({ ...editingCredit, notes: e.target.value })}
+                              className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white focus:ring-2 focus:ring-primary focus:outline-none h-24 text-sm"
+                              placeholder="Ride experience..."
+                          />
+                      </div>
+
+                      <div className="flex gap-3 pt-2">
+                          <button 
+                              type="button"
+                              onClick={() => setEditingCredit(null)}
+                              className="flex-1 py-3 rounded-xl border border-slate-600 text-slate-300 font-medium hover:bg-slate-700/50 transition-colors"
+                          >
+                              Cancel
+                          </button>
+                          <button 
+                              type="submit"
+                              className="flex-1 py-3 rounded-xl bg-primary hover:bg-primary-hover text-white font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2"
+                          >
+                              <Save size={18} />
+                              Save Changes
+                          </button>
+                      </div>
+                  </form>
+              </div>
           </div>
       )}
     </div>
