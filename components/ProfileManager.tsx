@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { UserPlus, CheckCircle2, Smartphone, Share2, QrCode, Edit2, Save, X } from 'lucide-react';
+import { UserPlus, CheckCircle2, Smartphone, Share2, QrCode, Edit2, Save, X, FileSpreadsheet, Database, Download, Cloud } from 'lucide-react';
 import { User } from '../types';
 
 const ProfileManager: React.FC = () => {
-  const { users, activeUser, switchUser, addUser, updateUserName } = useAppContext();
+  const { users, activeUser, switchUser, addUser, updateUserName, credits, wishlist, coasters } = useAppContext();
   const [isAdding, setIsAdding] = useState(false);
   const [newUserName, setNewUserName] = useState('');
   const [currentUrl, setCurrentUrl] = useState('');
@@ -41,6 +41,65 @@ const ProfileManager: React.FC = () => {
       updateUserName(userId, editName.trim());
       setEditingUserId(null);
     }
+  };
+
+  const handleExportCSV = () => {
+    // Filter credits for active user
+    const userCredits = credits.filter(c => c.userId === activeUser.id);
+    
+    // Header row
+    const headers = ['Coaster Name', 'Park', 'Country', 'Manufacturer', 'Type', 'Date Ridden', 'Notes'];
+    
+    // Data rows
+    const rows = userCredits.map(credit => {
+      const coaster = coasters.find(c => c.id === credit.coasterId);
+      if (!coaster) return null;
+      
+      // Escape field content for CSV (handle commas and quotes)
+      const escape = (text: string) => `"${(text || '').replace(/"/g, '""')}"`;
+      
+      return [
+        escape(coaster.name),
+        escape(coaster.park),
+        escape(coaster.country),
+        escape(coaster.manufacturer),
+        escape(coaster.type),
+        escape(credit.date),
+        escape(credit.notes || '')
+      ].join(',');
+    }).filter(row => row !== null);
+    
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    
+    // Create download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `CoasterCount_${activeUser.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleExportJSON = () => {
+    const data = {
+      user: activeUser,
+      credits: credits.filter(c => c.userId === activeUser.id),
+      wishlist: wishlist.filter(w => w.userId === activeUser.id),
+      exportDate: new Date().toISOString(),
+      appVersion: '1.1.0'
+    };
+    
+    const jsonContent = JSON.stringify(data, null, 2);
+    const blob = new Blob([jsonContent], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `CoasterCount_Backup_${new Date().toISOString().split('T')[0]}.json`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
@@ -158,6 +217,49 @@ const ProfileManager: React.FC = () => {
               </div>
           </form>
         )}
+      </div>
+
+      {/* Export Section */}
+      <div className="border-t border-slate-800 pt-8">
+        <div className="flex items-center gap-2 mb-4 text-white">
+            <Cloud className="text-primary" size={24} />
+            <h2 className="text-xl font-bold">Export / Backup</h2>
+        </div>
+        
+        <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700 shadow-xl space-y-4">
+            <p className="text-sm text-slate-400">
+                Download your coaster credits to back them up or view them in spreadsheet software. 
+                You can upload these files to <strong>Google Drive</strong> for safe keeping.
+            </p>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button 
+                    onClick={handleExportCSV}
+                    className="flex items-center justify-center gap-3 p-4 bg-slate-900 border border-slate-600 rounded-xl hover:bg-slate-700 hover:border-slate-500 transition group"
+                >
+                    <div className="bg-green-500/10 p-2 rounded-lg group-hover:bg-green-500/20">
+                        <FileSpreadsheet className="text-green-500" size={24} />
+                    </div>
+                    <div className="text-left">
+                        <div className="font-bold text-white text-sm">Download CSV</div>
+                        <div className="text-[10px] text-slate-400">For Excel / Google Sheets</div>
+                    </div>
+                </button>
+
+                <button 
+                    onClick={handleExportJSON}
+                    className="flex items-center justify-center gap-3 p-4 bg-slate-900 border border-slate-600 rounded-xl hover:bg-slate-700 hover:border-slate-500 transition group"
+                >
+                    <div className="bg-primary/10 p-2 rounded-lg group-hover:bg-primary/20">
+                        <Database className="text-primary" size={24} />
+                    </div>
+                    <div className="text-left">
+                        <div className="font-bold text-white text-sm">Full Backup</div>
+                        <div className="text-[10px] text-slate-400">JSON Format</div>
+                    </div>
+                </button>
+            </div>
+        </div>
       </div>
 
       {/* Mobile Install Section */}
