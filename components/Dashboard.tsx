@@ -11,9 +11,11 @@ const Dashboard: React.FC = () => {
   // State for editing the last credit
   const [editingCreditData, setEditingCreditData] = useState<{ credit: Credit, coaster: Coaster } | null>(null);
 
-  // Filter credits for active user
+  // Filter credits for active user and SORT by date descending to find the true last ridden
   const userCredits = useMemo(() => 
-    credits.filter(c => c.userId === activeUser.id),
+    credits
+      .filter(c => c.userId === activeUser.id)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
   [credits, activeUser.id]);
   
   const userWishlist = useMemo(() => 
@@ -45,13 +47,27 @@ const Dashboard: React.FC = () => {
 
   const COLORS = ['#0ea5e9', '#8b5cf6', '#f43f5e', '#10b981', '#f59e0b', '#6366f1'];
 
-  const recentCredit = userCredits.length > 0 ? userCredits[userCredits.length - 1] : null;
+  // Identify the most recent credit (first in the sorted list)
+  const recentCredit = userCredits.length > 0 ? userCredits[0] : null;
   const recentCoaster = recentCredit ? coasters.find(c => c.id === recentCredit.coasterId) : null;
 
-  const handleLastRiddenClick = () => {
+  const handleLastRiddenClick = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent bubbling issues
     if (recentCredit && recentCoaster) {
         setEditingCreditData({ credit: recentCredit, coaster: recentCoaster });
     }
+  };
+
+  const navigateToWishlist = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setCoasterListViewMode('WISHLIST');
+      changeView('COASTER_LIST');
+  };
+
+  const navigateToCredits = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setCoasterListViewMode('CREDITS');
+      changeView('COASTER_LIST');
   };
 
   return (
@@ -60,10 +76,7 @@ const Dashboard: React.FC = () => {
       {/* Hero Stat - Main Credit Count */}
       <div 
         className="bg-slate-800 rounded-2xl p-6 shadow-lg border border-slate-700 relative overflow-hidden cursor-pointer active:scale-95 transition-transform"
-        onClick={() => {
-            setCoasterListViewMode('CREDITS');
-            changeView('COASTER_LIST');
-        }}
+        onClick={navigateToCredits}
       >
         <div className="absolute top-0 right-0 p-4 opacity-10">
             <Trophy size={120} />
@@ -93,10 +106,7 @@ const Dashboard: React.FC = () => {
         {/* Bucket List Link - Secondary Count */}
         <div 
             className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-slate-750 hover:border-amber-500/50 transition relative overflow-hidden group" 
-            onClick={() => {
-                setCoasterListViewMode('WISHLIST');
-                changeView('COASTER_LIST');
-            }}
+            onClick={navigateToWishlist}
         >
             <div className="absolute inset-0 bg-amber-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
             <ClipboardList className="text-amber-500 mb-2 relative z-10" size={24} />

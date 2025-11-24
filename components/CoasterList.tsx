@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { Trash2, Calendar, MapPin, Tag, LayoutList, Palmtree, Flag, Layers, Factory, CalendarRange, CheckCircle2, Bookmark, ArrowRightCircle, PlusCircle, Edit2 } from 'lucide-react';
+import { Trash2, Calendar, MapPin, Tag, LayoutList, Palmtree, Flag, Layers, Factory, CalendarRange, CheckCircle2, Bookmark, ArrowRightCircle, PlusCircle, Edit2, ArrowLeft } from 'lucide-react';
 import clsx from 'clsx';
 import { Credit, Coaster } from '../types';
 import EditCreditModal from './EditCreditModal';
@@ -93,28 +93,38 @@ const CoasterList: React.FC = () => {
     <div className="animate-fade-in space-y-4 pb-8">
       {/* Top Controls */}
       <div className="sticky top-0 bg-slate-900/95 backdrop-blur-sm z-20 pb-4 pt-2 -mx-4 px-4 border-b border-slate-800/50">
+          
           <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-bold">Logbook</h2>
+              <div className="flex items-center gap-3">
+                  <button 
+                    onClick={() => changeView('DASHBOARD')}
+                    className="bg-slate-800 p-2 rounded-full border border-slate-700 text-slate-400 hover:text-white transition-colors"
+                  >
+                    <ArrowLeft size={20} />
+                  </button>
+                  <h2 className="text-2xl font-bold">Logbook</h2>
+              </div>
+
               {/* View Toggle */}
               <div className="bg-slate-800 p-1 rounded-lg flex border border-slate-700">
                   <button
                       onClick={() => setCoasterListViewMode('CREDITS')}
                       className={clsx(
-                          "px-4 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-2",
+                          "px-3 sm:px-4 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-2",
                           coasterListViewMode === 'CREDITS' ? "bg-slate-700 text-white shadow-sm" : "text-slate-400 hover:text-slate-200"
                       )}
                   >
-                      <CheckCircle2 size={14}/>
+                      <CheckCircle2 size={14} className="hidden sm:block"/>
                       Ridden
                   </button>
                   <button
                       onClick={() => setCoasterListViewMode('WISHLIST')}
                       className={clsx(
-                          "px-4 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-2",
+                          "px-3 sm:px-4 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-2",
                           coasterListViewMode === 'WISHLIST' ? "bg-amber-500/20 text-amber-500 shadow-sm" : "text-slate-400 hover:text-slate-200"
                       )}
                   >
-                      <Bookmark size={14} />
+                      <Bookmark size={14} className="hidden sm:block" />
                       Bucket List
                   </button>
               </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { UserPlus, CheckCircle2, Smartphone, Share2, QrCode, Edit2, Save, X, FileSpreadsheet, Database, Download, Cloud, PaintBucket, Sparkles, Loader2 } from 'lucide-react';
+import { UserPlus, CheckCircle2, Smartphone, Share2, QrCode, Edit2, Save, X, FileSpreadsheet, Database, Download, Cloud, PaintBucket, Sparkles, Loader2, Copy, ExternalLink } from 'lucide-react';
 import { User } from '../types';
 
 const ProfileManager: React.FC = () => {
@@ -266,12 +266,56 @@ const ProfileManager: React.FC = () => {
             </div>
 
             {generatedIconUrl && (
-              <div className="bg-slate-900 p-4 rounded-xl border border-slate-600 flex flex-col items-center animate-fade-in">
-                <p className="text-xs text-green-400 font-bold mb-3 uppercase">Generated Successfully!</p>
-                <img src={generatedIconUrl} alt="Generated Icon" className="w-32 h-32 rounded-2xl shadow-lg mb-3 bg-white object-cover" />
-                <p className="text-center text-xs text-slate-400">
-                  Long press or right-click the image above to save it to your device photos.
+              <div className="bg-slate-900 p-4 rounded-xl border border-slate-600 flex flex-col items-center animate-fade-in mt-4">
+                <p className="text-xs text-green-400 font-bold mb-3 uppercase flex items-center gap-1">
+                  <CheckCircle2 size={12}/> Generated Successfully!
                 </p>
+                <img src={generatedIconUrl} alt="Generated Icon" className="w-32 h-32 rounded-2xl shadow-lg mb-3 bg-white object-cover" />
+                <p className="text-center text-xs text-slate-400 mb-4">
+                  Long press or right-click the image above to save it to your Photos.
+                </p>
+
+                {/* Instructions Box */}
+                <div className="w-full bg-slate-800 p-4 rounded-xl border border-slate-700 text-left">
+                  <h4 className="font-bold text-white text-sm mb-3 flex items-center gap-2">
+                    <Smartphone size={16} />
+                    How to set as App Icon
+                  </h4>
+                  
+                  <div className="space-y-4 text-xs text-slate-400">
+                    <div>
+                      <span className="text-white font-semibold block mb-2 flex items-center gap-1">
+                        Apple iOS (iPhone/iPad)
+                      </span>
+                      <ol className="list-decimal pl-4 space-y-2">
+                        <li>Open the <strong>Shortcuts</strong> app and tap <strong>+</strong>.</li>
+                        <li>Add action <strong>Open URL</strong> and paste the link below.</li>
+                        <li>Tap the top arrow/share icon → <strong>Add to Home Screen</strong>.</li>
+                        <li>Tap the small icon placeholder next to the name → <strong>Choose Photo</strong> and select your saved Luchador image!</li>
+                      </ol>
+                      
+                      <div className="flex items-center gap-2 mt-2">
+                        <input 
+                          readOnly 
+                          value={currentUrl} 
+                          className="bg-slate-900 border border-slate-600 rounded px-2 py-1 flex-1 text-slate-500 font-mono text-[10px]"
+                        />
+                        <button 
+                          onClick={() => navigator.clipboard.writeText(currentUrl)}
+                          className="bg-slate-700 hover:bg-slate-600 text-white p-1.5 rounded"
+                          title="Copy Link"
+                        >
+                          <Copy size={14} />
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <div className="border-t border-slate-700/50 pt-3">
+                       <span className="text-white font-semibold block mb-1">Android</span>
+                       <p>Use a launcher that supports icon editing (like Nova Launcher) or download an app like <strong>"Shortcut Maker"</strong> from the Play Store to create a custom home screen shortcut using your saved image.</p>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
         </div>

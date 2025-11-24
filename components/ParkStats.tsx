@@ -1,11 +1,19 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { ArrowLeft, Globe, List, MapPin } from 'lucide-react';
+import { ArrowLeft, Globe, List, MapPin, Plus, Minus, RefreshCw } from 'lucide-react';
 import clsx from 'clsx';
 
 const ParkStats: React.FC = () => {
   const { credits, coasters, activeUser, changeView } = useAppContext();
   const [viewMode, setViewMode] = useState<'LIST' | 'MAP'>('LIST');
+
+  // Map state
+  const [zoom, setZoom] = useState(1);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  
+  const mapContainerRef = useRef<HTMLDivElement>(null);
 
   // Aggregation Logic
   const stats = useMemo(() => {
@@ -53,6 +61,28 @@ const ParkStats: React.FC = () => {
     'South Korea': { top: '38%', left: '80%' },
     'Australia': { top: '75%', left: '85%' },
     'UAE': { top: '45%', left: '60%' },
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsDragging(true);
+    setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (isDragging) {
+      setPosition({
+        x: e.clientX - dragStart.x,
+        y: e.clientY - dragStart.y
+      });
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleZoom = (delta: number) => {
+    setZoom(prev => Math.min(Math.max(0.5, prev + delta), 4));
   };
 
   return (
@@ -117,45 +147,93 @@ const ParkStats: React.FC = () => {
         </div>
       ) : (
         <div className="flex-1 bg-slate-900 rounded-2xl border border-slate-800 relative overflow-hidden flex items-center justify-center">
-          {/* World Map SVG Background */}
-          <div className="absolute inset-0 opacity-40">
-            <img 
-               src="https://upload.wikimedia.org/wikipedia/commons/8/80/World_map_-_low_resolution.svg" 
-               alt="World Map"
-               className="w-full h-full object-cover filter invert brightness-50 contrast-200"
-               style={{ objectFit: 'cover', objectPosition: 'center' }}
-            />
+            
+          {/* Map Controls */}
+          <div className="absolute top-4 right-4 z-20 flex flex-col gap-2 bg-slate-800/90 backdrop-blur rounded-lg p-1.5 border border-slate-700 shadow-xl">
+            <button 
+                onClick={() => handleZoom(0.5)} 
+                className="p-2 hover:bg-slate-700 rounded-md text-slate-300 hover:text-white"
+                title="Zoom In"
+            >
+                <Plus size={20} />
+            </button>
+            <button 
+                onClick={() => handleZoom(-0.5)} 
+                className="p-2 hover:bg-slate-700 rounded-md text-slate-300 hover:text-white"
+                title="Zoom Out"
+            >
+                <Minus size={20} />
+            </button>
+             <button 
+                onClick={() => { setZoom(1); setPosition({x:0, y:0}); }} 
+                className="p-2 hover:bg-slate-700 rounded-md text-slate-300 hover:text-white border-t border-slate-700"
+                title="Reset View"
+            >
+                <RefreshCw size={16} />
+            </button>
           </div>
 
-          {/* Render Dots for Visited Countries */}
-          {stats.countries.map(country => {
-             const coords = countryCoords[country];
-             // If we don't have coords for a country, skip plotting it to avoid errors
-             if (!coords) return null;
-             
-             // Get total credits for this country
-             const count = stats.parks.filter(p => p.country === country).reduce((acc, curr) => acc + curr.count, 0);
-
-             return (
-               <div 
-                 key={country}
-                 className="absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center group cursor-pointer"
-                 style={{ top: coords.top, left: coords.left }}
-               >
-                  <div className="relative">
-                    <div className="w-4 h-4 bg-primary rounded-full animate-pulse opacity-50 absolute inset-0"></div>
-                    <div className="w-4 h-4 bg-primary rounded-full border-2 border-slate-900 shadow-lg z-10 relative"></div>
-                  </div>
-                  <div className="absolute top-5 bg-black/80 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none">
-                    {country}: {count}
-                  </div>
-               </div>
-             );
-          })}
-          
-          <div className="absolute bottom-4 left-4 bg-black/60 backdrop-blur px-3 py-2 rounded-lg border border-white/10 text-xs text-slate-300 max-w-[200px]">
+          <div className="absolute bottom-4 left-4 z-20 bg-black/60 backdrop-blur px-3 py-2 rounded-lg border border-white/10 text-xs text-slate-300 max-w-[200px]">
             <p className="font-bold text-white mb-1">World View</p>
-            <p>Locations are approximate. Highlighted dots indicate countries with logged credits.</p>
+            <p>Drag to pan, use controls to zoom.</p>
+          </div>
+
+          {/* Interactive Map Container */}
+          <div 
+             ref={mapContainerRef}
+             className="w-full h-full cursor-move relative"
+             onMouseDown={handleMouseDown}
+             onMouseMove={handleMouseMove}
+             onMouseUp={handleMouseUp}
+             onMouseLeave={handleMouseUp}
+             style={{ 
+                 touchAction: 'none'
+             }}
+          >
+             <div style={{
+                 transform: `translate(${position.x}px, ${position.y}px) scale(${zoom})`,
+                 transformOrigin: 'center',
+                 transition: isDragging ? 'none' : 'transform 0.3s ease-out',
+                 width: '100%',
+                 height: '100%'
+             }}>
+                 {/* World Map SVG Background */}
+                 <div className="absolute inset-0 opacity-40">
+                    <img 
+                    src="https://upload.wikimedia.org/wikipedia/commons/8/80/World_map_-_low_resolution.svg" 
+                    alt="World Map"
+                    className="w-full h-full object-cover filter invert brightness-50 contrast-200 pointer-events-none"
+                    style={{ objectFit: 'cover', objectPosition: 'center' }}
+                    />
+                </div>
+
+                {/* Render Dots for Visited Countries */}
+                {stats.countries.map(country => {
+                    const coords = countryCoords[country];
+                    // If we don't have coords for a country, skip plotting it to avoid errors
+                    if (!coords) return null;
+                    
+                    // Get total credits for this country
+                    const count = stats.parks.filter(p => p.country === country).reduce((acc, curr) => acc + curr.count, 0);
+
+                    return (
+                    <div 
+                        key={country}
+                        className="absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center group cursor-pointer hover:z-50"
+                        style={{ top: coords.top, left: coords.left }}
+                    >
+                        <div className="relative">
+                            <div className="w-4 h-4 bg-primary rounded-full animate-pulse opacity-50 absolute inset-0"></div>
+                            <div className="w-4 h-4 bg-primary rounded-full border-2 border-slate-900 shadow-lg z-10 relative transition-transform group-hover:scale-125"></div>
+                        </div>
+                        <div className="absolute top-5 bg-slate-900 text-white text-[10px] px-2 py-1 rounded-md border border-slate-700 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-20 shadow-xl pointer-events-none scale-0 group-hover:scale-100 origin-top">
+                            <span className="font-bold text-primary">{country}</span>
+                            <div className="text-slate-400">{count} Credits</div>
+                        </div>
+                    </div>
+                    );
+                })}
+            </div>
           </div>
         </div>
       )}
