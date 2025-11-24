@@ -1,17 +1,24 @@
+
 import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
-import { Trophy, MapPin, ClipboardList } from 'lucide-react';
+import { Trophy, ClipboardList, Palmtree, Layers, Factory, Flag, CalendarRange, Edit2, Globe } from 'lucide-react';
 import EditCreditModal from './EditCreditModal';
 import { Credit, Coaster } from '../types';
+import clsx from 'clsx';
+
+type ChartMetric = 'PARK' | 'TYPE' | 'MANUFACTURER' | 'COUNTRY' | 'YEAR';
 
 const Dashboard: React.FC = () => {
   const { credits, wishlist, coasters, activeUser, changeView, setCoasterListViewMode } = useAppContext();
 
   // State for editing the last credit
   const [editingCreditData, setEditingCreditData] = useState<{ credit: Credit, coaster: Coaster } | null>(null);
+  
+  // State for Chart Metric
+  const [chartMetric, setChartMetric] = useState<ChartMetric>('PARK');
 
-  // Filter credits for active user and SORT by date descending to find the true last ridden
+  // Filter credits for active user and SORT by date descending
   const userCredits = useMemo(() => 
     credits
       .filter(c => c.userId === activeUser.id)
@@ -24,35 +31,41 @@ const Dashboard: React.FC = () => {
 
   const totalCredits = userCredits.length;
 
-  // Derive stats
-  const typeDistribution = useMemo(() => {
+  // Dynamic Stats Aggregation
+  const chartData = useMemo(() => {
     const dist: Record<string, number> = {};
+    
     userCredits.forEach(credit => {
       const coaster = coasters.find(c => c.id === credit.coasterId);
       if (coaster) {
-        dist[coaster.type] = (dist[coaster.type] || 0) + 1;
+        let key = 'Unknown';
+        switch (chartMetric) {
+            case 'PARK': key = coaster.park; break;
+            case 'TYPE': key = coaster.type; break;
+            case 'MANUFACTURER': key = coaster.manufacturer; break;
+            case 'COUNTRY': key = coaster.country; break;
+            case 'YEAR': key = new Date(credit.date).getFullYear().toString(); break;
+        }
+        dist[key] = (dist[key] || 0) + 1;
       }
     });
-    return Object.entries(dist).map(([name, value]) => ({ name, value }));
-  }, [userCredits, coasters]);
 
-  const uniqueParks = useMemo(() => {
-    const parks = new Set();
-    userCredits.forEach(credit => {
-      const coaster = coasters.find(c => c.id === credit.coasterId);
-      if (coaster) parks.add(coaster.park);
-    });
-    return parks.size;
-  }, [userCredits, coasters]);
+    // Convert to array, sort by value descending, and take top 8 (group others if needed, but simple top 8 is good for mobile)
+    return Object.entries(dist)
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 8); // Limit slices for readability
+  }, [userCredits, coasters, chartMetric]);
 
-  const COLORS = ['#0ea5e9', '#8b5cf6', '#f43f5e', '#10b981', '#f59e0b', '#6366f1'];
+  // Extended Color Palette
+  const COLORS = ['#0ea5e9', '#8b5cf6', '#f43f5e', '#10b981', '#f59e0b', '#6366f1', '#ec4899', '#14b8a6'];
 
-  // Identify the most recent credit (first in the sorted list)
+  // Identify the most recent credit
   const recentCredit = userCredits.length > 0 ? userCredits[0] : null;
   const recentCoaster = recentCredit ? coasters.find(c => c.id === recentCredit.coasterId) : null;
 
   const handleLastRiddenClick = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent bubbling issues
+    e.stopPropagation();
     if (recentCredit && recentCoaster) {
         setEditingCreditData({ credit: recentCredit, coaster: recentCoaster });
     }
@@ -70,84 +83,143 @@ const Dashboard: React.FC = () => {
       changeView('COASTER_LIST');
   };
 
+  const MetricButton = ({ mode, label, icon: Icon }: { mode: ChartMetric, label: string, icon: any }) => (
+      <button
+        onClick={() => setChartMetric(mode)}
+        className={clsx(
+            "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-all border",
+            chartMetric === mode 
+                ? "bg-primary text-white border-primary shadow-lg shadow-primary/20" 
+                : "bg-slate-900 border-slate-700 text-slate-400 hover:text-white"
+        )}
+      >
+          <Icon size={12} />
+          {label}
+      </button>
+  );
+
   return (
     <div className="space-y-6 animate-fade-in pb-10">
       
-      {/* Hero Stat - Main Credit Count */}
-      <div 
-        className="bg-slate-800 rounded-2xl p-6 shadow-lg border border-slate-700 relative overflow-hidden cursor-pointer active:scale-95 transition-transform"
-        onClick={navigateToCredits}
-      >
-        <div className="absolute top-0 right-0 p-4 opacity-10">
-            <Trophy size={120} />
-        </div>
-        <div className="relative z-10">
-            <h2 className="text-slate-400 text-sm font-semibold uppercase tracking-wider">Total Credits</h2>
-            <div className="text-6xl font-bold text-white mt-2 tracking-tighter">
-                {totalCredits}
-            </div>
-            <p className="text-primary mt-1 font-medium">Keep riding!</p>
-        </div>
-      </div>
-
-      {/* Quick Stats Grid */}
+      {/* Top Stats Row */}
       <div className="grid grid-cols-2 gap-4">
-        {/* Parks Visited - Now Clickable */}
+        {/* Hero Stat - Main Credit Count */}
         <div 
-            onClick={() => changeView('PARK_STATS')}
-            className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-slate-750 hover:border-accent/50 transition relative overflow-hidden group"
+            className="bg-slate-800 rounded-2xl p-5 shadow-lg border border-slate-700 relative overflow-hidden cursor-pointer active:scale-95 transition-transform group"
+            onClick={navigateToCredits}
         >
-            <div className="absolute inset-0 bg-accent/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-            <MapPin className="text-accent mb-2 relative z-10" size={24} />
-            <span className="text-2xl font-bold relative z-10">{uniqueParks}</span>
-            <span className="text-xs text-slate-400 relative z-10 group-hover:text-white transition-colors">Parks Visited</span>
+            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                <Trophy size={80} />
+            </div>
+            <div className="relative z-10">
+                <h2 className="text-slate-400 text-xs font-bold uppercase tracking-wider">Total Credits</h2>
+                <div className="text-4xl font-bold text-white mt-1 tracking-tighter">
+                    {totalCredits}
+                </div>
+                <p className="text-primary mt-1 text-xs font-bold flex items-center gap-1">
+                    View Log <Trophy size={10} />
+                </p>
+            </div>
         </div>
-        
-        {/* Bucket List Link - Secondary Count */}
+
+        {/* Bucket List Link */}
         <div 
-            className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-slate-750 hover:border-amber-500/50 transition relative overflow-hidden group" 
+            className="bg-slate-800 rounded-2xl p-5 shadow-lg border border-slate-700 relative overflow-hidden cursor-pointer active:scale-95 transition-transform group" 
             onClick={navigateToWishlist}
         >
-            <div className="absolute inset-0 bg-amber-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-            <ClipboardList className="text-amber-500 mb-2 relative z-10" size={24} />
-            <span className="text-2xl font-bold relative z-10 text-white group-hover:text-amber-500 transition-colors">{userWishlist.length}</span>
-            <span className="text-xs text-slate-400 relative z-10">Bucket List</span>
+            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                <ClipboardList size={80} className="text-amber-500" />
+            </div>
+            <div className="relative z-10">
+                 <h2 className="text-slate-400 text-xs font-bold uppercase tracking-wider">Bucket List</h2>
+                 <div className="text-4xl font-bold text-white mt-1 tracking-tighter">
+                    {userWishlist.length}
+                </div>
+                <p className="text-amber-500 mt-1 text-xs font-bold flex items-center gap-1">
+                    View List <ClipboardList size={10} />
+                </p>
+            </div>
         </div>
       </div>
 
-      {/* Chart */}
+      {/* Dynamic Chart Panel */}
       {totalCredits > 0 ? (
-        <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700">
-            <h3 className="text-lg font-semibold mb-4">Coaster Types</h3>
-            <div className="h-48 w-full">
+        <div className="bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-xl">
+            <div className="mb-4">
+                <div className="flex justify-between items-start mb-3">
+                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                        Statistics 
+                        <span className="text-xs font-normal text-slate-500 bg-slate-900 px-2 py-0.5 rounded-md">
+                            {chartMetric === 'PARK' ? 'By Park' : 
+                            chartMetric === 'TYPE' ? 'By Type' : 
+                            chartMetric === 'MANUFACTURER' ? 'By Manufacturer' : 
+                            chartMetric === 'COUNTRY' ? 'By Country' : 'By Year'}
+                        </span>
+                    </h3>
+                    
+                    {/* World Map Link - Restoring access to ParkStats in a cleaner way */}
+                    <button 
+                        onClick={() => changeView('PARK_STATS')}
+                        className="bg-slate-700 hover:bg-slate-600 text-white p-2 rounded-lg transition-colors border border-slate-600"
+                        title="View World Map"
+                    >
+                        <Globe size={18} />
+                    </button>
+                </div>
+                
+                {/* Metric Toggles */}
+                <div className="flex flex-wrap gap-2">
+                    <MetricButton mode="PARK" label="Park" icon={Palmtree} />
+                    <MetricButton mode="TYPE" label="Type" icon={Layers} />
+                    <MetricButton mode="MANUFACTURER" label="Maker" icon={Factory} />
+                    <MetricButton mode="COUNTRY" label="Country" icon={Flag} />
+                    <MetricButton mode="YEAR" label="Year" icon={CalendarRange} />
+                </div>
+            </div>
+
+            <div className="h-56 w-full relative">
                 <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                         <Pie
-                            data={typeDistribution}
+                            data={chartData}
                             cx="50%"
                             cy="50%"
-                            innerRadius={50}
-                            outerRadius={80}
-                            paddingAngle={5}
+                            innerRadius={60}
+                            outerRadius={85}
+                            paddingAngle={4}
                             dataKey="value"
+                            stroke="none"
                         >
-                            {typeDistribution.map((entry, index) => (
+                            {chartData.map((entry, index) => (
                                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                             ))}
                         </Pie>
                         <Tooltip 
-                            contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', borderRadius: '8px' }}
-                            itemStyle={{ color: '#fff' }}
+                            contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px', padding: '8px 12px', fontSize: '12px' }}
+                            itemStyle={{ color: '#fff', fontWeight: 'bold' }}
+                            cursor={false}
                         />
                     </PieChart>
                 </ResponsiveContainer>
+                
+                {/* Center Stat */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="text-center">
+                        <div className="text-2xl font-bold text-white">{chartData.length}</div>
+                        <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Groups</div>
+                    </div>
+                </div>
             </div>
-            {/* Legend */}
-            <div className="flex flex-wrap gap-2 justify-center mt-2">
-                {typeDistribution.map((entry, index) => (
-                    <div key={entry.name} className="flex items-center text-xs text-slate-300">
-                        <div className="w-2 h-2 rounded-full mr-1" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
-                        {entry.name}
+
+            {/* Custom Legend */}
+            <div className="grid grid-cols-2 gap-2 mt-2">
+                {chartData.map((entry, index) => (
+                    <div key={entry.name} className="flex items-center justify-between text-xs bg-slate-900/50 p-2 rounded-lg border border-slate-700/50">
+                        <div className="flex items-center gap-2 truncate pr-2">
+                            <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
+                            <span className="text-slate-300 truncate font-medium">{entry.name}</span>
+                        </div>
+                        <span className="font-bold text-white">{entry.value}</span>
                     </div>
                 ))}
             </div>
@@ -164,23 +236,32 @@ const Dashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Recent Activity - Now Clickable to Edit */}
+      {/* Recent Activity */}
       {recentCoaster && (
         <div 
             onClick={handleLastRiddenClick}
-            className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex gap-4 items-center cursor-pointer hover:bg-slate-750 hover:border-slate-500 transition-colors group"
+            className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex gap-4 items-center cursor-pointer hover:bg-slate-750 hover:border-slate-500 transition-colors group relative overflow-hidden"
         >
+            {/* Background Decoration */}
+            <div className="absolute right-0 bottom-0 opacity-5 transform translate-x-4 translate-y-4">
+                 <Trophy size={100} />
+            </div>
+
             {recentCoaster.imageUrl ? (
-                <img src={recentCoaster.imageUrl} alt={recentCoaster.name} className="w-16 h-16 rounded-lg object-cover" />
+                <div className="w-16 h-16 rounded-lg overflow-hidden shrink-0 shadow-md">
+                     <img src={recentCoaster.imageUrl} alt={recentCoaster.name} className="w-full h-full object-cover" />
+                </div>
             ) : (
-                <div className="w-16 h-16 rounded-lg bg-slate-700 flex items-center justify-center">
+                <div className="w-16 h-16 rounded-lg bg-slate-700 flex items-center justify-center shrink-0">
                     <Trophy size={24} className="text-slate-500" />
                 </div>
             )}
-            <div>
-                <div className="text-xs text-slate-400 uppercase font-semibold group-hover:text-primary transition-colors">Last Ridden (Tap to Edit)</div>
-                <div className="font-bold text-lg">{recentCoaster.name}</div>
-                <div className="text-sm text-slate-400">{recentCoaster.park}</div>
+            <div className="relative z-10 min-w-0">
+                <div className="text-[10px] text-primary uppercase font-bold tracking-wide mb-0.5 flex items-center gap-1">
+                    Last Ridden <Edit2 size={8}/>
+                </div>
+                <div className="font-bold text-lg text-white truncate">{recentCoaster.name}</div>
+                <div className="text-xs text-slate-400 truncate">{recentCoaster.park}</div>
             </div>
         </div>
       )}
