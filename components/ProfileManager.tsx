@@ -18,6 +18,9 @@ const ProfileManager: React.FC = () => {
   const [generatedIconUrl, setGeneratedIconUrl] = useState<string | null>(null);
   const [isGeneratingIcon, setIsGeneratingIcon] = useState(false);
 
+  // Default Icon SVG Data URI (Matches index.html)
+  const defaultIconSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512' style='background-color:%230f172a'%3E%3Crect width='512' height='512' fill='%230f172a'/%3E%3Cpath d='M40 400 Q 256 50 472 400' fill='none' stroke='%231e293b' stroke-width='40' stroke-linecap='round'/%3E%3Cpath d='M156 120 C 140 350 256 480 256 480 C 256 480 372 350 356 120 Q 256 60 156 120 Z' fill='%230ea5e9'/%3E%3Cellipse cx='205' cy='200' rx='35' ry='25' fill='%23f8fafc'/%3E%3Cellipse cx='307' cy='200' rx='35' ry='25' fill='%23f8fafc'/%3E%3Ccircle cx='205' cy='200' r='12' fill='%230f172a'/%3E%3Ccircle cx='307' cy='200' r='12' fill='%230f172a'/%3E%3Cpath d='M240 280 L 256 250 L 272 280 L 256 380 Z' fill='%23f43f5e'/%3E%3Cpath d='M220 120 L 256 80 L 292 120' fill='none' stroke='%23f43f5e' stroke-width='15'/%3E%3C/svg%3E";
+
   useEffect(() => {
     setCurrentUrl(window.location.href);
   }, []);
@@ -238,12 +241,12 @@ const ProfileManager: React.FC = () => {
       <div className="border-t border-slate-800 pt-8">
         <div className="flex items-center gap-2 mb-4 text-white">
             <PaintBucket className="text-accent" size={24} />
-            <h2 className="text-xl font-bold">App Icon Generator</h2>
+            <h2 className="text-xl font-bold">Icon Generator</h2>
         </div>
         
         <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700 shadow-xl space-y-4">
             <p className="text-sm text-slate-400">
-               Generate a unique, funny icon for your app using Gemini AI!
+               Want a different icon? Generate a unique one using Gemini AI!
             </p>
 
             <div className="space-y-3">
@@ -261,7 +264,7 @@ const ProfileManager: React.FC = () => {
                 className="w-full bg-accent hover:bg-violet-600 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
               >
                 {isGeneratingIcon ? <Loader2 className="animate-spin" size={18}/> : <Sparkles size={18} />}
-                {isGeneratingIcon ? "Creating Magic..." : "Generate Luchador Icon"}
+                {isGeneratingIcon ? "Creating Magic..." : "Generate Custom Icon"}
               </button>
             </div>
 
@@ -272,50 +275,8 @@ const ProfileManager: React.FC = () => {
                 </p>
                 <img src={generatedIconUrl} alt="Generated Icon" className="w-32 h-32 rounded-2xl shadow-lg mb-3 bg-white object-cover" />
                 <p className="text-center text-xs text-slate-400 mb-4">
-                  Long press or right-click the image above to save it to your Photos.
+                  Long press or right-click to save image. Use a Shortcut app to set as icon.
                 </p>
-
-                {/* Instructions Box */}
-                <div className="w-full bg-slate-800 p-4 rounded-xl border border-slate-700 text-left">
-                  <h4 className="font-bold text-white text-sm mb-3 flex items-center gap-2">
-                    <Smartphone size={16} />
-                    How to set as App Icon
-                  </h4>
-                  
-                  <div className="space-y-4 text-xs text-slate-400">
-                    <div>
-                      <span className="text-white font-semibold block mb-2 flex items-center gap-1">
-                        Apple iOS (iPhone/iPad)
-                      </span>
-                      <ol className="list-decimal pl-4 space-y-2">
-                        <li>Open the <strong>Shortcuts</strong> app and tap <strong>+</strong>.</li>
-                        <li>Add action <strong>Open URL</strong> and paste the link below.</li>
-                        <li>Tap the top arrow/share icon → <strong>Add to Home Screen</strong>.</li>
-                        <li>Tap the small icon placeholder next to the name → <strong>Choose Photo</strong> and select your saved Luchador image!</li>
-                      </ol>
-                      
-                      <div className="flex items-center gap-2 mt-2">
-                        <input 
-                          readOnly 
-                          value={currentUrl} 
-                          className="bg-slate-900 border border-slate-600 rounded px-2 py-1 flex-1 text-slate-500 font-mono text-[10px]"
-                        />
-                        <button 
-                          onClick={() => navigator.clipboard.writeText(currentUrl)}
-                          className="bg-slate-700 hover:bg-slate-600 text-white p-1.5 rounded"
-                          title="Copy Link"
-                        >
-                          <Copy size={14} />
-                        </button>
-                      </div>
-                    </div>
-                    
-                    <div className="border-t border-slate-700/50 pt-3">
-                       <span className="text-white font-semibold block mb-1">Android</span>
-                       <p>Use a launcher that supports icon editing (like Nova Launcher) or download an app like <strong>"Shortcut Maker"</strong> from the Play Store to create a custom home screen shortcut using your saved image.</p>
-                    </div>
-                  </div>
-                </div>
               </div>
             )}
         </div>
@@ -364,14 +325,23 @@ const ProfileManager: React.FC = () => {
         </div>
       </div>
 
-      {/* Mobile Install Section */}
+      {/* Install App & Icon Section */}
       <div className="border-t border-slate-800 pt-8">
         <div className="flex items-center gap-2 mb-4 text-white">
             <Smartphone className="text-primary" size={24} />
-            <h2 className="text-xl font-bold">Get Mobile App</h2>
+            <h2 className="text-xl font-bold">Install App & Get Icon</h2>
         </div>
 
         <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700 shadow-xl">
+            {/* Icon Preview */}
+            <div className="flex items-center gap-4 mb-6 bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
+                <img src={defaultIconSvg} alt="App Icon" className="w-16 h-16 rounded-xl shadow-lg bg-slate-950" />
+                <div>
+                    <h3 className="font-bold text-white">Get the Luchador Icon</h3>
+                    <p className="text-xs text-slate-400 mt-1">Add to home screen to get this icon and fullscreen mode.</p>
+                </div>
+            </div>
+
             <div className="flex flex-col md:flex-row gap-8 items-center">
                 {/* QR Code */}
                 <div className="bg-white p-3 rounded-xl shadow-lg flex-none">
@@ -392,7 +362,7 @@ const ProfileManager: React.FC = () => {
                             1. Scan with Phone
                         </h3>
                         <p className="text-sm text-slate-400">
-                            Open your phone's camera and scan the QR code to open CoasterCount Pro on your device.
+                            Open your phone's camera and scan the QR code to open CoasterCount Pro.
                         </p>
                     </div>
 
