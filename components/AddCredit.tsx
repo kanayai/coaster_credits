@@ -26,9 +26,6 @@ const AddCredit: React.FC = () => {
   const [restraints, setRestraints] = useState('');
   const [photo, setPhoto] = useState<File | undefined>(undefined);
   
-  // Submission Action State
-  const [nextAction, setNextAction] = useState<'SEARCH' | 'PARK'>('SEARCH');
-
   const filteredCoasters = useMemo(() => {
     let result = coasters;
     
@@ -86,13 +83,12 @@ const AddCredit: React.FC = () => {
       }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const processLog = (filterByPark: boolean) => {
     if (selectedCoaster) {
         addCredit(selectedCoaster.id, date, notes, restraints, photo);
         
         // Handle post-submit navigation
-        if (nextAction === 'PARK') {
+        if (filterByPark) {
             setSearchTerm(selectedCoaster.park);
         }
 
@@ -224,7 +220,7 @@ const AddCredit: React.FC = () => {
                       <h3 className="font-bold text-lg">Record New Ride</h3>
                   </div>
 
-                  <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="space-y-4">
                       <div>
                           <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Date Ridden</label>
                           <input 
@@ -278,18 +274,18 @@ const AddCredit: React.FC = () => {
                           />
                       </div>
 
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 pt-2">
                           <button 
-                              type="submit"
-                              onClick={() => setNextAction('SEARCH')}
+                              type="button"
+                              onClick={() => processLog(false)}
                               className="flex-1 bg-primary hover:bg-primary-hover text-white font-bold py-3.5 rounded-xl shadow-lg shadow-primary/25 transform transition active:scale-[0.98] flex items-center justify-center gap-2 text-sm sm:text-base"
                           >
                               <Plus size={20} strokeWidth={3} />
                               Log Ride
                           </button>
                           <button 
-                              type="submit"
-                              onClick={() => setNextAction('PARK')}
+                              type="button"
+                              onClick={() => processLog(true)}
                               className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-bold py-3.5 rounded-xl shadow-lg border border-slate-600 transform transition active:scale-[0.98] flex items-center justify-center gap-2 text-sm sm:text-base"
                               title="Log ride and see all coasters in this park"
                           >
@@ -297,7 +293,7 @@ const AddCredit: React.FC = () => {
                               Log & View Park
                           </button>
                       </div>
-                  </form>
+                  </div>
               </div>
 
               {/* Ride History Section */}
@@ -454,24 +450,28 @@ const AddCredit: React.FC = () => {
                                     <h3 className="font-bold text-slate-200 text-sm truncate pr-1 leading-tight group-hover:text-primary transition-colors">{coaster.name}</h3>
                                 </div>
                                 <div className="text-[10px] text-slate-500 leading-tight">
-                                    <button 
-                                        onClick={(e) => handleParkFilter(coaster.park, e)}
-                                        className="truncate block font-medium text-slate-400 hover:text-primary hover:underline transition-all flex items-center gap-1 mb-0.5"
-                                    >
-                                        <MapPin size={10} /> {coaster.park}
-                                    </button>
+                                    <span className="truncate block font-medium text-slate-400 mb-0.5">{coaster.park}</span>
                                     <span className="truncate block opacity-70">{coaster.manufacturer} • {coaster.type}</span>
                                 </div>
                             </div>
 
                             {/* Actions - Vertical on the right */}
                             <div className="flex items-center px-1 gap-1 border-l border-slate-700/50 bg-slate-900/20 shrink-0">
+                                {/* Park Filter Button */}
+                                <button
+                                    onClick={(e) => handleParkFilter(coaster.park, e)}
+                                    className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:text-white hover:bg-slate-700 transition-colors"
+                                    title={`View all at ${coaster.park}`}
+                                >
+                                    <Palmtree size={16} />
+                                </button>
+                                
                                 {/* Wishlist Button */}
                                 <button 
                                     onClick={(e) => handleToggleWishlist(e, coaster)}
                                     disabled={alreadyRidden}
                                     className={clsx(
-                                        "w-9 h-9 flex items-center justify-center rounded-lg transition-colors",
+                                        "w-8 h-8 flex items-center justify-center rounded-lg transition-colors",
                                         inBucketList 
                                             ? "text-amber-500 bg-amber-500/10" 
                                             : "text-slate-500 hover:bg-slate-700/50 hover:text-slate-300",
@@ -479,15 +479,15 @@ const AddCredit: React.FC = () => {
                                     )}
                                     title={inBucketList ? "Remove from Bucket List" : "Add to Bucket List"}
                                 >
-                                    {inBucketList ? <BookmarkCheck size={18} /> : <Bookmark size={18} />}
+                                    {inBucketList ? <BookmarkCheck size={16} /> : <Bookmark size={16} />}
                                 </button>
 
-                                {/* Log Button - Just visual mostly since clicking card does it too, but nice to have target */}
+                                {/* Log Button */}
                                 <button
-                                    className="w-9 h-9 flex items-center justify-center rounded-lg text-primary hover:bg-primary/10 transition-colors"
+                                    className="w-8 h-8 flex items-center justify-center rounded-lg text-primary hover:bg-primary/10 transition-colors"
                                     title="Log Ride"
                                 >
-                                    <PlusCircle size={22} strokeWidth={2.5} />
+                                    <PlusCircle size={20} strokeWidth={2.5} />
                                 </button>
                             </div>
                         </div>
