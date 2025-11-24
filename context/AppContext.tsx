@@ -51,6 +51,9 @@ interface AppContextType {
   enrichDatabaseImages: () => Promise<void>;
   updateCoasterImage: (coasterId: string, imageUrl: string) => void;
   autoFetchCoasterImage: (coasterId: string) => Promise<string | null>;
+
+  // Import
+  importData: (jsonData: any) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -323,6 +326,49 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
   };
 
+  const importData = (jsonData: any) => {
+      try {
+          // 1. Import Coasters (preserve custom ones)
+          if (jsonData.coasters && Array.isArray(jsonData.coasters)) {
+              setCoasters(prev => {
+                  const existingIds = new Set(prev.map(c => c.id));
+                  const newCoasters = jsonData.coasters.filter((c: Coaster) => !existingIds.has(c.id));
+                  return [...prev, ...newCoasters];
+              });
+          }
+
+          // 2. Import Credits
+          // We import credits and assign them to the CURRENT ACTIVE USER to make it useful for moving data
+          if (jsonData.credits && Array.isArray(jsonData.credits)) {
+              setCredits(prev => {
+                  const existingIds = new Set(prev.map(c => c.id));
+                  const toAdd = jsonData.credits
+                    .filter((c: Credit) => !existingIds.has(c.id))
+                    .map((c: Credit) => ({...c, userId: activeUser.id})); // Remap to current user
+                  
+                  return [...prev, ...toAdd];
+              });
+          }
+
+          // 3. Import Wishlist
+          if (jsonData.wishlist && Array.isArray(jsonData.wishlist)) {
+              setWishlist(prev => {
+                  const existingIds = new Set(prev.map(w => w.id));
+                  const toAdd = jsonData.wishlist
+                    .filter((w: WishlistEntry) => !existingIds.has(w.id))
+                    .map((w: WishlistEntry) => ({...w, userId: activeUser.id})); // Remap to current user
+
+                  return [...prev, ...toAdd];
+              });
+          }
+          
+          showNotification("Database imported successfully!", 'success');
+      } catch (e) {
+          console.error(e);
+          showNotification("Failed to import data. Invalid format.", 'error');
+      }
+  };
+
   return (
     <AppContext.Provider value={{
       activeUser,
@@ -353,7 +399,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setLastSearchQuery,
       enrichDatabaseImages,
       updateCoasterImage,
-      autoFetchCoasterImage
+      autoFetchCoasterImage,
+      importData
     }}>
       {children}
     </AppContext.Provider>

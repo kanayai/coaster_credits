@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { UserPlus, CheckCircle2, Smartphone, Share2, QrCode, Edit2, Save, X, FileSpreadsheet, Database, Download, Cloud, PaintBucket, Sparkles, Loader2, Copy, ExternalLink, Camera, ImageDown } from 'lucide-react';
+import { UserPlus, CheckCircle2, Smartphone, Share2, QrCode, Edit2, Save, X, FileSpreadsheet, Database, Download, Cloud, PaintBucket, Sparkles, Loader2, Copy, ExternalLink, Camera, ImageDown, Upload } from 'lucide-react';
 import { User } from '../types';
 
 const ProfileManager: React.FC = () => {
-  const { users, activeUser, switchUser, addUser, updateUser, credits, wishlist, coasters, generateIcon, enrichDatabaseImages } = useAppContext();
+  const { users, activeUser, switchUser, addUser, updateUser, credits, wishlist, coasters, generateIcon, enrichDatabaseImages, importData } = useAppContext();
   const [isAdding, setIsAdding] = useState(false);
   const [newUserName, setNewUserName] = useState('');
   const [newUserPhoto, setNewUserPhoto] = useState<File | undefined>(undefined);
@@ -120,8 +120,9 @@ const ProfileManager: React.FC = () => {
       user: activeUser,
       credits: credits.filter(c => c.userId === activeUser.id),
       wishlist: wishlist.filter(w => w.userId === activeUser.id),
+      coasters: coasters, // Export complete coaster DB to preserve custom ones
       exportDate: new Date().toISOString(),
-      appVersion: '1.1.0'
+      appVersion: '1.2.0'
     };
     
     const jsonContent = JSON.stringify(data, null, 2);
@@ -133,6 +134,26 @@ const ProfileManager: React.FC = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleImportJSON = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+          try {
+              const json = JSON.parse(e.target?.result as string);
+              if (window.confirm("This will import credits, wishlist items, and custom coasters into your current profile. Continue?")) {
+                  importData(json);
+              }
+          } catch (err) {
+              alert("Invalid JSON file.");
+          }
+      };
+      reader.readAsText(file);
+      // Reset input
+      e.target.value = '';
   };
 
   return (
@@ -407,6 +428,29 @@ const ProfileManager: React.FC = () => {
                         <div className="text-[10px] text-slate-400">JSON Format</div>
                     </div>
                 </button>
+                
+                {/* Import Button */}
+                <div className="sm:col-span-2 relative">
+                    <input 
+                        type="file" 
+                        accept=".json" 
+                        id="import-json" 
+                        className="hidden"
+                        onChange={handleImportJSON}
+                    />
+                    <label 
+                        htmlFor="import-json"
+                        className="flex items-center justify-center gap-3 p-4 bg-slate-900 border border-slate-600 border-dashed rounded-xl hover:bg-slate-800 hover:border-slate-400 transition group cursor-pointer"
+                    >
+                         <div className="bg-amber-500/10 p-2 rounded-lg group-hover:bg-amber-500/20">
+                            <Upload className="text-amber-500" size={24} />
+                        </div>
+                        <div className="text-left">
+                            <div className="font-bold text-white text-sm">Import Database</div>
+                            <div className="text-[10px] text-slate-400">Restore from JSON Backup</div>
+                        </div>
+                    </label>
+                </div>
             </div>
         </div>
       </div>
@@ -478,7 +522,7 @@ const ProfileManager: React.FC = () => {
       </div>
       
       <div className="p-4 rounded-xl text-xs text-slate-600 text-center">
-          <p>CoasterCount Pro v1.1.0</p>
+          <p>CoasterCount Pro v1.2.0</p>
           <p>Built for Enthusiasts</p>
       </div>
     </div>
