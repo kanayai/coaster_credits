@@ -1,5 +1,5 @@
 {
-  "name": "CoasterTally",
+  "name": "CoasterCount Pro",
   "description": "The ultimate companion for roller coaster enthusiasts to track credits, manage family profiles, and discover new rides.",
   "requestFramePermissions": [
     "camera"
