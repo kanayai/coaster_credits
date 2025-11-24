@@ -86,7 +86,7 @@ const ParkStats: React.FC = () => {
   return (
     <div className="animate-fade-in h-full flex flex-col space-y-4 pb-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-none">
         <div className="flex items-center gap-3">
             <button 
               onClick={() => changeView('DASHBOARD')}
@@ -101,29 +101,29 @@ const ParkStats: React.FC = () => {
             <button
                 onClick={() => setViewMode('LIST')}
                 className={clsx(
-                    "p-2 rounded-lg transition-colors flex items-center gap-2",
+                    "p-2 px-3 rounded-lg transition-colors flex items-center gap-2",
                     viewMode === 'LIST' ? "bg-slate-700 text-white shadow-sm" : "text-slate-400 hover:text-slate-200"
                 )}
             >
                 <List size={18} />
-                <span className="text-xs font-bold hidden sm:inline">List</span>
+                <span className="text-xs font-bold">List</span>
             </button>
             <button
                 onClick={() => setViewMode('MAP')}
                 className={clsx(
-                    "p-2 rounded-lg transition-colors flex items-center gap-2",
+                    "p-2 px-3 rounded-lg transition-colors flex items-center gap-2",
                     viewMode === 'MAP' ? "bg-primary text-white shadow-sm" : "text-slate-400 hover:text-slate-200"
                 )}
             >
                 <Globe size={18} />
-                <span className="text-xs font-bold hidden sm:inline">Map</span>
+                <span className="text-xs font-bold">Map</span>
             </button>
         </div>
       </div>
 
       {viewMode === 'LIST' ? (
-          <div className="flex-1 overflow-y-auto space-y-3">
-              <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+              <div className="grid grid-cols-2 gap-3 mb-4 flex-none">
                   <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
                       <div className="text-3xl font-bold text-white mb-1">{stats.parks.length}</div>
                       <div className="text-xs text-slate-400 uppercase font-bold">Total Parks</div>
@@ -170,6 +170,7 @@ const ParkStats: React.FC = () => {
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
                 onMouseLeave={handleMouseUp}
+                style={{ touchAction: 'none' }}
               >
                   <div 
                     style={{ 
