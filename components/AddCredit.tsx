@@ -135,17 +135,36 @@ const AddCredit: React.FC = () => {
       // Step 2: Log Details View
       return (
           <div className="animate-fade-in space-y-4 pb-12">
-              <button onClick={() => setSelectedCoaster(null)} className="text-sm text-slate-400 hover:text-white flex items-center gap-1">
+              <button onClick={() => setSelectedCoaster(null)} className="text-sm text-slate-400 hover:text-white flex items-center gap-1 mb-2">
                   <X size={16} /> Back to Search
               </button>
               
-              {/* Header Info */}
-              <div className="space-y-1">
-                  <h2 className="text-3xl font-bold text-white">{selectedCoaster.name}</h2>
-                  <div className="flex items-center gap-2 text-slate-400">
-                    <span className="font-medium text-lg">{selectedCoaster.park}</span>
+              {/* Hero Image */}
+              {selectedCoaster.imageUrl && (
+                  <div className="w-full h-48 rounded-2xl overflow-hidden shadow-lg border border-slate-700 relative">
+                      <img src={selectedCoaster.imageUrl} alt={selectedCoaster.name} className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 to-transparent" />
+                      <div className="absolute bottom-3 left-4 right-4">
+                         <h2 className="text-3xl font-bold text-white leading-none shadow-black drop-shadow-md">{selectedCoaster.name}</h2>
+                         <div className="text-slate-200 font-medium drop-shadow-md">{selectedCoaster.park}</div>
+                      </div>
                   </div>
-                  <div className="text-sm text-slate-500">{selectedCoaster.country} • {selectedCoaster.manufacturer}</div>
+              )}
+
+              {/* Header Info (if no image, or supplementary) */}
+              {!selectedCoaster.imageUrl && (
+                  <div className="space-y-1">
+                      <h2 className="text-3xl font-bold text-white">{selectedCoaster.name}</h2>
+                      <div className="flex items-center gap-2 text-slate-400">
+                        <span className="font-medium text-lg">{selectedCoaster.park}</span>
+                      </div>
+                  </div>
+              )}
+              
+              <div className="text-sm text-slate-500 bg-slate-800/50 p-3 rounded-xl border border-slate-700/50 flex justify-between">
+                  <span>{selectedCoaster.country}</span>
+                  <span>{selectedCoaster.manufacturer}</span>
+                  <span>{selectedCoaster.type}</span>
               </div>
 
               {/* Bucket List Action Section */}
@@ -376,16 +395,30 @@ const AddCredit: React.FC = () => {
                             key={coaster.id}
                             className="bg-slate-800/50 rounded-xl border border-slate-700/50 flex flex-col group relative hover:border-slate-600 transition-colors overflow-hidden"
                         >
-                            <div className="p-3 flex items-start justify-between">
-                                {/* Name and Park Info */}
-                                <div className="min-w-0 pr-2">
-                                    <div className="flex items-center gap-2">
-                                        <h3 className="font-bold truncate text-slate-200">{coaster.name}</h3>
-                                        {alreadyRidden && <CheckCircle2 size={14} className="text-green-500 flex-shrink-0" />}
+                            <div className="flex">
+                                {/* Thumbnail Image */}
+                                {coaster.imageUrl && (
+                                    <div className="w-24 bg-slate-900 shrink-0 relative border-r border-slate-700/50">
+                                        <img src={coaster.imageUrl} alt={coaster.name} className="w-full h-full object-cover" />
+                                        {alreadyRidden && (
+                                            <div className="absolute top-1 right-1 bg-green-500 rounded-full p-0.5">
+                                                <Check size={10} className="text-white stroke-[3]" />
+                                            </div>
+                                        )}
                                     </div>
-                                    <div className="text-xs text-slate-500 mt-1 flex flex-col">
-                                        <span className="truncate">{coaster.park}, {coaster.country}</span>
-                                        <span className="opacity-70 mt-0.5">{coaster.manufacturer} • {coaster.type}</span>
+                                )}
+
+                                <div className="p-3 flex-1 flex flex-col justify-between min-w-0">
+                                    {/* Name and Park Info */}
+                                    <div className="min-w-0 pr-2">
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="font-bold truncate text-slate-200">{coaster.name}</h3>
+                                            {!coaster.imageUrl && alreadyRidden && <CheckCircle2 size={14} className="text-green-500 flex-shrink-0" />}
+                                        </div>
+                                        <div className="text-xs text-slate-500 mt-1 flex flex-col">
+                                            <span className="truncate">{coaster.park}, {coaster.country}</span>
+                                            <span className="opacity-70 mt-0.5">{coaster.manufacturer} • {coaster.type}</span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
