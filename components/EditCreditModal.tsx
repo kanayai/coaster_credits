@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { X, Camera, Save, Lock } from 'lucide-react';
+import { X, Camera, Save, Lock, Sparkles, Loader2 } from 'lucide-react';
 import { Credit, Coaster } from '../types';
 
 interface EditCreditModalProps {
@@ -11,17 +11,28 @@ interface EditCreditModalProps {
 }
 
 const EditCreditModal: React.FC<EditCreditModalProps> = ({ credit, coaster, onClose }) => {
-  const { updateCredit } = useAppContext();
+  const { updateCredit, autoFetchCoasterImage } = useAppContext();
   
   const [date, setDate] = useState(credit.date);
   const [notes, setNotes] = useState(credit.notes || '');
   const [restraints, setRestraints] = useState(credit.restraints || '');
   const [photo, setPhoto] = useState<File | undefined>(undefined);
+  const [isFetchingImage, setIsFetchingImage] = useState(false);
+  const [localCoasterImage, setLocalCoasterImage] = useState(coaster.imageUrl);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     updateCredit(credit.id, date, notes, restraints, photo);
     onClose();
+  };
+
+  const handleAutoFetch = async () => {
+      setIsFetchingImage(true);
+      const url = await autoFetchCoasterImage(coaster.id);
+      setIsFetchingImage(false);
+      if (url) {
+          setLocalCoasterImage(url);
+      }
   };
 
   return (
@@ -38,8 +49,13 @@ const EditCreditModal: React.FC<EditCreditModalProps> = ({ credit, coaster, onCl
         </div>
         
         <form onSubmit={handleSave} className="p-5 space-y-4">
-          <div className="text-sm font-medium text-primary mb-2">
-            {coaster.name} <span className="text-slate-500">at {coaster.park}</span>
+          <div className="flex items-center gap-3">
+             {localCoasterImage && (
+                 <img src={localCoasterImage} alt="Coaster" className="w-12 h-12 rounded-lg object-cover bg-slate-900 border border-slate-600" />
+             )}
+             <div className="text-sm font-medium text-primary mb-2">
+                {coaster.name} <span className="text-slate-500 block text-xs">at {coaster.park}</span>
+             </div>
           </div>
 
           <div>
@@ -53,21 +69,39 @@ const EditCreditModal: React.FC<EditCreditModalProps> = ({ credit, coaster, onCl
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Update Photo</label>
-            <div className="relative">
-              <input 
-                type="file"
-                accept="image/*"
-                onChange={(e) => setPhoto(e.target.files?.[0])}
-                className="hidden"
-                id="edit-photo-upload"
-              />
-              <label htmlFor="edit-photo-upload" className="w-full bg-slate-900 border border-slate-600 border-dashed rounded-xl p-3 flex items-center justify-center gap-2 cursor-pointer hover:bg-slate-900/80 transition-colors text-slate-400">
-                <Camera size={18} />
-                <span className="text-sm">{photo ? photo.name : "Change/Add Photo"}</span>
-              </label>
+          {/* Image Options Row */}
+          <div className="flex gap-2">
+            <div className="flex-1">
+                <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Your Photo</label>
+                <div className="relative">
+                <input 
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setPhoto(e.target.files?.[0])}
+                    className="hidden"
+                    id="edit-photo-upload"
+                />
+                <label htmlFor="edit-photo-upload" className="w-full bg-slate-900 border border-slate-600 border-dashed rounded-xl p-3 flex items-center justify-center gap-2 cursor-pointer hover:bg-slate-900/80 transition-colors text-slate-400">
+                    <Camera size={18} />
+                    <span className="text-xs sm:text-sm">{photo ? "Changed" : "Upload"}</span>
+                </label>
+                </div>
             </div>
+
+            {(!localCoasterImage || localCoasterImage.includes('picsum')) && (
+                 <div className="flex-1">
+                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Database Photo</label>
+                    <button 
+                        type="button"
+                        onClick={handleAutoFetch}
+                        disabled={isFetchingImage}
+                        className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 flex items-center justify-center gap-2 cursor-pointer hover:bg-slate-900/80 transition-colors text-pink-400 hover:text-pink-300"
+                    >
+                        {isFetchingImage ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
+                        <span className="text-xs sm:text-sm">Auto-Fetch</span>
+                    </button>
+                 </div>
+            )}
           </div>
           
           <div>

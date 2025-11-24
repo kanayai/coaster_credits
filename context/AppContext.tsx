@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { User, Coaster, Credit, ViewState, WishlistEntry } from '../types';
 import { INITIAL_COASTERS, INITIAL_USERS } from '../constants';
 import { generateCoasterInfo, generateAppIcon } from '../services/geminiService';
+import { fetchCoasterImageFromWiki } from '../services/wikipediaService';
 
 export interface Notification {
   id: string;
@@ -45,6 +46,11 @@ interface AppContextType {
   // Notification
   showNotification: (message: string, type?: 'success' | 'error' | 'info') => void;
   hideNotification: () => void;
+
+  // Image Actions
+  enrichDatabaseImages: () => Promise<void>;
+  updateCoasterImage: (coasterId: string, imageUrl: string) => void;
+  autoFetchCoasterImage: (coasterId: string) => Promise<string | null>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -246,7 +252,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const addNewCoaster = async (coasterData: Omit<Coaster, 'id'>): Promise<string> => {
     const newId = generateId('c');
-    const newCoaster: Coaster = { ...coasterData, id: newId };
+    
+    // Attempt to get a real image immediately upon creation if one wasn't provided or is a placeholder
+    let finalImageUrl = coasterData.imageUrl;
+    if (!finalImageUrl || finalImageUrl.includes('picsum')) {
+       const wikiImage = await fetchCoasterImageFromWiki(coasterData.name, coasterData.park);
+       if (wikiImage) finalImageUrl = wikiImage;
+    }
+
+    const newCoaster: Coaster = { ...coasterData, id: newId, imageUrl: finalImageUrl };
     setCoasters([...coasters, newCoaster]);
     showNotification("New Coaster Added to Database", 'success');
     return newId;
@@ -266,6 +280,48 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }
 
   const changeView = (view: ViewState) => setCurrentView(view);
+
+  const updateCoasterImage = (coasterId: string, imageUrl: string) => {
+     setCoasters(prev => prev.map(c => c.id === coasterId ? { ...c, imageUrl } : c));
+  };
+
+  const autoFetchCoasterImage = async (coasterId: string): Promise<string | null> => {
+      const coaster = coasters.find(c => c.id === coasterId);
+      if (!coaster) return null;
+      
+      const imageUrl = await fetchCoasterImageFromWiki(coaster.name, coaster.park);
+      if (imageUrl) {
+          updateCoasterImage(coasterId, imageUrl);
+          return imageUrl;
+      }
+      return null;
+  };
+
+  const enrichDatabaseImages = async () => {
+      let count = 0;
+      showNotification("Searching Wikipedia for photos...", 'info');
+      
+      // Filter coasters that have picsum placeholders or no image
+      const targets = coasters.filter(c => !c.imageUrl || c.imageUrl.includes('picsum'));
+      
+      // Process in batches to avoid rate limits
+      for (const coaster of targets) {
+          const imageUrl = await fetchCoasterImageFromWiki(coaster.name, coaster.park);
+          if (imageUrl) {
+              // Update state functionally to ensure we don't lose updates
+              setCoasters(prev => prev.map(c => c.id === coaster.id ? { ...c, imageUrl } : c));
+              count++;
+          }
+          // Small delay
+          await new Promise(r => setTimeout(r, 200));
+      }
+
+      if (count > 0) {
+          showNotification(`Updated ${count} coasters with real photos!`, 'success');
+      } else {
+          showNotification("No new photos found.", 'info');
+      }
+  };
 
   return (
     <AppContext.Provider value={{
@@ -294,7 +350,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       isInWishlist,
       showNotification,
       hideNotification,
-      setLastSearchQuery
+      setLastSearchQuery,
+      enrichDatabaseImages,
+      updateCoasterImage,
+      autoFetchCoasterImage
     }}>
       {children}
     </AppContext.Provider>

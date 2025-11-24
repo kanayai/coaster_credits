@@ -1,14 +1,15 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { UserPlus, CheckCircle2, Smartphone, Share2, QrCode, Edit2, Save, X, FileSpreadsheet, Database, Download, Cloud, PaintBucket, Sparkles, Loader2, Copy, ExternalLink, Camera } from 'lucide-react';
+import { UserPlus, CheckCircle2, Smartphone, Share2, QrCode, Edit2, Save, X, FileSpreadsheet, Database, Download, Cloud, PaintBucket, Sparkles, Loader2, Copy, ExternalLink, Camera, ImageDown } from 'lucide-react';
 import { User } from '../types';
 
 const ProfileManager: React.FC = () => {
-  const { users, activeUser, switchUser, addUser, updateUser, credits, wishlist, coasters, generateIcon } = useAppContext();
+  const { users, activeUser, switchUser, addUser, updateUser, credits, wishlist, coasters, generateIcon, enrichDatabaseImages } = useAppContext();
   const [isAdding, setIsAdding] = useState(false);
   const [newUserName, setNewUserName] = useState('');
   const [newUserPhoto, setNewUserPhoto] = useState<File | undefined>(undefined);
+  const [isEnriching, setIsEnriching] = useState(false);
 
   const [currentUrl, setCurrentUrl] = useState('');
   
@@ -67,6 +68,12 @@ const ProfileManager: React.FC = () => {
     if (url) {
       setGeneratedIconUrl(url);
     }
+  };
+
+  const handleEnrichImages = async () => {
+      setIsEnriching(true);
+      await enrichDatabaseImages();
+      setIsEnriching(false);
   };
 
   const handleExportCSV = () => {
@@ -289,6 +296,31 @@ const ProfileManager: React.FC = () => {
               </div>
           </form>
         )}
+      </div>
+
+      {/* Database Management / Image Enrichment */}
+      <div className="border-t border-slate-800 pt-8">
+        <div className="flex items-center gap-2 mb-4 text-white">
+            <ImageDown className="text-pink-500" size={24} />
+            <h2 className="text-xl font-bold">Database & Photos</h2>
+        </div>
+        
+        <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700 shadow-xl space-y-4">
+             <p className="text-sm text-slate-400">
+               Replace placeholder images with real photos from Wikipedia/Wikimedia Commons. 
+            </p>
+            <button 
+                onClick={handleEnrichImages}
+                disabled={isEnriching}
+                className="w-full bg-pink-600 hover:bg-pink-500 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-50 shadow-lg shadow-pink-500/20"
+            >
+                {isEnriching ? <Loader2 className="animate-spin" size={18}/> : <Sparkles size={18} />}
+                {isEnriching ? "Searching Wikipedia..." : "Fetch Real Coaster Photos"}
+            </button>
+            <p className="text-xs text-slate-500 text-center">
+                This will check all coasters with generic images and try to update them.
+            </p>
+        </div>
       </div>
 
       {/* App Icon Generator */}
