@@ -2,7 +2,7 @@
 import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
-import { Trophy, ClipboardList, Palmtree, Layers, Factory, Flag, CalendarRange, Edit2, Globe } from 'lucide-react';
+import { Trophy, ClipboardList, Palmtree, Layers, Factory, Flag, CalendarRange, Edit2, Globe, Hash } from 'lucide-react';
 import EditCreditModal from './EditCreditModal';
 import { Credit, Coaster } from '../types';
 import clsx from 'clsx';
@@ -29,13 +29,26 @@ const Dashboard: React.FC = () => {
     wishlist.filter(w => w.userId === activeUser.id),
   [wishlist, activeUser.id]);
 
-  const totalCredits = userCredits.length;
+  // Calculate Unique Credits vs Total Rides
+  const uniqueCreditsCount = useMemo(() => {
+    const uniqueIds = new Set(userCredits.map(c => c.coasterId));
+    return uniqueIds.size;
+  }, [userCredits]);
+
+  const totalRidesCount = userCredits.length;
 
   // Dynamic Stats Aggregation
   const chartData = useMemo(() => {
     const dist: Record<string, number> = {};
+    const processedCoasters = new Set<string>();
     
+    // We only count stats for UNIQUE credits (usually) or Total? 
+    // Usually credit counts are based on unique coasters.
     userCredits.forEach(credit => {
+      // Only count the first time we see this coaster for stats to match "Credit Count"
+      if (processedCoasters.has(credit.coasterId)) return;
+      processedCoasters.add(credit.coasterId);
+
       const coaster = coasters.find(c => c.id === credit.coasterId);
       if (coaster) {
         let key = 'Unknown';
@@ -50,11 +63,11 @@ const Dashboard: React.FC = () => {
       }
     });
 
-    // Convert to array, sort by value descending, and take top 8 (group others if needed, but simple top 8 is good for mobile)
+    // Convert to array, sort by value descending, and take top 8
     return Object.entries(dist)
         .map(([name, value]) => ({ name, value }))
         .sort((a, b) => b.value - a.value)
-        .slice(0, 8); // Limit slices for readability
+        .slice(0, 8);
   }, [userCredits, coasters, chartMetric]);
 
   // Extended Color Palette
@@ -114,11 +127,11 @@ const Dashboard: React.FC = () => {
             <div className="relative z-10">
                 <h2 className="text-slate-400 text-xs font-bold uppercase tracking-wider">Total Credits</h2>
                 <div className="text-4xl font-bold text-white mt-1 tracking-tighter">
-                    {totalCredits}
+                    {uniqueCreditsCount}
                 </div>
-                <p className="text-primary mt-1 text-xs font-bold flex items-center gap-1">
-                    View Log <Trophy size={10} />
-                </p>
+                <div className="flex items-center gap-1 mt-2 text-xs font-medium text-slate-500 bg-slate-900/50 w-fit px-2 py-1 rounded-md">
+                    <Hash size={10} /> {totalRidesCount} Total Rides
+                </div>
             </div>
         </div>
 
@@ -148,7 +161,7 @@ const Dashboard: React.FC = () => {
                 <div className="flex justify-between items-start mb-3">
                     <h3 className="text-lg font-bold text-white flex items-center gap-2">
                         Statistics 
-                        {totalCredits > 0 && (
+                        {uniqueCreditsCount > 0 && (
                             <span className="text-xs font-normal text-slate-500 bg-slate-900 px-2 py-0.5 rounded-md">
                                 {chartMetric === 'PARK' ? 'By Park' : 
                                 chartMetric === 'TYPE' ? 'By Type' : 
@@ -158,7 +171,7 @@ const Dashboard: React.FC = () => {
                         )}
                     </h3>
                     
-                    {/* World Map Link - Always visible to ensure navigation */}
+                    {/* World Map Link */}
                     <button 
                         onClick={() => changeView('PARK_STATS')}
                         className="bg-slate-700 hover:bg-slate-600 text-white p-2 rounded-lg transition-colors border border-slate-600 flex items-center gap-2"
@@ -179,7 +192,7 @@ const Dashboard: React.FC = () => {
                 </div>
             </div>
 
-            {totalCredits > 0 ? (
+            {uniqueCreditsCount > 0 ? (
                 <>
                     <div className="h-56 w-full relative">
                         <ResponsiveContainer width="100%" height="100%">

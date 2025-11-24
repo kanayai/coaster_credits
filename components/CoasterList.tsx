@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { Trash2, Calendar, MapPin, Tag, Palmtree, Flag, Layers, Factory, CalendarRange, CheckCircle2, Bookmark, ArrowRightCircle, PlusCircle, Edit2, ArrowLeft, ChevronRight, FolderOpen, Lock } from 'lucide-react';
+import { Trash2, Calendar, MapPin, Tag, Palmtree, Flag, Layers, Factory, CalendarRange, CheckCircle2, Bookmark, ArrowRightCircle, PlusCircle, Edit2, ArrowLeft, ChevronRight, FolderOpen, Lock, Repeat } from 'lucide-react';
 import clsx from 'clsx';
 import { Credit, Coaster } from '../types';
 import EditCreditModal from './EditCreditModal';
@@ -11,7 +11,6 @@ type GroupMode = 'PARK' | 'COUNTRY' | 'TYPE' | 'MANUFACTURER' | 'YEAR';
 const CoasterList: React.FC = () => {
   const { credits, wishlist, coasters, activeUser, deleteCredit, removeFromWishlist, changeView, coasterListViewMode, setCoasterListViewMode } = useAppContext();
   
-  // Set default to PARK as requested
   const [groupMode, setGroupMode] = useState<GroupMode>('PARK');
   const [selectedGroupTitle, setSelectedGroupTitle] = useState<string | null>(null);
 
@@ -20,13 +19,34 @@ const CoasterList: React.FC = () => {
 
   const itemsToDisplay = useMemo(() => {
     if (coasterListViewMode === 'CREDITS') {
-        return credits
+        const rawCredits = credits
             .filter(c => c.userId === activeUser.id)
-            .map(credit => {
-                const coaster = coasters.find(c => c.id === credit.coasterId);
-                return { ...credit, coaster, type: 'CREDIT' as const };
-            })
             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        
+        // Group by Coaster ID to combine duplicates
+        const groupedMap = new Map<string, any>();
+        
+        rawCredits.forEach(credit => {
+            const coaster = coasters.find(c => c.id === credit.coasterId);
+            if (!coaster) return;
+
+            if (groupedMap.has(credit.coasterId)) {
+                // Already have this coaster, update counts/dates if needed
+                const existing = groupedMap.get(credit.coasterId);
+                existing.totalRides = (existing.totalRides || 1) + 1;
+                // Since rawCredits is sorted descending by date, the first one we see is the most recent
+                // We keep the "main" entry as the most recent one.
+            } else {
+                groupedMap.set(credit.coasterId, {
+                    ...credit,
+                    coaster,
+                    type: 'CREDIT',
+                    totalRides: 1
+                });
+            }
+        });
+
+        return Array.from(groupedMap.values());
     } else {
         return wishlist
             .filter(w => w.userId === activeUser.id)
@@ -134,7 +154,7 @@ const CoasterList: React.FC = () => {
               <h2 className="text-2xl font-bold">Logbook</h2>
           </div>
 
-          {/* NOTORIOUS View Toggle */}
+          {/* View Toggle */}
           <div className="flex gap-3 mb-5">
               <button
                   onClick={() => { setCoasterListViewMode('CREDITS'); setSelectedGroupTitle(null); }}
@@ -148,7 +168,7 @@ const CoasterList: React.FC = () => {
                   <CheckCircle2 size={18} className={clsx(coasterListViewMode === 'CREDITS' ? "text-white" : "text-slate-500")} />
                   Ridden
                   <span className={clsx("ml-1 text-xs py-0.5 px-2 rounded-full", coasterListViewMode === 'CREDITS' ? "bg-white/20" : "bg-slate-800")}>
-                    {credits.filter(c => c.userId === activeUser.id).length}
+                    {itemsToDisplay.filter(i => i.type === 'CREDIT').length}
                   </span>
               </button>
               <button
@@ -168,7 +188,7 @@ const CoasterList: React.FC = () => {
               </button>
           </div>
           
-          {/* Filter Tabs - No 'Recent' option */}
+          {/* Filter Tabs */}
           <div className="flex gap-2 overflow-x-auto no-scrollbar mask-linear-fade pb-2">
             <ModeButton mode="PARK" icon={Palmtree} label="By Park" />
             <ModeButton mode="COUNTRY" icon={Flag} label="By Country" />
@@ -241,6 +261,7 @@ const CoasterList: React.FC = () => {
                         {itemsToShow.map((item) => {
                             if (!item.coaster) return null;
                             const isWishlist = item.type === 'WISHLIST';
+                            const rideCount = (item as any).totalRides || 1;
                             
                             return (
                                 <div key={item.id} className={clsx(
@@ -277,7 +298,14 @@ const CoasterList: React.FC = () => {
                                         <div className="space-y-2">
                                             <div className="flex justify-between items-start gap-4">
                                                 <div className="min-w-0">
-                                                    <h3 className="text-lg font-bold text-white truncate leading-tight">{item.coaster.name}</h3>
+                                                    <h3 className="text-lg font-bold text-white truncate leading-tight flex items-center gap-2">
+                                                        {item.coaster.name}
+                                                        {item.type === 'CREDIT' && rideCount > 1 && (
+                                                            <span className="bg-primary/20 text-primary px-1.5 py-0.5 rounded text-[10px] font-bold border border-primary/30 flex items-center gap-0.5">
+                                                                <Repeat size={8} /> {rideCount}
+                                                            </span>
+                                                        )}
+                                                    </h3>
                                                     
                                                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-400 mt-1">
                                                         <div className="flex items-center">
@@ -313,10 +341,18 @@ const CoasterList: React.FC = () => {
                                                             if (isWishlist) {
                                                                 if(window.confirm('Remove from bucket list?')) removeFromWishlist(item.coasterId);
                                                             } else {
-                                                                if(window.confirm('Delete this credit?')) deleteCredit(item.id);
+                                                                // If multiple rides, confirm if deleting ALL or suggest managing via details
+                                                                if (rideCount > 1) {
+                                                                    alert("This card represents multiple rides. To delete a specific ride, go to Add > Search for this coaster > View History.");
+                                                                } else {
+                                                                    if(window.confirm('Delete this credit?')) deleteCredit(item.id);
+                                                                }
                                                             }
                                                         }}
-                                                        className="text-slate-500 hover:text-red-400 p-2 rounded-full hover:bg-red-500/10 transition-colors"
+                                                        className={clsx(
+                                                            "text-slate-500 hover:text-red-400 p-2 rounded-full hover:bg-red-500/10 transition-colors",
+                                                            item.type === 'CREDIT' && rideCount > 1 && "opacity-50"
+                                                        )}
                                                         title="Delete"
                                                     >
                                                         <Trash2 size={18} />
