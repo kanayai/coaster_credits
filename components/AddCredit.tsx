@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Coaster, CoasterType } from '../types';
-import { Search, Plus, Calendar, Camera, Sparkles, Loader2, Filter, Bookmark, CheckCircle2, BookmarkCheck, Check, X, History, Trash2, ArrowRight, Lock, PlusCircle, Palmtree, MapPin } from 'lucide-react';
+import { Search, Plus, Calendar, Camera, Sparkles, Loader2, Filter, Bookmark, CheckCircle2, BookmarkCheck, Check, X, History, Trash2, ArrowRight, Lock, PlusCircle, Palmtree, MapPin, ArrowLeft } from 'lucide-react';
 import clsx from 'clsx';
 
 const AddCredit: React.FC = () => {
@@ -25,6 +25,14 @@ const AddCredit: React.FC = () => {
   const [notes, setNotes] = useState('');
   const [restraints, setRestraints] = useState('');
   const [photo, setPhoto] = useState<File | undefined>(undefined);
+  
+  // Check if the current search looks like a park filter (exact match on a park name)
+  const activeParkFilter = useMemo(() => {
+      if (!searchTerm) return null;
+      // Simple heuristic: if the search term matches a known park name exactly (case insensitive)
+      const exactParkMatch = coasters.find(c => c.park.toLowerCase() === searchTerm.toLowerCase());
+      return exactParkMatch ? exactParkMatch.park : null;
+  }, [searchTerm, coasters]);
   
   const filteredCoasters = useMemo(() => {
     let result = coasters;
@@ -131,6 +139,10 @@ const AddCredit: React.FC = () => {
       setSelectedCoaster(null); // Go back to list view
   };
 
+  const clearSearch = () => {
+      setSearchTerm('');
+  };
+
   // Check if current selected coaster is ridden and get history
   const existingCredits = useMemo(() => {
       if (!selectedCoaster) return [];
@@ -145,189 +157,194 @@ const AddCredit: React.FC = () => {
   if (selectedCoaster) {
       // Step 2: Log Details View
       return (
-          <div className="animate-fade-in space-y-4 pb-12">
-              <div className="flex justify-between items-center mb-2">
-                <button onClick={() => setSelectedCoaster(null)} className="text-sm text-slate-400 hover:text-white flex items-center gap-1">
-                    <X size={16} /> Back to Search
-                </button>
-                <button 
-                    onClick={() => handleParkFilter(selectedCoaster.park)}
-                    className="text-xs bg-slate-800 hover:bg-slate-700 text-primary px-3 py-1.5 rounded-full border border-slate-700 flex items-center gap-1 transition-colors"
-                >
-                    <Palmtree size={12} />
-                    View all at {selectedCoaster.park}
-                </button>
-              </div>
-              
-              {/* Hero Image */}
-              {selectedCoaster.imageUrl && (
-                  <div className="w-full h-48 rounded-2xl overflow-hidden shadow-lg border border-slate-700 relative">
-                      <img src={selectedCoaster.imageUrl} alt={selectedCoaster.name} className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 to-transparent" />
-                      <div className="absolute bottom-3 left-4 right-4">
-                         <h2 className="text-3xl font-bold text-white leading-none shadow-black drop-shadow-md">{selectedCoaster.name}</h2>
-                         <div className="text-slate-200 font-medium drop-shadow-md">{selectedCoaster.park}</div>
-                      </div>
-                  </div>
-              )}
-
-              {/* Header Info (if no image, or supplementary) */}
-              {!selectedCoaster.imageUrl && (
-                  <div className="space-y-1">
-                      <h2 className="text-3xl font-bold text-white">{selectedCoaster.name}</h2>
-                      <div className="flex items-center gap-2 text-slate-400">
-                        <span className="font-medium text-lg">{selectedCoaster.park}</span>
-                      </div>
-                  </div>
-              )}
-              
-              <div className="text-sm text-slate-500 bg-slate-800/50 p-3 rounded-xl border border-slate-700/50 flex justify-between">
-                  <span>{selectedCoaster.country}</span>
-                  <span>{selectedCoaster.manufacturer}</span>
-                  <span>{selectedCoaster.type}</span>
-              </div>
-
-              {/* Bucket List Action Section */}
-              <div 
-                onClick={() => handleToggleWishlist(undefined, selectedCoaster)}
-                className={clsx(
-                    "p-4 rounded-xl border flex items-center justify-between cursor-pointer transition-colors",
-                    isSelectedWishlisted ? "bg-amber-500/10 border-amber-500/30" : "bg-slate-800 border-slate-700 hover:bg-slate-750"
+          <div className="animate-fade-in pb-16">
+              <div className="space-y-4">
+                <div className="flex justify-between items-center mb-2">
+                    <button onClick={() => setSelectedCoaster(null)} className="text-sm text-slate-400 hover:text-white flex items-center gap-1">
+                        <X size={16} /> Back to Search
+                    </button>
+                    <button 
+                        onClick={() => handleParkFilter(selectedCoaster.park)}
+                        className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white px-3 py-1.5 rounded-full border border-slate-700 flex items-center gap-1 transition-colors"
+                    >
+                        <Palmtree size={12} />
+                        View all at {selectedCoaster.park}
+                    </button>
+                </div>
+                
+                {/* Hero Image */}
+                {selectedCoaster.imageUrl && (
+                    <div className="w-full h-48 rounded-2xl overflow-hidden shadow-lg border border-slate-700 relative">
+                        <img src={selectedCoaster.imageUrl} alt={selectedCoaster.name} className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 to-transparent" />
+                        <div className="absolute bottom-3 left-4 right-4">
+                            <h2 className="text-3xl font-bold text-white leading-none shadow-black drop-shadow-md">{selectedCoaster.name}</h2>
+                            <div className="text-slate-200 font-medium drop-shadow-md">{selectedCoaster.park}</div>
+                        </div>
+                    </div>
                 )}
-              >
-                  <div className="flex items-center gap-3">
-                      <div className={clsx("p-2 rounded-full", isSelectedWishlisted ? "bg-amber-500 text-white" : "bg-slate-700 text-slate-400")}>
-                          {isSelectedWishlisted ? <BookmarkCheck size={20} /> : <Bookmark size={20} />}
-                      </div>
-                      <div>
-                          <div className={clsx("font-bold", isSelectedWishlisted ? "text-amber-500" : "text-slate-300")}>
-                              {isSelectedWishlisted ? "In Bucket List" : "Add to Bucket List"}
-                          </div>
-                          <div className="text-xs text-slate-500">
-                              {isSelectedWishlisted ? "Tap to remove" : "Save for later"}
-                          </div>
-                      </div>
-                  </div>
-                  {isSelectedWishlisted && <Check size={16} className="text-amber-500" />}
-              </div>
 
-              {/* Log Ride Section */}
-              <div className="bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-xl">
-                  <div className="flex items-center gap-2 mb-4 border-b border-slate-700 pb-3">
-                      <div className="bg-primary/20 p-1.5 rounded-lg text-primary">
-                        <CheckCircle2 size={20} />
-                      </div>
-                      <h3 className="font-bold text-lg">Record New Ride</h3>
-                  </div>
+                {/* Header Info (if no image, or supplementary) */}
+                {!selectedCoaster.imageUrl && (
+                    <div className="space-y-1">
+                        <h2 className="text-3xl font-bold text-white">{selectedCoaster.name}</h2>
+                        <div className="flex items-center gap-2 text-slate-400">
+                            <span className="font-medium text-lg">{selectedCoaster.park}</span>
+                        </div>
+                    </div>
+                )}
+                
+                <div className="text-sm text-slate-500 bg-slate-800/50 p-3 rounded-xl border border-slate-700/50 flex justify-between">
+                    <span>{selectedCoaster.country}</span>
+                    <span>{selectedCoaster.manufacturer}</span>
+                    <span>{selectedCoaster.type}</span>
+                </div>
 
-                  <div className="space-y-4">
-                      <div>
-                          <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Date Ridden</label>
-                          <input 
-                              type="date" 
-                              required
-                              value={date}
-                              onChange={(e) => setDate(e.target.value)}
-                              className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white focus:ring-2 focus:ring-primary focus:outline-none"
-                          />
-                      </div>
+                {/* Speed Action: Log & Filter Park - Moved to Top */}
+                <button 
+                    type="button"
+                    onClick={() => processLog(true)}
+                    className="w-full bg-slate-800 hover:bg-slate-700 text-emerald-400 font-bold py-3 rounded-xl border border-emerald-500/30 shadow-lg shadow-emerald-500/10 transform transition active:scale-[0.98] flex items-center justify-center gap-2"
+                    title="Log ride and see all coasters in this park"
+                >
+                    <Palmtree size={20} />
+                    Quick Log & View Park
+                </button>
 
-                      <div>
-                          <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Photo</label>
-                          <div className="relative">
+                {/* Bucket List Action Section */}
+                <div 
+                    onClick={() => handleToggleWishlist(undefined, selectedCoaster)}
+                    className={clsx(
+                        "p-4 rounded-xl border flex items-center justify-between cursor-pointer transition-colors",
+                        isSelectedWishlisted ? "bg-amber-500/10 border-amber-500/30" : "bg-slate-800 border-slate-700 hover:bg-slate-750"
+                    )}
+                >
+                    <div className="flex items-center gap-3">
+                        <div className={clsx("p-2 rounded-full", isSelectedWishlisted ? "bg-amber-500 text-white" : "bg-slate-700 text-slate-400")}>
+                            {isSelectedWishlisted ? <BookmarkCheck size={20} /> : <Bookmark size={20} />}
+                        </div>
+                        <div>
+                            <div className={clsx("font-bold", isSelectedWishlisted ? "text-amber-500" : "text-slate-300")}>
+                                {isSelectedWishlisted ? "In Bucket List" : "Add to Bucket List"}
+                            </div>
+                            <div className="text-xs text-slate-500">
+                                {isSelectedWishlisted ? "Tap to remove" : "Save for later"}
+                            </div>
+                        </div>
+                    </div>
+                    {isSelectedWishlisted && <Check size={16} className="text-amber-500" />}
+                </div>
+
+                {/* Log Ride Section */}
+                <div className="bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-xl">
+                    <div className="flex items-center gap-2 mb-4 border-b border-slate-700 pb-3">
+                        <div className="bg-primary/20 p-1.5 rounded-lg text-primary">
+                            <CheckCircle2 size={20} />
+                        </div>
+                        <h3 className="font-bold text-lg">Record New Ride</h3>
+                    </div>
+
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Date Ridden</label>
                             <input 
-                                type="file"
-                                accept="image/*"
-                                capture="environment"
-                                onChange={handleFileChange}
-                                className="hidden"
-                                id="photo-upload"
+                                type="date" 
+                                required
+                                value={date}
+                                onChange={(e) => setDate(e.target.value)}
+                                className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white focus:ring-2 focus:ring-primary focus:outline-none"
                             />
-                            <label htmlFor="photo-upload" className="w-full bg-slate-900 border border-slate-600 border-dashed rounded-xl p-3 flex items-center justify-center gap-2 cursor-pointer hover:bg-slate-900/80 transition-colors text-slate-400">
-                                <Camera size={18} />
-                                <span className="text-sm">{photo ? photo.name : "Add a photo (Optional)"}</span>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Photo</label>
+                            <div className="relative">
+                                <input 
+                                    type="file"
+                                    accept="image/*"
+                                    capture="environment"
+                                    onChange={handleFileChange}
+                                    className="hidden"
+                                    id="photo-upload"
+                                />
+                                <label htmlFor="photo-upload" className="w-full bg-slate-900 border border-slate-600 border-dashed rounded-xl p-3 flex items-center justify-center gap-2 cursor-pointer hover:bg-slate-900/80 transition-colors text-slate-400">
+                                    <Camera size={18} />
+                                    <span className="text-sm">{photo ? photo.name : "Add a photo (Optional)"}</span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        {/* Restraints Field */}
+                        <div>
+                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5 flex items-center gap-1">
+                                <Lock size={12} /> Type of Restraints
                             </label>
-                          </div>
-                      </div>
-                      
-                      {/* Restraints Field */}
-                      <div>
-                          <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5 flex items-center gap-1">
-                            <Lock size={12} /> Type of Restraints
-                          </label>
-                          <input 
-                              type="text"
-                              value={restraints}
-                              onChange={(e) => setRestraints(e.target.value)}
-                              placeholder="e.g. Lap bar, OTSR, Vest"
-                              className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white focus:ring-2 focus:ring-primary focus:outline-none text-sm"
-                          />
-                      </div>
+                            <input 
+                                type="text"
+                                value={restraints}
+                                onChange={(e) => setRestraints(e.target.value)}
+                                placeholder="e.g. Lap bar, OTSR, Vest"
+                                className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white focus:ring-2 focus:ring-primary focus:outline-none text-sm"
+                            />
+                        </div>
 
-                      <div>
-                          <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Notes</label>
-                          <textarea 
-                              value={notes}
-                              onChange={(e) => setNotes(e.target.value)}
-                              placeholder="Ride experience, seat location, were you stapled? etc."
-                              className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white focus:ring-2 focus:ring-primary focus:outline-none h-20 text-sm"
-                          />
-                      </div>
+                        <div>
+                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Notes</label>
+                            <textarea 
+                                value={notes}
+                                onChange={(e) => setNotes(e.target.value)}
+                                placeholder="Ride experience, seat location, were you stapled? etc."
+                                className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white focus:ring-2 focus:ring-primary focus:outline-none h-20 text-sm"
+                            />
+                        </div>
+                    </div>
+                </div>
 
-                      <div className="flex gap-2 pt-2">
-                          <button 
-                              type="button"
-                              onClick={() => processLog(false)}
-                              className="flex-1 bg-primary hover:bg-primary-hover text-white font-bold py-3.5 rounded-xl shadow-lg shadow-primary/25 transform transition active:scale-[0.98] flex items-center justify-center gap-2 text-sm sm:text-base"
-                          >
-                              <Plus size={20} strokeWidth={3} />
-                              Log Ride
-                          </button>
-                          <button 
-                              type="button"
-                              onClick={() => processLog(true)}
-                              className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-bold py-3.5 rounded-xl shadow-lg border border-slate-600 transform transition active:scale-[0.98] flex items-center justify-center gap-2 text-sm sm:text-base"
-                              title="Log ride and see all coasters in this park"
-                          >
-                              <Palmtree size={20} />
-                              Log & View Park
-                          </button>
-                      </div>
-                  </div>
+                {/* Ride History Section */}
+                {existingCredits.length > 0 && (
+                    <div className="mt-8 border-t border-slate-800 pt-6">
+                        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                            <History size={16} />
+                            Previous Rides ({existingCredits.length})
+                        </h3>
+                        <div className="space-y-3">
+                            {existingCredits.map(credit => (
+                                <div key={credit.id} className="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50 flex items-center justify-between group">
+                                    <div>
+                                        <div className="text-sm font-medium text-white">
+                                            {new Date(credit.date).toLocaleDateString(undefined, { dateStyle: 'long' })}
+                                        </div>
+                                        {credit.notes && (
+                                            <div className="text-xs text-slate-400 mt-1 line-clamp-1 italic">
+                                                "{credit.notes}"
+                                            </div>
+                                        )}
+                                    </div>
+                                    <button 
+                                        onClick={() => handleDeleteCredit(credit.id)}
+                                        className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                                        title="Delete this specific log"
+                                    >
+                                        <Trash2 size={18} />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
               </div>
 
-              {/* Ride History Section */}
-              {existingCredits.length > 0 && (
-                  <div className="mt-8 border-t border-slate-800 pt-6">
-                      <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-                          <History size={16} />
-                          Previous Rides ({existingCredits.length})
-                      </h3>
-                      <div className="space-y-3">
-                          {existingCredits.map(credit => (
-                              <div key={credit.id} className="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50 flex justify-between items-center group">
-                                  <div>
-                                      <div className="text-sm font-medium text-white">
-                                          {new Date(credit.date).toLocaleDateString(undefined, { dateStyle: 'long' })}
-                                      </div>
-                                      {credit.notes && (
-                                          <div className="text-xs text-slate-400 mt-1 line-clamp-1 italic">
-                                              "{credit.notes}"
-                                          </div>
-                                      )}
-                                  </div>
-                                  <button 
-                                      onClick={() => handleDeleteCredit(credit.id)}
-                                      className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                                      title="Delete this specific log"
-                                  >
-                                      <Trash2 size={18} />
-                                  </button>
-                              </div>
-                          ))}
-                      </div>
-                  </div>
-              )}
+              {/* Sticky Action Bar */}
+              <div className="sticky bottom-0 -mx-4 -mb-4 p-4 bg-slate-900/90 backdrop-blur-md border-t border-slate-700 z-40">
+                    <button 
+                        type="button"
+                        onClick={() => processLog(false)}
+                        className="w-full bg-primary hover:bg-primary-hover text-white font-bold py-3.5 rounded-xl shadow-lg shadow-primary/25 transform transition active:scale-[0.98] flex items-center justify-center gap-2 text-sm sm:text-base"
+                    >
+                        <Plus size={20} strokeWidth={3} />
+                        Log Ride
+                    </button>
+              </div>
           </div>
       );
   }
@@ -342,6 +359,19 @@ const AddCredit: React.FC = () => {
             </div>
         </div>
         
+        {/* Park Filter Active Banner */}
+        {activeParkFilter && (
+            <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 p-3 rounded-xl flex items-center justify-between animate-fade-in-down">
+                <div className="flex items-center gap-2">
+                    <Palmtree size={18} />
+                    <span className="text-sm font-bold">Showing rides at {activeParkFilter}</span>
+                </div>
+                <button onClick={clearSearch} className="text-xs bg-emerald-500/20 hover:bg-emerald-500/40 px-3 py-1.5 rounded-lg transition-colors">
+                    Clear Filter
+                </button>
+            </div>
+        )}
+
         <div className="flex gap-2">
             <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={18} />
@@ -354,7 +384,7 @@ const AddCredit: React.FC = () => {
                 />
                 {searchTerm && (
                     <button 
-                        onClick={() => setSearchTerm('')}
+                        onClick={clearSearch}
                         className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-white p-1 rounded-full hover:bg-slate-700"
                     >
                         <X size={16} />
@@ -460,7 +490,7 @@ const AddCredit: React.FC = () => {
                                 {/* Park Filter Button */}
                                 <button
                                     onClick={(e) => handleParkFilter(coaster.park, e)}
-                                    className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:text-white hover:bg-slate-700 transition-colors"
+                                    className="w-8 h-8 flex items-center justify-center rounded-lg text-emerald-500 hover:text-white hover:bg-emerald-600 transition-colors"
                                     title={`View all at ${coaster.park}`}
                                 >
                                     <Palmtree size={16} />
