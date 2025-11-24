@@ -5,10 +5,12 @@ import { Search, Plus, Calendar, Camera, Sparkles, Loader2, Filter, Bookmark, Ch
 import clsx from 'clsx';
 
 const AddCredit: React.FC = () => {
-  const { coasters, addCredit, deleteCredit, addNewCoaster, searchOnlineCoaster, credits, activeUser, addToWishlist, removeFromWishlist, isInWishlist } = useAppContext();
+  const { coasters, addCredit, deleteCredit, addNewCoaster, searchOnlineCoaster, credits, activeUser, addToWishlist, removeFromWishlist, isInWishlist, lastSearchQuery, setLastSearchQuery } = useAppContext();
   
-  // Search State
-  const [searchTerm, setSearchTerm] = useState('');
+  // Search State - using context for persistence
+  const searchTerm = lastSearchQuery;
+  const setSearchTerm = setLastSearchQuery;
+
   const [selectedCoaster, setSelectedCoaster] = useState<Coaster | null>(null);
   const [isAiSearching, setIsAiSearching] = useState(false);
   
@@ -86,7 +88,7 @@ const AddCredit: React.FC = () => {
         // Reset form
         setNotes('');
         setPhoto(undefined);
-        // Close detail view potentially, or stay to show history
+        // Close detail view, return to list. Search persists.
         setSelectedCoaster(null); 
     }
   };
@@ -280,8 +282,16 @@ const AddCredit: React.FC = () => {
                     placeholder="Search name, park..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-10 pr-4 py-3 focus:ring-2 focus:ring-primary focus:outline-none text-white shadow-sm"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-10 pr-9 py-3 focus:ring-2 focus:ring-primary focus:outline-none text-white shadow-sm"
                 />
+                {searchTerm && (
+                    <button 
+                        onClick={() => setSearchTerm('')}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-white p-1 rounded-full hover:bg-slate-700"
+                    >
+                        <X size={16} />
+                    </button>
+                )}
             </div>
             <button 
                 onClick={() => setShowFilters(!showFilters)}

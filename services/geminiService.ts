@@ -68,3 +68,34 @@ export const generateCoasterInfo = async (searchTerm: string): Promise<Partial<C
     return null;
   }
 };
+
+export const generateAppIcon = async (prompt: string): Promise<string | null> => {
+  if (!genAI) {
+    console.warn("Gemini API Key missing");
+    return null;
+  }
+
+  try {
+    const response = await genAI.models.generateContent({
+      model: 'gemini-2.5-flash-image',
+      contents: {
+        parts: [
+          { text: prompt + " The image should be a funny, simple vector art style sticker suitable for an app icon, white background." },
+        ],
+      },
+    });
+
+    if (response.candidates?.[0]?.content?.parts) {
+      for (const part of response.candidates[0].content.parts) {
+        if (part.inlineData) {
+          return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+        }
+      }
+    }
+    return null;
+
+  } catch (error) {
+    console.error("Gemini Image Gen Error:", error);
+    return null;
+  }
+};

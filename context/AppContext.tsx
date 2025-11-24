@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User, Coaster, Credit, ViewState, WishlistEntry } from '../types';
 import { INITIAL_COASTERS, INITIAL_USERS } from '../constants';
-import { generateCoasterInfo } from '../services/geminiService';
+import { generateCoasterInfo, generateAppIcon } from '../services/geminiService';
 
 export interface Notification {
   id: string;
@@ -18,6 +18,7 @@ interface AppContextType {
   currentView: ViewState;
   coasterListViewMode: 'CREDITS' | 'WISHLIST';
   notification: Notification | null;
+  lastSearchQuery: string;
   
   // Actions
   switchUser: (userId: string) => void;
@@ -27,10 +28,14 @@ interface AppContextType {
   updateCredit: (creditId: string, date: string, notes: string, photo?: File) => void;
   addNewCoaster: (coaster: Omit<Coaster, 'id'>) => Promise<string>;
   searchOnlineCoaster: (query: string) => Promise<Partial<Coaster> | null>;
+  generateIcon: (prompt: string) => Promise<string | null>;
   changeView: (view: ViewState) => void;
   setCoasterListViewMode: (mode: 'CREDITS' | 'WISHLIST') => void;
   deleteCredit: (creditId: string) => void;
   
+  // Search State Action
+  setLastSearchQuery: (query: string) => void;
+
   // Wishlist Actions
   addToWishlist: (coasterId: string) => void;
   removeFromWishlist: (coasterId: string) => void;
@@ -82,6 +87,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [currentView, setCurrentView] = useState<ViewState>('DASHBOARD');
   const [coasterListViewMode, setCoasterListViewMode] = useState<'CREDITS' | 'WISHLIST'>('CREDITS');
   const [notification, setNotification] = useState<Notification | null>(null);
+  const [lastSearchQuery, setLastSearchQuery] = useState('');
 
   // Persistence Effects
   useEffect(() => localStorage.setItem('cc_users', JSON.stringify(users)), [users]);
@@ -183,7 +189,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
     setCredits([...credits, newCredit]);
     showNotification("Ride Logged Successfully!", 'success');
-    setCurrentView('DASHBOARD');
+    // Removed setCurrentView('DASHBOARD') to facilitate batch entry/search persistence
   };
 
   const updateCredit = (creditId: string, date: string, notes: string, photo?: File) => {
@@ -227,6 +233,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return await generateCoasterInfo(query);
   };
 
+  const generateIcon = async (prompt: string) => {
+    return await generateAppIcon(prompt);
+  };
+
   const deleteCredit = (creditId: string) => {
     setCredits(prev => prev.filter(c => c.id !== creditId));
     showNotification("Credit deleted", 'info');
@@ -244,6 +254,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       currentView,
       coasterListViewMode,
       notification,
+      lastSearchQuery,
       switchUser,
       addUser,
       updateUserName,
@@ -251,6 +262,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       updateCredit,
       addNewCoaster,
       searchOnlineCoaster,
+      generateIcon,
       changeView,
       setCoasterListViewMode,
       deleteCredit,
@@ -258,7 +270,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       removeFromWishlist,
       isInWishlist,
       showNotification,
-      hideNotification
+      hideNotification,
+      setLastSearchQuery
     }}>
       {children}
     </AppContext.Provider>

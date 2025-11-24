@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { UserPlus, CheckCircle2, Smartphone, Share2, QrCode, Edit2, Save, X, FileSpreadsheet, Database, Download, Cloud } from 'lucide-react';
+import { UserPlus, CheckCircle2, Smartphone, Share2, QrCode, Edit2, Save, X, FileSpreadsheet, Database, Download, Cloud, PaintBucket, Sparkles, Loader2 } from 'lucide-react';
 import { User } from '../types';
 
 const ProfileManager: React.FC = () => {
-  const { users, activeUser, switchUser, addUser, updateUserName, credits, wishlist, coasters } = useAppContext();
+  const { users, activeUser, switchUser, addUser, updateUserName, credits, wishlist, coasters, generateIcon } = useAppContext();
   const [isAdding, setIsAdding] = useState(false);
   const [newUserName, setNewUserName] = useState('');
   const [currentUrl, setCurrentUrl] = useState('');
@@ -12,6 +12,11 @@ const ProfileManager: React.FC = () => {
   // Edit state
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
+
+  // Icon Gen State
+  const [iconPrompt, setIconPrompt] = useState('Mexican luchador wrestler with a colorful mask riding in the front row of a roller coaster with hands up screaming in joy');
+  const [generatedIconUrl, setGeneratedIconUrl] = useState<string | null>(null);
+  const [isGeneratingIcon, setIsGeneratingIcon] = useState(false);
 
   useEffect(() => {
     setCurrentUrl(window.location.href);
@@ -40,6 +45,16 @@ const ProfileManager: React.FC = () => {
     if (editName.trim()) {
       updateUserName(userId, editName.trim());
       setEditingUserId(null);
+    }
+  };
+
+  const handleGenerateIcon = async () => {
+    if (!iconPrompt) return;
+    setIsGeneratingIcon(true);
+    const url = await generateIcon(iconPrompt);
+    setIsGeneratingIcon(false);
+    if (url) {
+      setGeneratedIconUrl(url);
     }
   };
 
@@ -217,6 +232,49 @@ const ProfileManager: React.FC = () => {
               </div>
           </form>
         )}
+      </div>
+
+      {/* App Icon Generator */}
+      <div className="border-t border-slate-800 pt-8">
+        <div className="flex items-center gap-2 mb-4 text-white">
+            <PaintBucket className="text-accent" size={24} />
+            <h2 className="text-xl font-bold">App Icon Generator</h2>
+        </div>
+        
+        <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700 shadow-xl space-y-4">
+            <p className="text-sm text-slate-400">
+               Generate a unique, funny icon for your app using Gemini AI!
+            </p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase">Icon Idea</label>
+                <textarea 
+                  value={iconPrompt}
+                  onChange={(e) => setIconPrompt(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white text-sm focus:ring-2 focus:ring-accent mt-1 h-20"
+                />
+              </div>
+              <button 
+                onClick={handleGenerateIcon}
+                disabled={isGeneratingIcon}
+                className="w-full bg-accent hover:bg-violet-600 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+              >
+                {isGeneratingIcon ? <Loader2 className="animate-spin" size={18}/> : <Sparkles size={18} />}
+                {isGeneratingIcon ? "Creating Magic..." : "Generate Luchador Icon"}
+              </button>
+            </div>
+
+            {generatedIconUrl && (
+              <div className="bg-slate-900 p-4 rounded-xl border border-slate-600 flex flex-col items-center animate-fade-in">
+                <p className="text-xs text-green-400 font-bold mb-3 uppercase">Generated Successfully!</p>
+                <img src={generatedIconUrl} alt="Generated Icon" className="w-32 h-32 rounded-2xl shadow-lg mb-3 bg-white object-cover" />
+                <p className="text-center text-xs text-slate-400">
+                  Long press or right-click the image above to save it to your device photos.
+                </p>
+              </div>
+            )}
+        </div>
       </div>
 
       {/* Export Section */}
