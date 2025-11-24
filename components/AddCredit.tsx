@@ -1,7 +1,8 @@
+
 import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Coaster, CoasterType } from '../types';
-import { Search, Plus, Calendar, Camera, Sparkles, Loader2, Filter, Bookmark, CheckCircle2, BookmarkCheck, Check, X, History, Trash2, ArrowRight } from 'lucide-react';
+import { Search, Plus, Calendar, Camera, Sparkles, Loader2, Filter, Bookmark, CheckCircle2, BookmarkCheck, Check, X, History, Trash2, ArrowRight, Lock } from 'lucide-react';
 import clsx from 'clsx';
 
 const AddCredit: React.FC = () => {
@@ -22,6 +23,7 @@ const AddCredit: React.FC = () => {
   // Form State
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
+  const [restraints, setRestraints] = useState('');
   const [photo, setPhoto] = useState<File | undefined>(undefined);
 
   const filteredCoasters = useMemo(() => {
@@ -84,9 +86,10 @@ const AddCredit: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (selectedCoaster) {
-        addCredit(selectedCoaster.id, date, notes, photo);
+        addCredit(selectedCoaster.id, date, notes, restraints, photo);
         // Reset form
         setNotes('');
+        setRestraints('');
         setPhoto(undefined);
         // Close detail view, return to list. Search persists.
         setSelectedCoaster(null); 
@@ -207,13 +210,27 @@ const AddCredit: React.FC = () => {
                             </label>
                           </div>
                       </div>
+                      
+                      {/* Restraints Field */}
+                      <div>
+                          <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5 flex items-center gap-1">
+                            <Lock size={12} /> Type of Restraints
+                          </label>
+                          <input 
+                              type="text"
+                              value={restraints}
+                              onChange={(e) => setRestraints(e.target.value)}
+                              placeholder="e.g. Lap bar, OTSR, Vest"
+                              className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white focus:ring-2 focus:ring-primary focus:outline-none text-sm"
+                          />
+                      </div>
 
                       <div>
                           <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Notes</label>
                           <textarea 
                               value={notes}
                               onChange={(e) => setNotes(e.target.value)}
-                              placeholder="Ride experience, seat location, etc."
+                              placeholder="Ride experience, seat location, were you stapled? etc."
                               className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white focus:ring-2 focus:ring-primary focus:outline-none h-20 text-sm"
                           />
                       </div>

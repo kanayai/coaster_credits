@@ -1,3 +1,4 @@
+
 export enum CoasterType {
   Steel = 'Steel',
   Wooden = 'Wooden',
@@ -27,6 +28,7 @@ export interface Credit {
   rideCount: number;
   photoUrl?: string; // User uploaded selfie/pic
   notes?: string;
+  restraints?: string;
 }
 
 export interface WishlistEntry {

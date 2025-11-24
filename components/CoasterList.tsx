@@ -1,15 +1,18 @@
+
 import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { Trash2, Calendar, MapPin, Tag, LayoutList, Palmtree, Flag, Layers, Factory, CalendarRange, CheckCircle2, Bookmark, ArrowRightCircle, PlusCircle, Edit2, ArrowLeft, ChevronRight, FolderOpen } from 'lucide-react';
+import { Trash2, Calendar, MapPin, Tag, Palmtree, Flag, Layers, Factory, CalendarRange, CheckCircle2, Bookmark, ArrowRightCircle, PlusCircle, Edit2, ArrowLeft, ChevronRight, FolderOpen, Lock } from 'lucide-react';
 import clsx from 'clsx';
 import { Credit, Coaster } from '../types';
 import EditCreditModal from './EditCreditModal';
 
-type GroupMode = 'DATE' | 'PARK' | 'COUNTRY' | 'TYPE' | 'MANUFACTURER' | 'YEAR';
+type GroupMode = 'PARK' | 'COUNTRY' | 'TYPE' | 'MANUFACTURER' | 'YEAR';
 
 const CoasterList: React.FC = () => {
   const { credits, wishlist, coasters, activeUser, deleteCredit, removeFromWishlist, changeView, coasterListViewMode, setCoasterListViewMode } = useAppContext();
-  const [groupMode, setGroupMode] = useState<GroupMode>('DATE');
+  
+  // Set default to PARK as requested
+  const [groupMode, setGroupMode] = useState<GroupMode>('PARK');
   const [selectedGroupTitle, setSelectedGroupTitle] = useState<string | null>(null);
 
   // Edit State
@@ -38,11 +41,6 @@ const CoasterList: React.FC = () => {
   const groups = useMemo(() => {
     if (itemsToDisplay.length === 0) return [];
 
-    // Date mode is treated as a single flattened list essentially, but we structure it consistently
-    if (groupMode === 'DATE') {
-      return [{ title: coasterListViewMode === 'CREDITS' ? 'Recent Rides' : 'Recently Added', items: itemsToDisplay }];
-    }
-
     const grouped: Record<string, typeof itemsToDisplay> = {};
     
     itemsToDisplay.forEach(item => {
@@ -67,7 +65,7 @@ const CoasterList: React.FC = () => {
         if (groupMode === 'YEAR') return b.title.localeCompare(a.title);
         return a.title.localeCompare(b.title);
       });
-  }, [itemsToDisplay, groupMode, coasterListViewMode]);
+  }, [itemsToDisplay, groupMode]);
 
   const handleGroupModeChange = (mode: GroupMode) => {
     setGroupMode(mode);
@@ -93,11 +91,11 @@ const CoasterList: React.FC = () => {
       className={clsx(
         "flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all border whitespace-nowrap flex-shrink-0",
         groupMode === mode 
-          ? "bg-primary text-white border-primary shadow-md shadow-primary/20" 
-          : "bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-600 hover:text-slate-200"
+          ? "bg-slate-700 text-white border-slate-600 shadow-md" 
+          : "bg-slate-800/50 text-slate-400 border-slate-700/50 hover:border-slate-600 hover:text-slate-200"
       )}
     >
-      <Icon size={14} />
+      <Icon size={14} className={groupMode === mode ? "text-primary" : ""} />
       {label}
     </button>
   );
@@ -114,59 +112,64 @@ const CoasterList: React.FC = () => {
   };
 
   // Determine what to render
-  const showCategories = groupMode !== 'DATE' && !selectedGroupTitle;
+  const showCategories = !selectedGroupTitle;
   const CategoryIcon = getCategoryIcon();
 
-  // If showing items (either DATE mode or a specific category selected)
-  const activeGroup = groupMode === 'DATE' 
-      ? groups[0] 
-      : groups.find(g => g.title === selectedGroupTitle);
-  
+  // If showing items (a specific category selected)
+  const activeGroup = groups.find(g => g.title === selectedGroupTitle);
   const itemsToShow = activeGroup ? activeGroup.items : [];
 
   return (
     <div className="animate-fade-in space-y-4 pb-8">
       {/* Top Controls */}
-      <div className="sticky top-0 bg-slate-900/95 backdrop-blur-sm z-20 pb-4 pt-2 -mx-4 px-4 border-b border-slate-800/50">
+      <div className="sticky top-0 bg-slate-950/95 backdrop-blur-sm z-20 pb-2 pt-2 -mx-4 px-4 border-b border-slate-800/50">
           
-          <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                  <button 
-                    onClick={handleBack}
-                    className="bg-slate-800 p-2 rounded-full border border-slate-700 text-slate-400 hover:text-white transition-colors"
-                  >
-                    <ArrowLeft size={20} />
-                  </button>
-                  <h2 className="text-2xl font-bold">Logbook</h2>
-              </div>
+          <div className="flex items-center gap-3 mb-4">
+              <button 
+                onClick={handleBack}
+                className="bg-slate-800 p-2 rounded-full border border-slate-700 text-slate-400 hover:text-white transition-colors"
+              >
+                <ArrowLeft size={20} />
+              </button>
+              <h2 className="text-2xl font-bold">Logbook</h2>
+          </div>
 
-              {/* View Toggle */}
-              <div className="bg-slate-800 p-1 rounded-lg flex border border-slate-700">
-                  <button
-                      onClick={() => { setCoasterListViewMode('CREDITS'); setSelectedGroupTitle(null); }}
-                      className={clsx(
-                          "px-3 sm:px-4 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-2",
-                          coasterListViewMode === 'CREDITS' ? "bg-slate-700 text-white shadow-sm" : "text-slate-400 hover:text-slate-200"
-                      )}
-                  >
-                      <CheckCircle2 size={14} className="hidden sm:block"/>
-                      Ridden
-                  </button>
-                  <button
-                      onClick={() => { setCoasterListViewMode('WISHLIST'); setSelectedGroupTitle(null); }}
-                      className={clsx(
-                          "px-3 sm:px-4 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-2",
-                          coasterListViewMode === 'WISHLIST' ? "bg-amber-500/20 text-amber-500 shadow-sm" : "text-slate-400 hover:text-slate-200"
-                      )}
-                  >
-                      <Bookmark size={14} className="hidden sm:block" />
-                      Bucket List
-                  </button>
-              </div>
+          {/* NOTORIOUS View Toggle */}
+          <div className="flex gap-3 mb-5">
+              <button
+                  onClick={() => { setCoasterListViewMode('CREDITS'); setSelectedGroupTitle(null); }}
+                  className={clsx(
+                      "flex-1 py-3.5 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-lg border-2",
+                      coasterListViewMode === 'CREDITS' 
+                        ? "bg-primary text-white border-primary shadow-primary/20 scale-[1.02]" 
+                        : "bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800"
+                  )}
+              >
+                  <CheckCircle2 size={18} className={clsx(coasterListViewMode === 'CREDITS' ? "text-white" : "text-slate-500")} />
+                  Ridden
+                  <span className={clsx("ml-1 text-xs py-0.5 px-2 rounded-full", coasterListViewMode === 'CREDITS' ? "bg-white/20" : "bg-slate-800")}>
+                    {credits.filter(c => c.userId === activeUser.id).length}
+                  </span>
+              </button>
+              <button
+                  onClick={() => { setCoasterListViewMode('WISHLIST'); setSelectedGroupTitle(null); }}
+                  className={clsx(
+                      "flex-1 py-3.5 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-lg border-2",
+                      coasterListViewMode === 'WISHLIST' 
+                        ? "bg-amber-500 text-white border-amber-500 shadow-amber-500/20 scale-[1.02]" 
+                        : "bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800"
+                  )}
+              >
+                  <Bookmark size={18} className={clsx(coasterListViewMode === 'WISHLIST' ? "text-white" : "text-slate-500")} />
+                  Bucket List
+                  <span className={clsx("ml-1 text-xs py-0.5 px-2 rounded-full", coasterListViewMode === 'WISHLIST' ? "bg-white/20" : "bg-slate-800")}>
+                    {wishlist.filter(w => w.userId === activeUser.id).length}
+                  </span>
+              </button>
           </div>
           
-          <div className="flex gap-2 overflow-x-auto no-scrollbar mask-linear-fade pb-1">
-            <ModeButton mode="DATE" icon={LayoutList} label="Recent" />
+          {/* Filter Tabs - No 'Recent' option */}
+          <div className="flex gap-2 overflow-x-auto no-scrollbar mask-linear-fade pb-2">
             <ModeButton mode="PARK" icon={Palmtree} label="By Park" />
             <ModeButton mode="COUNTRY" icon={Flag} label="By Country" />
             <ModeButton mode="TYPE" icon={Layers} label="By Type" />
@@ -219,21 +222,19 @@ const CoasterList: React.FC = () => {
                  </div>
             )}
 
-            {/* MODE: SHOW ITEMS (Recent or Selected Category) */}
+            {/* MODE: SHOW ITEMS (Selected Category) */}
             {!showCategories && (
                 <div className="space-y-4 animate-fade-in">
-                    {/* Category Header (Only if not default DATE mode) */}
-                    {groupMode !== 'DATE' && (
-                        <div className="flex items-center gap-2 mb-4 px-1">
-                             <div className="bg-slate-800/80 backdrop-blur px-4 py-2 rounded-full border border-slate-700 flex items-center gap-2 shadow-sm">
-                                <CategoryIcon size={16} className="text-primary" />
-                                <h3 className="text-sm font-bold text-white">{selectedGroupTitle}</h3>
-                                <span className="bg-primary/20 text-primary px-2 py-0.5 rounded-full text-[10px] font-bold ml-1">
-                                    {itemsToShow.length}
-                                </span>
-                            </div>
+                    {/* Category Header */}
+                    <div className="flex items-center gap-2 mb-4 px-1">
+                            <div className="bg-slate-800/80 backdrop-blur px-4 py-2 rounded-full border border-slate-700 flex items-center gap-2 shadow-sm">
+                            <CategoryIcon size={16} className="text-primary" />
+                            <h3 className="text-sm font-bold text-white">{selectedGroupTitle}</h3>
+                            <span className="bg-primary/20 text-primary px-2 py-0.5 rounded-full text-[10px] font-bold ml-1">
+                                {itemsToShow.length}
+                            </span>
                         </div>
-                    )}
+                    </div>
                     
                     {/* Items List */}
                     <div className="grid grid-cols-1 gap-4">
@@ -331,10 +332,18 @@ const CoasterList: React.FC = () => {
                                                 <span className="truncate opacity-75">{item.coaster.manufacturer}</span>
                                             </div>
 
-                                            {item.type === 'CREDIT' && item.notes && (
-                                                <div className="relative pl-3 mt-2">
+                                            {item.type === 'CREDIT' && (item.notes || (item as any).restraints) && (
+                                                <div className="relative pl-3 mt-2 space-y-1">
                                                     <div className="absolute left-0 top-1 bottom-1 w-0.5 bg-slate-700 rounded-full"></div>
-                                                    <p className="text-sm text-slate-300 italic line-clamp-2">"{item.notes}"</p>
+                                                    {(item as any).restraints && (
+                                                        <div className="text-xs text-primary/80 flex items-center gap-1 font-medium">
+                                                            <Lock size={10} />
+                                                            {(item as any).restraints}
+                                                        </div>
+                                                    )}
+                                                    {item.notes && (
+                                                        <p className="text-sm text-slate-300 italic line-clamp-2">"{item.notes}"</p>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
@@ -366,14 +375,3 @@ const CoasterList: React.FC = () => {
 
       {/* Shared Edit Modal */}
       {editingCreditData && (
-          <EditCreditModal 
-              credit={editingCreditData.credit}
-              coaster={editingCreditData.coaster}
-              onClose={() => setEditingCreditData(null)}
-          />
-      )}
-    </div>
-  );
-};
-
-export default CoasterList;

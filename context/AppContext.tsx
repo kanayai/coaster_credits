@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User, Coaster, Credit, ViewState, WishlistEntry } from '../types';
 import { INITIAL_COASTERS, INITIAL_USERS } from '../constants';
@@ -24,8 +25,8 @@ interface AppContextType {
   switchUser: (userId: string) => void;
   addUser: (name: string) => void;
   updateUserName: (userId: string, newName: string) => void;
-  addCredit: (coasterId: string, date: string, notes: string, photo?: File) => void;
-  updateCredit: (creditId: string, date: string, notes: string, photo?: File) => void;
+  addCredit: (coasterId: string, date: string, notes: string, restraints: string, photo?: File) => void;
+  updateCredit: (creditId: string, date: string, notes: string, restraints: string, photo?: File) => void;
   addNewCoaster: (coaster: Omit<Coaster, 'id'>) => Promise<string>;
   searchOnlineCoaster: (query: string) => Promise<Partial<Coaster> | null>;
   generateIcon: (prompt: string) => Promise<string | null>;
@@ -159,7 +160,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return wishlist.some(w => w.userId === activeUser.id && w.coasterId === coasterId);
   };
 
-  const addCredit = (coasterId: string, date: string, notes: string, photo?: File) => {
+  const addCredit = (coasterId: string, date: string, notes: string, restraints: string, photo?: File) => {
     // If it's in the wishlist, remove it (Bucket list achieved!)
     if (isInWishlist(coasterId)) {
       setWishlist(prev => prev.filter(w => !(w.userId === activeUser.id && w.coasterId === coasterId)));
@@ -169,15 +170,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const reader = new FileReader();
         reader.onloadend = () => {
             const base64 = reader.result as string;
-            saveCredit(coasterId, date, notes, base64);
+            saveCredit(coasterId, date, notes, restraints, base64);
         };
         reader.readAsDataURL(photo);
     } else {
-        saveCredit(coasterId, date, notes);
+        saveCredit(coasterId, date, notes, restraints);
     }
   };
 
-  const saveCredit = (coasterId: string, date: string, notes: string, photoUrl?: string) => {
+  const saveCredit = (coasterId: string, date: string, notes: string, restraints: string, photoUrl?: string) => {
       const newCredit: Credit = {
       id: generateId('cr'),
       userId: activeUser.id,
@@ -185,14 +186,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       date,
       rideCount: 1, 
       notes,
+      restraints,
       photoUrl
     };
     setCredits([...credits, newCredit]);
     showNotification("Ride Logged Successfully!", 'success');
-    // Removed setCurrentView('DASHBOARD') to facilitate batch entry/search persistence
   };
 
-  const updateCredit = (creditId: string, date: string, notes: string, photo?: File) => {
+  const updateCredit = (creditId: string, date: string, notes: string, restraints: string, photo?: File) => {
     const processUpdate = (photoUrl?: string) => {
       setCredits(prev => prev.map(c => {
         if (c.id === creditId) {
@@ -200,6 +201,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             ...c,
             date,
             notes,
+            restraints,
             // Only update photoUrl if a new one is processed (photoUrl is passed as string)
             // If it is undefined, we keep the existing one (spread c first)
             ...(photoUrl !== undefined ? { photoUrl } : {})

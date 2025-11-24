@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { X, Camera, Save } from 'lucide-react';
+import { X, Camera, Save, Lock } from 'lucide-react';
 import { Credit, Coaster } from '../types';
 
 interface EditCreditModalProps {
@@ -14,11 +15,12 @@ const EditCreditModal: React.FC<EditCreditModalProps> = ({ credit, coaster, onCl
   
   const [date, setDate] = useState(credit.date);
   const [notes, setNotes] = useState(credit.notes || '');
+  const [restraints, setRestraints] = useState(credit.restraints || '');
   const [photo, setPhoto] = useState<File | undefined>(undefined);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    updateCredit(credit.id, date, notes, photo);
+    updateCredit(credit.id, date, notes, restraints, photo);
     onClose();
   };
 
@@ -67,6 +69,19 @@ const EditCreditModal: React.FC<EditCreditModalProps> = ({ credit, coaster, onCl
               </label>
             </div>
           </div>
+          
+          <div>
+              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5 flex items-center gap-1">
+                <Lock size={12} /> Type of Restraints
+              </label>
+              <input 
+                  type="text"
+                  value={restraints}
+                  onChange={(e) => setRestraints(e.target.value)}
+                  placeholder="e.g. Lap bar, OTSR, Vest"
+                  className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white focus:ring-2 focus:ring-primary focus:outline-none text-sm"
+              />
+          </div>
 
           <div>
             <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Notes</label>
@@ -74,7 +89,7 @@ const EditCreditModal: React.FC<EditCreditModalProps> = ({ credit, coaster, onCl
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white focus:ring-2 focus:ring-primary focus:outline-none h-24 text-sm"
-              placeholder="Ride experience..."
+              placeholder="Ride experience, seat location, were you stapled? etc."
             />
           </div>
 
