@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Coaster, CoasterType } from '../types';
-import { Search, Plus, Calendar, Camera, Sparkles, Loader2, Filter, Bookmark, CheckCircle2, BookmarkCheck, Check, X, History, Trash2, ArrowRight, Lock, PlusCircle } from 'lucide-react';
+import { Search, Plus, Calendar, Camera, Sparkles, Loader2, Filter, Bookmark, CheckCircle2, BookmarkCheck, Check, X, History, Trash2, ArrowRight, Lock, PlusCircle, Palmtree, MapPin } from 'lucide-react';
 import clsx from 'clsx';
 
 const AddCredit: React.FC = () => {
@@ -120,6 +120,12 @@ const AddCredit: React.FC = () => {
       }
   }
 
+  const handleParkFilter = (parkName: string, e?: React.MouseEvent) => {
+      if (e) e.stopPropagation();
+      setSearchTerm(parkName);
+      setSelectedCoaster(null); // Go back to list view
+  };
+
   // Check if current selected coaster is ridden and get history
   const existingCredits = useMemo(() => {
       if (!selectedCoaster) return [];
@@ -135,9 +141,18 @@ const AddCredit: React.FC = () => {
       // Step 2: Log Details View
       return (
           <div className="animate-fade-in space-y-4 pb-12">
-              <button onClick={() => setSelectedCoaster(null)} className="text-sm text-slate-400 hover:text-white flex items-center gap-1 mb-2">
-                  <X size={16} /> Back to Search
-              </button>
+              <div className="flex justify-between items-center mb-2">
+                <button onClick={() => setSelectedCoaster(null)} className="text-sm text-slate-400 hover:text-white flex items-center gap-1">
+                    <X size={16} /> Back to Search
+                </button>
+                <button 
+                    onClick={() => handleParkFilter(selectedCoaster.park)}
+                    className="text-xs bg-slate-800 hover:bg-slate-700 text-primary px-3 py-1.5 rounded-full border border-slate-700 flex items-center gap-1 transition-colors"
+                >
+                    <Palmtree size={12} />
+                    View all at {selectedCoaster.park}
+                </button>
+              </div>
               
               {/* Hero Image */}
               {selectedCoaster.imageUrl && (
@@ -393,7 +408,8 @@ const AddCredit: React.FC = () => {
                     return (
                         <div 
                             key={coaster.id}
-                            className="bg-slate-800/50 rounded-lg border border-slate-700/50 flex items-stretch h-20 group relative hover:border-slate-600 transition-colors overflow-hidden"
+                            onClick={() => setSelectedCoaster(coaster)}
+                            className="bg-slate-800/50 rounded-lg border border-slate-700/50 flex items-stretch h-20 group relative hover:border-slate-600 transition-colors overflow-hidden cursor-pointer"
                         >
                             {/* Compact Image */}
                             <div className="w-20 shrink-0 bg-slate-900 relative border-r border-slate-700/30">
@@ -414,10 +430,15 @@ const AddCredit: React.FC = () => {
                             {/* Content */}
                             <div className="flex-1 px-3 py-1.5 flex flex-col justify-center min-w-0">
                                 <div className="flex items-center justify-between mb-0.5">
-                                    <h3 className="font-bold text-slate-200 text-sm truncate pr-1 leading-tight">{coaster.name}</h3>
+                                    <h3 className="font-bold text-slate-200 text-sm truncate pr-1 leading-tight group-hover:text-primary transition-colors">{coaster.name}</h3>
                                 </div>
                                 <div className="text-[10px] text-slate-500 leading-tight">
-                                    <span className="truncate block font-medium text-slate-400">{coaster.park}</span>
+                                    <button 
+                                        onClick={(e) => handleParkFilter(coaster.park, e)}
+                                        className="truncate block font-medium text-slate-400 hover:text-primary hover:underline transition-all flex items-center gap-1 mb-0.5"
+                                    >
+                                        <MapPin size={10} /> {coaster.park}
+                                    </button>
                                     <span className="truncate block opacity-70">{coaster.manufacturer} • {coaster.type}</span>
                                 </div>
                             </div>
@@ -440,9 +461,8 @@ const AddCredit: React.FC = () => {
                                     {inBucketList ? <BookmarkCheck size={18} /> : <Bookmark size={18} />}
                                 </button>
 
-                                {/* Log Button */}
+                                {/* Log Button - Just visual mostly since clicking card does it too, but nice to have target */}
                                 <button
-                                    onClick={() => setSelectedCoaster(coaster)}
                                     className="w-9 h-9 flex items-center justify-center rounded-lg text-primary hover:bg-primary/10 transition-colors"
                                     title="Log Ride"
                                 >
