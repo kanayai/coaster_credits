@@ -43,6 +43,7 @@ export interface User {
   id: string;
   name: string;
   avatarColor: string;
+  avatarUrl?: string; // Custom profile picture
 }
 
 export type ViewState = 'DASHBOARD' | 'ADD_CREDIT' | 'COASTER_LIST' | 'PROFILE' | 'PARK_STATS';

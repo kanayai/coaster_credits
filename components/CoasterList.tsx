@@ -173,7 +173,7 @@ const CoasterList: React.FC = () => {
             <ModeButton mode="PARK" icon={Palmtree} label="By Park" />
             <ModeButton mode="COUNTRY" icon={Flag} label="By Country" />
             <ModeButton mode="TYPE" icon={Layers} label="By Type" />
-            <ModeButton mode="MANUFACTURER" icon={Factory} label="By Make" />
+            <ModeButton mode="MANUFACTURER" icon={Factory} label="By Manufacturer" />
             <ModeButton mode="YEAR" icon={CalendarRange} label="By Year" />
           </div>
       </div>

@@ -1,6 +1,7 @@
+
 import React, { useState, useMemo, useRef } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { ArrowLeft, Globe, List, MapPin, Plus, Minus, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Globe, List, Plus, Minus, RefreshCw } from 'lucide-react';
 import clsx from 'clsx';
 
 const ParkStats: React.FC = () => {
@@ -40,27 +41,30 @@ const ParkStats: React.FC = () => {
     return { parks, countries: Array.from(countrySet) };
   }, [credits, coasters, activeUser]);
 
-  // Simple coordinate mapping for countries to place dots on map
-  // Top/Left percentages
+  // Precise Equirectangular Projection Coordinates (Top/Left %)
+  // Formula: Top = (90 - Lat) / 180 * 100, Left = (Lon + 180) / 360 * 100
   const countryCoords: Record<string, { top: string, left: string }> = {
-    'USA': { top: '35%', left: '20%' },
-    'Canada': { top: '25%', left: '20%' },
-    'UK': { top: '28%', left: '48%' },
-    'Germany': { top: '30%', left: '52%' },
-    'France': { top: '33%', left: '50%' },
-    'Spain': { top: '37%', left: '48%' },
-    'Italy': { top: '35%', left: '53%' },
-    'Poland': { top: '28%', left: '55%' },
-    'Netherlands': { top: '29%', left: '51%' },
-    'Belgium': { top: '30%', left: '50%' },
-    'Sweden': { top: '22%', left: '53%' },
-    'Finland': { top: '20%', left: '57%' },
-    'Denmark': { top: '26%', left: '52%' },
-    'Japan': { top: '38%', left: '85%' },
-    'China': { top: '40%', left: '75%' },
-    'South Korea': { top: '38%', left: '80%' },
-    'Australia': { top: '75%', left: '85%' },
-    'UAE': { top: '45%', left: '60%' },
+    'USA': { top: '27.8%', left: '22.6%' },         // 39.8N, 98.6W
+    'Canada': { top: '18.8%', left: '20.5%' },      // 56N, 106W
+    'UK': { top: '21.4%', left: '49.9%' },          // 51.5N, 0.1W
+    'Germany': { top: '21.6%', left: '52.7%' },     // 51N, 10E
+    'France': { top: '24.4%', left: '50.5%' },      // 46N, 2E
+    'Spain': { top: '27.7%', left: '49.1%' },       // 40N, 3W
+    'Italy': { top: '27.2%', left: '53.3%' },       // 41N, 12E
+    'Poland': { top: '21.1%', left: '55.2%' },      // 52N, 19E
+    'Netherlands': { top: '21.1%', left: '51.3%' }, // 52N, 5E
+    'Belgium': { top: '21.9%', left: '51.1%' },     // 50.5N, 4E
+    'Sweden': { top: '16.6%', left: '54.1%' },      // 60N, 15E
+    'Finland': { top: '14.4%', left: '57.2%' },     // 64N, 26E
+    'Denmark': { top: '18.8%', left: '52.7%' },     // 56N, 10E
+    'Japan': { top: '30%', left: '88.3%' },         // 36N, 138E
+    'China': { top: '30.5%', left: '79.1%' },       // 35N, 105E
+    'South Korea': { top: '30%', left: '85.5%' },   // 36N, 128E
+    'Australia': { top: '63.8%', left: '86.9%' },   // 25S, 133E
+    'UAE': { top: '37.2%', left: '65%' },           // 23N, 54E
+    'Saudi Arabia': { top: '36.6%', left: '62.5%' },// 24N, 45E
+    'Mexico': { top: '37.2%', left: '21.6%' },      // 23N, 102W
+    'Brazil': { top: '57.7%', left: '35.8%' },      // 14S, 51W
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -82,13 +86,13 @@ const ParkStats: React.FC = () => {
   };
 
   const handleZoom = (delta: number) => {
-    setZoom(prev => Math.min(Math.max(0.5, prev + delta), 4));
+    setZoom(prev => Math.min(Math.max(1, prev + delta), 6));
   };
 
   return (
     <div className="animate-fade-in h-full flex flex-col">
       {/* Header */}
-      <div className="flex items-center gap-4 mb-6">
+      <div className="flex items-center gap-4 mb-6 flex-none">
         <button 
           onClick={() => changeView('DASHBOARD')}
           className="p-2 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
@@ -173,7 +177,7 @@ const ParkStats: React.FC = () => {
             </button>
           </div>
 
-          <div className="absolute bottom-4 left-4 z-20 bg-black/60 backdrop-blur px-3 py-2 rounded-lg border border-white/10 text-xs text-slate-300 max-w-[200px]">
+          <div className="absolute bottom-4 left-4 z-20 bg-black/60 backdrop-blur px-3 py-2 rounded-lg border border-white/10 text-xs text-slate-300 max-w-[200px] pointer-events-none select-none">
             <p className="font-bold text-white mb-1">World View</p>
             <p>Drag to pan, use controls to zoom.</p>
           </div>
@@ -181,7 +185,7 @@ const ParkStats: React.FC = () => {
           {/* Interactive Map Container */}
           <div 
              ref={mapContainerRef}
-             className="w-full h-full cursor-move relative"
+             className="w-full h-full cursor-move relative flex items-center justify-center bg-slate-950"
              onMouseDown={handleMouseDown}
              onMouseMove={handleMouseMove}
              onMouseUp={handleMouseUp}
@@ -193,27 +197,33 @@ const ParkStats: React.FC = () => {
              <div style={{
                  transform: `translate(${position.x}px, ${position.y}px) scale(${zoom})`,
                  transformOrigin: 'center',
-                 transition: isDragging ? 'none' : 'transform 0.3s ease-out',
+                 transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)',
                  width: '100%',
-                 height: '100%'
+                 maxWidth: '800px', // Limit max width so it doesn't get huge on desktop
+                 aspectRatio: '2/1', // Force standard world map aspect ratio
+                 position: 'relative',
+                 userSelect: 'none'
              }}>
-                 {/* World Map SVG Background */}
-                 <div className="absolute inset-0 opacity-40">
+                 {/* World Map SVG Background - Using a reliable dotted map for cleanliness */}
+                 <div className="absolute inset-0">
                     <img 
-                    src="https://upload.wikimedia.org/wikipedia/commons/8/80/World_map_-_low_resolution.svg" 
+                    src="https://upload.wikimedia.org/wikipedia/commons/2/23/Blue_Marble_2002.png" 
                     alt="World Map"
-                    className="w-full h-full object-cover filter invert brightness-50 contrast-200 pointer-events-none"
-                    style={{ objectFit: 'cover', objectPosition: 'center' }}
+                    className="w-full h-full rounded-lg shadow-2xl opacity-60"
+                    style={{ 
+                        filter: 'grayscale(100%) brightness(0.7) contrast(1.2)',
+                    }}
+                    draggable={false}
                     />
+                    {/* Overlay Grid/Dots to make it look techy */}
+                    <div className="absolute inset-0 bg-[url('https://upload.wikimedia.org/wikipedia/commons/e/ec/World_map_blank_without_borders.svg')] opacity-20 bg-contain bg-no-repeat bg-center" style={{ filter: 'invert(1)' }}></div>
                 </div>
 
                 {/* Render Dots for Visited Countries */}
                 {stats.countries.map(country => {
                     const coords = countryCoords[country];
-                    // If we don't have coords for a country, skip plotting it to avoid errors
                     if (!coords) return null;
                     
-                    // Get total credits for this country
                     const count = stats.parks.filter(p => p.country === country).reduce((acc, curr) => acc + curr.count, 0);
 
                     return (
@@ -222,13 +232,18 @@ const ParkStats: React.FC = () => {
                         className="absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center group cursor-pointer hover:z-50"
                         style={{ top: coords.top, left: coords.left }}
                     >
+                        {/* Ripple Effect */}
                         <div className="relative">
-                            <div className="w-4 h-4 bg-primary rounded-full animate-pulse opacity-50 absolute inset-0"></div>
-                            <div className="w-4 h-4 bg-primary rounded-full border-2 border-slate-900 shadow-lg z-10 relative transition-transform group-hover:scale-125"></div>
+                            <div className="w-3 h-3 bg-primary rounded-full animate-ping absolute inset-0 opacity-75"></div>
+                            <div className="w-3 h-3 bg-primary rounded-full border border-white shadow-[0_0_10px_rgba(14,165,233,0.8)] z-10 relative transition-transform group-hover:scale-150"></div>
                         </div>
-                        <div className="absolute top-5 bg-slate-900 text-white text-[10px] px-2 py-1 rounded-md border border-slate-700 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-20 shadow-xl pointer-events-none scale-0 group-hover:scale-100 origin-top">
-                            <span className="font-bold text-primary">{country}</span>
-                            <div className="text-slate-400">{count} Credits</div>
+
+                        {/* Tooltip - Always visible on hover, scaled appropriately */}
+                        <div className="absolute bottom-4 bg-slate-900/90 backdrop-blur-md text-white px-3 py-2 rounded-xl border border-slate-700 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-all duration-200 z-50 shadow-2xl pointer-events-none scale-90 group-hover:scale-100 origin-bottom flex flex-col items-center">
+                            <span className="font-bold text-primary text-xs">{country}</span>
+                            <div className="text-[10px] text-slate-300 font-medium">{count} Credits</div>
+                            {/* Little triangle arrow */}
+                            <div className="w-2 h-2 bg-slate-900 border-r border-b border-slate-700 transform rotate-45 absolute -bottom-1"></div>
                         </div>
                     </div>
                     );

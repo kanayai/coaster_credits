@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useAppContext } from '../context/AppContext';
 import { LayoutDashboard, PlusCircle, UserCircle, List, Info, CheckCircle, AlertCircle, X } from 'lucide-react';
@@ -50,8 +51,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </h1>
           <div className="flex items-center gap-2">
              <span className="text-xs text-slate-400 font-medium tracking-wide">RIDER</span>
-             <div className={`w-7 h-7 rounded-full ${activeUser.avatarColor} ring-2 ring-slate-800 flex items-center justify-center text-[10px] font-bold shadow-inner`}>
-               {activeUser.name.substring(0,2).toUpperCase()}
+             <div className={`w-8 h-8 rounded-full ${activeUser.avatarUrl ? 'bg-transparent' : activeUser.avatarColor} ring-2 ring-slate-800 flex items-center justify-center text-[10px] font-bold shadow-inner overflow-hidden`}>
+               {activeUser.avatarUrl ? (
+                   <img src={activeUser.avatarUrl} alt="User" className="w-full h-full object-cover" />
+               ) : (
+                   activeUser.name.substring(0,2).toUpperCase()
+               )}
              </div>
           </div>
         </header>

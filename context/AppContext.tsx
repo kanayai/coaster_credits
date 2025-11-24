@@ -23,8 +23,8 @@ interface AppContextType {
   
   // Actions
   switchUser: (userId: string) => void;
-  addUser: (name: string) => void;
-  updateUserName: (userId: string, newName: string) => void;
+  addUser: (name: string, photo?: File) => void;
+  updateUser: (userId: string, newName: string, photo?: File) => void;
   addCredit: (coasterId: string, date: string, notes: string, restraints: string, photo?: File) => void;
   updateCredit: (creditId: string, date: string, notes: string, restraints: string, photo?: File) => void;
   addNewCoaster: (coaster: Omit<Coaster, 'id'>) => Promise<string>;
@@ -115,25 +115,46 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
-  const addUser = (name: string) => {
-    const newUser: User = {
-      id: generateId('u'),
-      name,
-      avatarColor: ['bg-red-500', 'bg-green-500', 'bg-yellow-500', 'bg-purple-500', 'bg-pink-500', 'bg-indigo-500'][Math.floor(Math.random() * 6)]
+  const addUser = (name: string, photo?: File) => {
+    const processUser = (avatarUrl?: string) => {
+        const newUser: User = {
+          id: generateId('u'),
+          name,
+          avatarColor: ['bg-red-500', 'bg-green-500', 'bg-yellow-500', 'bg-purple-500', 'bg-pink-500', 'bg-indigo-500'][Math.floor(Math.random() * 6)],
+          avatarUrl
+        };
+        setUsers([...users, newUser]);
+        setActiveUser(newUser);
+        showNotification(`Profile "${name}" created!`, 'success');
     };
-    setUsers([...users, newUser]);
-    setActiveUser(newUser);
-    showNotification(`Profile "${name}" created!`, 'success');
+
+    if (photo) {
+        const reader = new FileReader();
+        reader.onloadend = () => processUser(reader.result as string);
+        reader.readAsDataURL(photo);
+    } else {
+        processUser();
+    }
   };
 
-  const updateUserName = (userId: string, newName: string) => {
-    setUsers(prevUsers => prevUsers.map(u => 
-      u.id === userId ? { ...u, name: newName } : u
-    ));
-    if (activeUser.id === userId) {
-      setActiveUser(prev => ({ ...prev, name: newName }));
+  const updateUser = (userId: string, newName: string, photo?: File) => {
+    const processUpdate = (avatarUrl?: string) => {
+        setUsers(prevUsers => prevUsers.map(u => 
+          u.id === userId ? { ...u, name: newName, ...(avatarUrl ? { avatarUrl } : {}) } : u
+        ));
+        if (activeUser.id === userId) {
+          setActiveUser(prev => ({ ...prev, name: newName, ...(avatarUrl ? { avatarUrl } : {}) }));
+        }
+        showNotification("Profile updated", 'success');
+    };
+
+    if (photo) {
+        const reader = new FileReader();
+        reader.onloadend = () => processUpdate(reader.result as string);
+        reader.readAsDataURL(photo);
+    } else {
+        processUpdate();
     }
-    showNotification("Profile updated", 'success');
   };
 
   const addToWishlist = (coasterId: string) => {
@@ -259,7 +280,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       lastSearchQuery,
       switchUser,
       addUser,
-      updateUserName,
+      updateUser,
       addCredit,
       updateCredit,
       addNewCoaster,

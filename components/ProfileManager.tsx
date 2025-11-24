@@ -1,17 +1,21 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { UserPlus, CheckCircle2, Smartphone, Share2, QrCode, Edit2, Save, X, FileSpreadsheet, Database, Download, Cloud, PaintBucket, Sparkles, Loader2, Copy, ExternalLink } from 'lucide-react';
+import { UserPlus, CheckCircle2, Smartphone, Share2, QrCode, Edit2, Save, X, FileSpreadsheet, Database, Download, Cloud, PaintBucket, Sparkles, Loader2, Copy, ExternalLink, Camera } from 'lucide-react';
 import { User } from '../types';
 
 const ProfileManager: React.FC = () => {
-  const { users, activeUser, switchUser, addUser, updateUserName, credits, wishlist, coasters, generateIcon } = useAppContext();
+  const { users, activeUser, switchUser, addUser, updateUser, credits, wishlist, coasters, generateIcon } = useAppContext();
   const [isAdding, setIsAdding] = useState(false);
   const [newUserName, setNewUserName] = useState('');
+  const [newUserPhoto, setNewUserPhoto] = useState<File | undefined>(undefined);
+
   const [currentUrl, setCurrentUrl] = useState('');
   
   // Edit state
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
+  const [editPhoto, setEditPhoto] = useState<File | undefined>(undefined);
 
   // Icon Gen State
   const [iconPrompt, setIconPrompt] = useState('Mexican luchador wrestler with a colorful mask riding in the front row of a roller coaster with hands up screaming in joy');
@@ -28,8 +32,9 @@ const ProfileManager: React.FC = () => {
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
     if (newUserName.trim()) {
-      addUser(newUserName.trim());
+      addUser(newUserName.trim(), newUserPhoto);
       setNewUserName('');
+      setNewUserPhoto(undefined);
       setIsAdding(false);
     }
   };
@@ -37,17 +42,20 @@ const ProfileManager: React.FC = () => {
   const startEditing = (user: User) => {
     setEditingUserId(user.id);
     setEditName(user.name);
+    setEditPhoto(undefined);
   };
 
   const cancelEditing = () => {
     setEditingUserId(null);
     setEditName('');
+    setEditPhoto(undefined);
   };
 
-  const saveName = (userId: string) => {
+  const saveUser = (userId: string) => {
     if (editName.trim()) {
-      updateUserName(userId, editName.trim());
+      updateUser(userId, editName.trim(), editPhoto);
       setEditingUserId(null);
+      setEditPhoto(undefined);
     }
   };
 
@@ -128,74 +136,102 @@ const ProfileManager: React.FC = () => {
         <h2 className="text-2xl font-bold">Rider Profiles</h2>
         
         <div className="grid grid-cols-1 gap-3">
-          {users.map(user => (
-            <div
-              key={user.id}
-              onClick={() => !editingUserId && switchUser(user.id)}
-              className={`flex items-center p-4 rounded-xl border transition-all cursor-pointer group ${
-                user.id === activeUser.id 
-                  ? 'bg-primary/10 border-primary shadow-[0_0_15px_rgba(14,165,233,0.3)]' 
-                  : 'bg-slate-800 border-slate-700 hover:bg-slate-700'
-              }`}
-            >
-              <div className={`w-12 h-12 rounded-full ${user.avatarColor} flex items-center justify-center text-lg font-bold shadow-lg mr-4 shrink-0`}>
-                {user.name.substring(0, 2).toUpperCase()}
-              </div>
-              
-              <div className="flex-1 text-left min-w-0">
-                {editingUserId === user.id ? (
-                  <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                    <input 
-                      type="text"
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      className="bg-slate-900 border border-slate-600 rounded px-3 py-1.5 text-white w-full focus:ring-2 focus:ring-primary focus:outline-none"
-                      autoFocus
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') saveName(user.id);
-                        if (e.key === 'Escape') cancelEditing();
-                      }}
-                    />
-                    <button 
-                      onClick={() => saveName(user.id)} 
-                      className="p-2 bg-green-500/10 text-green-400 rounded-lg hover:bg-green-500/20"
-                      title="Save"
-                    >
-                      <Save size={18} />
-                    </button>
-                    <button 
-                      onClick={cancelEditing} 
-                      className="p-2 bg-slate-700/50 text-slate-400 rounded-lg hover:text-white"
-                      title="Cancel"
-                    >
-                      <X size={18} />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex justify-between items-center w-full">
-                    <div className="min-w-0">
-                      <h3 className={`font-semibold text-lg truncate ${user.id === activeUser.id ? 'text-white' : 'text-slate-200'}`}>
-                        {user.name}
-                      </h3>
-                      {user.id === activeUser.id && (
-                        <span className="text-xs text-primary font-medium flex items-center mt-1">
-                            <CheckCircle2 size={12} className="mr-1"/> Active Rider
-                        </span>
-                      )}
+          {users.map(user => {
+             const isEditing = editingUserId === user.id;
+             
+             return (
+                <div
+                key={user.id}
+                onClick={() => !isEditing && switchUser(user.id)}
+                className={`flex items-center p-4 rounded-xl border transition-all cursor-pointer group ${
+                    user.id === activeUser.id 
+                    ? 'bg-primary/10 border-primary shadow-[0_0_15px_rgba(14,165,233,0.3)]' 
+                    : 'bg-slate-800 border-slate-700 hover:bg-slate-700'
+                }`}
+                >
+                <div className="relative group/avatar mr-4 shrink-0">
+                    <div className={`w-12 h-12 rounded-full ${user.avatarUrl ? 'bg-transparent' : user.avatarColor} flex items-center justify-center text-lg font-bold shadow-lg overflow-hidden`}>
+                         {user.avatarUrl ? (
+                             <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
+                         ) : (
+                             user.name.substring(0, 2).toUpperCase()
+                         )}
                     </div>
-                    
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); startEditing(user); }}
-                      className="p-2 text-slate-500 hover:text-white hover:bg-slate-600/50 rounded-lg transition-all opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
-                      title="Rename User"
-                    >
-                      <Edit2 size={16} />
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
+                    {isEditing && (
+                        <>
+                            <input 
+                                type="file" 
+                                accept="image/*" 
+                                id={`edit-avatar-${user.id}`} 
+                                className="hidden"
+                                onChange={(e) => setEditPhoto(e.target.files?.[0])}
+                            />
+                            <label 
+                                htmlFor={`edit-avatar-${user.id}`}
+                                className="absolute inset-0 bg-black/60 rounded-full flex items-center justify-center cursor-pointer opacity-100 hover:bg-black/70 transition-colors"
+                            >
+                                <Camera size={20} className="text-white" />
+                            </label>
+                            {editPhoto && <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-slate-800" />}
+                        </>
+                    )}
+                </div>
+                
+                <div className="flex-1 text-left min-w-0">
+                    {isEditing ? (
+                    <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                        <input 
+                        type="text"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        className="bg-slate-900 border border-slate-600 rounded px-3 py-1.5 text-white w-full focus:ring-2 focus:ring-primary focus:outline-none"
+                        autoFocus
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') saveUser(user.id);
+                            if (e.key === 'Escape') cancelEditing();
+                        }}
+                        />
+                        <button 
+                        onClick={() => saveUser(user.id)} 
+                        className="p-2 bg-green-500/10 text-green-400 rounded-lg hover:bg-green-500/20"
+                        title="Save"
+                        >
+                        <Save size={18} />
+                        </button>
+                        <button 
+                        onClick={cancelEditing} 
+                        className="p-2 bg-slate-700/50 text-slate-400 rounded-lg hover:text-white"
+                        title="Cancel"
+                        >
+                        <X size={18} />
+                        </button>
+                    </div>
+                    ) : (
+                    <div className="flex justify-between items-center w-full">
+                        <div className="min-w-0">
+                        <h3 className={`font-semibold text-lg truncate ${user.id === activeUser.id ? 'text-white' : 'text-slate-200'}`}>
+                            {user.name}
+                        </h3>
+                        {user.id === activeUser.id && (
+                            <span className="text-xs text-primary font-medium flex items-center mt-1">
+                                <CheckCircle2 size={12} className="mr-1"/> Active Rider
+                            </span>
+                        )}
+                        </div>
+                        
+                        <button 
+                        onClick={(e) => { e.stopPropagation(); startEditing(user); }}
+                        className="p-2 text-slate-500 hover:text-white hover:bg-slate-600/50 rounded-lg transition-all opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+                        title="Edit User"
+                        >
+                        <Edit2 size={16} />
+                        </button>
+                    </div>
+                    )}
+                </div>
+                </div>
+             );
+          })}
         </div>
 
         {!isAdding ? (
@@ -208,8 +244,26 @@ const ProfileManager: React.FC = () => {
           </button>
         ) : (
           <form onSubmit={handleAdd} className="bg-slate-800 p-4 rounded-xl border border-slate-700 animate-fade-in-down">
-              <label className="block text-sm text-slate-400 mb-2 font-medium">New Rider Name</label>
+              <label className="block text-sm text-slate-400 mb-2 font-medium">New Rider Details</label>
               <div className="flex gap-2">
+                  {/* Photo Upload for New User */}
+                  <div className="shrink-0 relative">
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        id="new-user-photo" 
+                        className="hidden" 
+                        onChange={(e) => setNewUserPhoto(e.target.files?.[0])}
+                      />
+                      <label 
+                        htmlFor="new-user-photo" 
+                        className={`w-10 h-10 rounded-lg flex items-center justify-center border border-slate-600 cursor-pointer hover:bg-slate-700 transition-colors ${newUserPhoto ? 'bg-primary/20 border-primary' : 'bg-slate-900'}`}
+                        title="Add Photo"
+                      >
+                          <Camera size={20} className={newUserPhoto ? 'text-primary' : 'text-slate-400'} />
+                      </label>
+                  </div>
+
                   <input 
                       type="text" 
                       autoFocus
@@ -227,7 +281,7 @@ const ProfileManager: React.FC = () => {
                   </button>
                   <button 
                       type="button"
-                      onClick={() => setIsAdding(false)}
+                      onClick={() => { setIsAdding(false); setNewUserPhoto(undefined); }}
                       className="text-slate-400 px-3 hover:text-white transition-colors"
                   >
                       Cancel
