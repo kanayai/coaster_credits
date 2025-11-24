@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { Trash2, Calendar, MapPin, Tag, LayoutList, Palmtree, Flag, Layers, Factory, CalendarRange, CheckCircle2, Bookmark, ArrowRightCircle, PlusCircle, Edit2, ArrowLeft } from 'lucide-react';
+import { Trash2, Calendar, MapPin, Tag, LayoutList, Palmtree, Flag, Layers, Factory, CalendarRange, CheckCircle2, Bookmark, ArrowRightCircle, PlusCircle, Edit2, ArrowLeft, ChevronRight, FolderOpen } from 'lucide-react';
 import clsx from 'clsx';
 import { Credit, Coaster } from '../types';
 import EditCreditModal from './EditCreditModal';
@@ -10,6 +10,7 @@ type GroupMode = 'DATE' | 'PARK' | 'COUNTRY' | 'TYPE' | 'MANUFACTURER' | 'YEAR';
 const CoasterList: React.FC = () => {
   const { credits, wishlist, coasters, activeUser, deleteCredit, removeFromWishlist, changeView, coasterListViewMode, setCoasterListViewMode } = useAppContext();
   const [groupMode, setGroupMode] = useState<GroupMode>('DATE');
+  const [selectedGroupTitle, setSelectedGroupTitle] = useState<string | null>(null);
 
   // Edit State
   const [editingCreditData, setEditingCreditData] = useState<{ credit: Credit, coaster: Coaster } | null>(null);
@@ -35,9 +36,9 @@ const CoasterList: React.FC = () => {
   }, [credits, wishlist, coasters, activeUser.id, coasterListViewMode]);
 
   const groups = useMemo(() => {
-    // If empty
     if (itemsToDisplay.length === 0) return [];
 
+    // Date mode is treated as a single flattened list essentially, but we structure it consistently
     if (groupMode === 'DATE') {
       return [{ title: coasterListViewMode === 'CREDITS' ? 'Recent Rides' : 'Recently Added', items: itemsToDisplay }];
     }
@@ -52,7 +53,6 @@ const CoasterList: React.FC = () => {
       else if (groupMode === 'TYPE') key = item.coaster.type;
       else if (groupMode === 'MANUFACTURER') key = item.coaster.manufacturer;
       else if (groupMode === 'YEAR') {
-          // For credits, use ridden date. For wishlist, use added date (or ignore)
           const dateStr = item.type === 'CREDIT' ? (item as any).date : (item as any).addedAt;
           key = new Date(dateStr).getFullYear().toString();
       }
@@ -69,6 +69,19 @@ const CoasterList: React.FC = () => {
       });
   }, [itemsToDisplay, groupMode, coasterListViewMode]);
 
+  const handleGroupModeChange = (mode: GroupMode) => {
+    setGroupMode(mode);
+    setSelectedGroupTitle(null);
+  };
+
+  const handleBack = () => {
+      if (selectedGroupTitle) {
+          setSelectedGroupTitle(null);
+      } else {
+          changeView('DASHBOARD');
+      }
+  };
+
   const startEdit = (item: any) => {
       if (item.type !== 'CREDIT' || !item.coaster) return;
       setEditingCreditData({ credit: item, coaster: item.coaster });
@@ -76,7 +89,7 @@ const CoasterList: React.FC = () => {
 
   const ModeButton = ({ mode, icon: Icon, label }: { mode: GroupMode, icon: React.ElementType, label: string }) => (
     <button
-      onClick={() => setGroupMode(mode)}
+      onClick={() => handleGroupModeChange(mode)}
       className={clsx(
         "flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all border whitespace-nowrap flex-shrink-0",
         groupMode === mode 
@@ -89,6 +102,28 @@ const CoasterList: React.FC = () => {
     </button>
   );
 
+  const getCategoryIcon = () => {
+      switch (groupMode) {
+          case 'PARK': return Palmtree;
+          case 'COUNTRY': return Flag;
+          case 'TYPE': return Layers;
+          case 'MANUFACTURER': return Factory;
+          case 'YEAR': return CalendarRange;
+          default: return FolderOpen;
+      }
+  };
+
+  // Determine what to render
+  const showCategories = groupMode !== 'DATE' && !selectedGroupTitle;
+  const CategoryIcon = getCategoryIcon();
+
+  // If showing items (either DATE mode or a specific category selected)
+  const activeGroup = groupMode === 'DATE' 
+      ? groups[0] 
+      : groups.find(g => g.title === selectedGroupTitle);
+  
+  const itemsToShow = activeGroup ? activeGroup.items : [];
+
   return (
     <div className="animate-fade-in space-y-4 pb-8">
       {/* Top Controls */}
@@ -97,7 +132,7 @@ const CoasterList: React.FC = () => {
           <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                   <button 
-                    onClick={() => changeView('DASHBOARD')}
+                    onClick={handleBack}
                     className="bg-slate-800 p-2 rounded-full border border-slate-700 text-slate-400 hover:text-white transition-colors"
                   >
                     <ArrowLeft size={20} />
@@ -108,7 +143,7 @@ const CoasterList: React.FC = () => {
               {/* View Toggle */}
               <div className="bg-slate-800 p-1 rounded-lg flex border border-slate-700">
                   <button
-                      onClick={() => setCoasterListViewMode('CREDITS')}
+                      onClick={() => { setCoasterListViewMode('CREDITS'); setSelectedGroupTitle(null); }}
                       className={clsx(
                           "px-3 sm:px-4 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-2",
                           coasterListViewMode === 'CREDITS' ? "bg-slate-700 text-white shadow-sm" : "text-slate-400 hover:text-slate-200"
@@ -118,7 +153,7 @@ const CoasterList: React.FC = () => {
                       Ridden
                   </button>
                   <button
-                      onClick={() => setCoasterListViewMode('WISHLIST')}
+                      onClick={() => { setCoasterListViewMode('WISHLIST'); setSelectedGroupTitle(null); }}
                       className={clsx(
                           "px-3 sm:px-4 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-2",
                           coasterListViewMode === 'WISHLIST' ? "bg-amber-500/20 text-amber-500 shadow-sm" : "text-slate-400 hover:text-slate-200"
@@ -159,22 +194,50 @@ const CoasterList: React.FC = () => {
               </button>
           </div>
       ) : (
-          <div className="space-y-8">
-              {groups.map((group) => (
-                  <div key={group.title} className="space-y-3">
-                      {groupMode !== 'DATE' && (
-                          <div className="flex items-center gap-2 mb-2 px-1 sticky top-36 z-10">
-                              <div className="backdrop-blur-md bg-slate-900/80 px-3 py-1 rounded-full border border-slate-700/50 flex items-center gap-2 shadow-sm">
-                                  <h3 className="text-sm font-bold text-white">{group.title}</h3>
-                                  <span className="bg-primary/20 text-primary px-1.5 py-0.5 rounded-full text-[10px] font-bold">
-                                      {group.items.length}
-                                  </span>
-                              </div>
-                          </div>
-                      )}
-                      
-                      <div className="grid grid-cols-1 gap-4">
-                        {group.items.map((item) => {
+          <>
+            {/* MODE: SHOW CATEGORIES LIST */}
+            {showCategories && (
+                 <div className="grid grid-cols-1 gap-3 animate-fade-in-up">
+                    {groups.map(group => (
+                        <button
+                            key={group.title}
+                            onClick={() => setSelectedGroupTitle(group.title)}
+                            className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex items-center justify-between hover:bg-slate-750 hover:border-slate-600 transition-all group active:scale-[0.99]"
+                        >
+                            <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 rounded-full bg-slate-900 border border-slate-700 flex items-center justify-center text-slate-400 group-hover:text-primary group-hover:border-primary/50 transition-colors">
+                                    <CategoryIcon size={20} />
+                                </div>
+                                <div className="text-left">
+                                    <h3 className="font-bold text-lg text-white group-hover:text-primary transition-colors">{group.title}</h3>
+                                    <p className="text-xs text-slate-500">{group.items.length} {group.items.length === 1 ? 'Coaster' : 'Coasters'}</p>
+                                </div>
+                            </div>
+                            <ChevronRight size={20} className="text-slate-600 group-hover:text-white transition-colors" />
+                        </button>
+                    ))}
+                 </div>
+            )}
+
+            {/* MODE: SHOW ITEMS (Recent or Selected Category) */}
+            {!showCategories && (
+                <div className="space-y-4 animate-fade-in">
+                    {/* Category Header (Only if not default DATE mode) */}
+                    {groupMode !== 'DATE' && (
+                        <div className="flex items-center gap-2 mb-4 px-1">
+                             <div className="bg-slate-800/80 backdrop-blur px-4 py-2 rounded-full border border-slate-700 flex items-center gap-2 shadow-sm">
+                                <CategoryIcon size={16} className="text-primary" />
+                                <h3 className="text-sm font-bold text-white">{selectedGroupTitle}</h3>
+                                <span className="bg-primary/20 text-primary px-2 py-0.5 rounded-full text-[10px] font-bold ml-1">
+                                    {itemsToShow.length}
+                                </span>
+                            </div>
+                        </div>
+                    )}
+                    
+                    {/* Items List */}
+                    <div className="grid grid-cols-1 gap-4">
+                        {itemsToShow.map((item) => {
                             if (!item.coaster) return null;
                             const isWishlist = item.type === 'WISHLIST';
                             
@@ -295,10 +358,10 @@ const CoasterList: React.FC = () => {
                                 </div>
                             );
                         })}
-                      </div>
-                  </div>
-              ))}
-          </div>
+                    </div>
+                </div>
+            )}
+          </>
       )}
 
       {/* Shared Edit Modal */}
