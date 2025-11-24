@@ -25,6 +25,9 @@ const AddCredit: React.FC = () => {
   const [notes, setNotes] = useState('');
   const [restraints, setRestraints] = useState('');
   const [photo, setPhoto] = useState<File | undefined>(undefined);
+  
+  // Submission Action State
+  const [nextAction, setNextAction] = useState<'SEARCH' | 'PARK'>('SEARCH');
 
   const filteredCoasters = useMemo(() => {
     let result = coasters;
@@ -87,11 +90,17 @@ const AddCredit: React.FC = () => {
     e.preventDefault();
     if (selectedCoaster) {
         addCredit(selectedCoaster.id, date, notes, restraints, photo);
+        
+        // Handle post-submit navigation
+        if (nextAction === 'PARK') {
+            setSearchTerm(selectedCoaster.park);
+        }
+
         // Reset form
         setNotes('');
         setRestraints('');
         setPhoto(undefined);
-        // Close detail view, return to list. Search persists.
+        // Close detail view, return to list. Search persists (or is updated to Park).
         setSelectedCoaster(null); 
     }
   };
@@ -269,13 +278,25 @@ const AddCredit: React.FC = () => {
                           />
                       </div>
 
-                      <button 
-                          type="submit"
-                          className="w-full bg-primary hover:bg-primary-hover text-white font-bold py-3.5 rounded-xl shadow-lg shadow-primary/25 transform transition active:scale-[0.98] flex items-center justify-center gap-2"
-                      >
-                          <Plus size={20} strokeWidth={3} />
-                          Confirm Ride Log
-                      </button>
+                      <div className="flex gap-2">
+                          <button 
+                              type="submit"
+                              onClick={() => setNextAction('SEARCH')}
+                              className="flex-1 bg-primary hover:bg-primary-hover text-white font-bold py-3.5 rounded-xl shadow-lg shadow-primary/25 transform transition active:scale-[0.98] flex items-center justify-center gap-2 text-sm sm:text-base"
+                          >
+                              <Plus size={20} strokeWidth={3} />
+                              Log Ride
+                          </button>
+                          <button 
+                              type="submit"
+                              onClick={() => setNextAction('PARK')}
+                              className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-bold py-3.5 rounded-xl shadow-lg border border-slate-600 transform transition active:scale-[0.98] flex items-center justify-center gap-2 text-sm sm:text-base"
+                              title="Log ride and see all coasters in this park"
+                          >
+                              <Palmtree size={20} />
+                              Log & View Park
+                          </button>
+                      </div>
                   </form>
               </div>
 
