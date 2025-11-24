@@ -375,3 +375,14 @@ const CoasterList: React.FC = () => {
 
       {/* Shared Edit Modal */}
       {editingCreditData && (
+          <EditCreditModal 
+              credit={editingCreditData.credit}
+              coaster={editingCreditData.coaster}
+              onClose={() => setEditingCreditData(null)}
+          />
+      )}
+    </div>
+  );
+};
+
+export default CoasterList;
