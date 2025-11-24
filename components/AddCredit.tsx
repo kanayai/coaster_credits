@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Coaster, CoasterType } from '../types';
-import { Search, Plus, Calendar, Camera, Sparkles, Loader2, Filter, Bookmark, CheckCircle2, BookmarkCheck, Check, X, History, Trash2, ArrowRight, Lock } from 'lucide-react';
+import { Search, Plus, Calendar, Camera, Sparkles, Loader2, Filter, Bookmark, CheckCircle2, BookmarkCheck, Check, X, History, Trash2, ArrowRight, Lock, PlusCircle } from 'lucide-react';
 import clsx from 'clsx';
 
 const AddCredit: React.FC = () => {
@@ -300,7 +300,7 @@ const AddCredit: React.FC = () => {
       );
   }
 
-  // Step 1: Search List
+  // Step 1: Search List (Compact Layout)
   return (
     <div className="h-full flex flex-col space-y-4 animate-fade-in">
         <div className="flex justify-between items-center">
@@ -383,8 +383,8 @@ const AddCredit: React.FC = () => {
             </div>
         )}
 
-        {/* List Results */}
-        <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+        {/* List Results - Compact Layout */}
+        <div className="flex-1 overflow-y-auto space-y-2 pr-1">
             {filteredCoasters.length > 0 ? (
                 filteredCoasters.map(coaster => {
                     const alreadyRidden = credits.some(c => c.userId === activeUser.id && c.coasterId === coaster.id);
@@ -393,59 +393,60 @@ const AddCredit: React.FC = () => {
                     return (
                         <div 
                             key={coaster.id}
-                            className="bg-slate-800/50 rounded-xl border border-slate-700/50 flex flex-col group relative hover:border-slate-600 transition-colors overflow-hidden"
+                            className="bg-slate-800/50 rounded-lg border border-slate-700/50 flex items-stretch h-20 group relative hover:border-slate-600 transition-colors overflow-hidden"
                         >
-                            <div className="flex">
-                                {/* Thumbnail Image */}
-                                {coaster.imageUrl && (
-                                    <div className="w-24 bg-slate-900 shrink-0 relative border-r border-slate-700/50">
-                                        <img src={coaster.imageUrl} alt={coaster.name} className="w-full h-full object-cover" />
-                                        {alreadyRidden && (
-                                            <div className="absolute top-1 right-1 bg-green-500 rounded-full p-0.5">
-                                                <Check size={10} className="text-white stroke-[3]" />
-                                            </div>
-                                        )}
+                            {/* Compact Image */}
+                            <div className="w-20 shrink-0 bg-slate-900 relative border-r border-slate-700/30">
+                                {coaster.imageUrl ? (
+                                    <img src={coaster.imageUrl} alt={coaster.name} className="w-full h-full object-cover" />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center bg-slate-800 text-slate-600">
+                                        <Camera size={20} />
                                     </div>
                                 )}
-
-                                <div className="p-3 flex-1 flex flex-col justify-between min-w-0">
-                                    {/* Name and Park Info */}
-                                    <div className="min-w-0 pr-2">
-                                        <div className="flex items-center gap-2">
-                                            <h3 className="font-bold truncate text-slate-200">{coaster.name}</h3>
-                                            {!coaster.imageUrl && alreadyRidden && <CheckCircle2 size={14} className="text-green-500 flex-shrink-0" />}
-                                        </div>
-                                        <div className="text-xs text-slate-500 mt-1 flex flex-col">
-                                            <span className="truncate">{coaster.park}, {coaster.country}</span>
-                                            <span className="opacity-70 mt-0.5">{coaster.manufacturer} • {coaster.type}</span>
-                                        </div>
+                                {alreadyRidden && (
+                                    <div className="absolute top-1 left-1 bg-green-500 rounded-full p-0.5 shadow-md">
+                                        <Check size={10} className="text-white stroke-[3]" />
                                     </div>
+                                )}
+                            </div>
+
+                            {/* Content */}
+                            <div className="flex-1 px-3 py-1.5 flex flex-col justify-center min-w-0">
+                                <div className="flex items-center justify-between mb-0.5">
+                                    <h3 className="font-bold text-slate-200 text-sm truncate pr-1 leading-tight">{coaster.name}</h3>
+                                </div>
+                                <div className="text-[10px] text-slate-500 leading-tight">
+                                    <span className="truncate block font-medium text-slate-400">{coaster.park}</span>
+                                    <span className="truncate block opacity-70">{coaster.manufacturer} • {coaster.type}</span>
                                 </div>
                             </div>
-                            
-                            {/* Actions Footer */}
-                            <div className="grid grid-cols-2 border-t border-slate-700/50 divide-x divide-slate-700/50">
-                                {/* Bucket List Action */}
+
+                            {/* Actions - Vertical on the right */}
+                            <div className="flex items-center px-1 gap-1 border-l border-slate-700/50 bg-slate-900/20 shrink-0">
+                                {/* Wishlist Button */}
                                 <button 
                                     onClick={(e) => handleToggleWishlist(e, coaster)}
                                     disabled={alreadyRidden}
                                     className={clsx(
-                                        "py-2.5 flex items-center justify-center gap-2 text-xs font-medium transition-colors hover:bg-slate-700/50",
-                                        inBucketList ? "text-amber-500 bg-amber-500/5" : "text-slate-400",
-                                        alreadyRidden && "opacity-30 cursor-not-allowed"
+                                        "w-9 h-9 flex items-center justify-center rounded-lg transition-colors",
+                                        inBucketList 
+                                            ? "text-amber-500 bg-amber-500/10" 
+                                            : "text-slate-500 hover:bg-slate-700/50 hover:text-slate-300",
+                                        alreadyRidden && "opacity-20 cursor-not-allowed"
                                     )}
+                                    title={inBucketList ? "Remove from Bucket List" : "Add to Bucket List"}
                                 >
-                                    {inBucketList ? <BookmarkCheck size={16} /> : <Bookmark size={16} />}
-                                    {inBucketList ? "Wishlisted" : "Wishlist"}
+                                    {inBucketList ? <BookmarkCheck size={18} /> : <Bookmark size={18} />}
                                 </button>
 
-                                {/* Log Ride Action */}
+                                {/* Log Button */}
                                 <button
                                     onClick={() => setSelectedCoaster(coaster)}
-                                    className="py-2.5 flex items-center justify-center gap-2 text-xs font-medium text-primary hover:bg-slate-700/50 transition-colors"
+                                    className="w-9 h-9 flex items-center justify-center rounded-lg text-primary hover:bg-primary/10 transition-colors"
+                                    title="Log Ride"
                                 >
-                                    <Plus size={16} />
-                                    Log Ride
+                                    <PlusCircle size={22} strokeWidth={2.5} />
                                 </button>
                             </div>
                         </div>
