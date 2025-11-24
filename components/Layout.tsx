@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useAppContext } from '../context/AppContext';
 import { LayoutDashboard, PlusCircle, UserCircle, List, Info, CheckCircle, AlertCircle, X } from 'lucide-react';
@@ -20,13 +19,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   return (
     <div className="relative h-screen bg-slate-950 text-white overflow-hidden font-sans">
-      {/* Background Layer */}
+      {/* Background Layer - Optimized for Mobile Performance */}
       <div className="absolute inset-0 z-0 pointer-events-none select-none overflow-hidden">
-        {/* Coaster Image - Wooden Coaster Structure */}
+        {/* Coaster Image - Wooden Coaster Structure - Reduced width to 1080px for performance */}
         <div 
           className="absolute inset-0 bg-cover bg-center opacity-40 mix-blend-overlay"
           style={{ 
-            backgroundImage: "url('https://images.unsplash.com/photo-1544669049-29177114210d?q=80&w=2574&auto=format&fit=crop')",
+            backgroundImage: "url('https://images.unsplash.com/photo-1544669049-29177114210d?q=80&w=1080&auto=format&fit=crop')",
             filter: 'grayscale(100%) contrast(120%)'
           }}
         />
@@ -49,16 +48,21 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent drop-shadow-sm">
             CoasterCount Pro
           </h1>
-          <div className="flex items-center gap-2">
-             <span className="text-xs text-slate-400 font-medium tracking-wide">RIDER</span>
-             <div className={`w-8 h-8 rounded-full ${activeUser.avatarUrl ? 'bg-transparent' : activeUser.avatarColor} ring-2 ring-slate-800 flex items-center justify-center text-[10px] font-bold shadow-inner overflow-hidden`}>
+          <button 
+            onClick={() => changeView('PROFILE')}
+            className="flex items-center gap-3 bg-slate-800/40 hover:bg-slate-800/80 p-1.5 pl-3 rounded-full border border-slate-700/30 transition-all hover:border-slate-600 group active:scale-95 will-change-transform"
+          >
+             <div className="flex flex-col items-end justify-center h-full">
+                <span className="text-sm font-bold text-white leading-tight max-w-[120px] truncate text-right">{activeUser.name}</span>
+             </div>
+             <div className={`w-8 h-8 rounded-full ${activeUser.avatarUrl ? 'bg-transparent' : activeUser.avatarColor} ring-2 ring-slate-700 group-hover:ring-primary/50 flex items-center justify-center text-[10px] font-bold shadow-inner overflow-hidden transition-all`}>
                {activeUser.avatarUrl ? (
                    <img src={activeUser.avatarUrl} alt="User" className="w-full h-full object-cover" />
                ) : (
                    activeUser.name.substring(0,2).toUpperCase()
                )}
              </div>
-          </div>
+          </button>
         </header>
 
         {/* Notification Toast */}
