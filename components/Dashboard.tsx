@@ -1,10 +1,15 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
-import { Trophy, TrendingUp, MapPin, ClipboardList } from 'lucide-react';
+import { Trophy, MapPin, ClipboardList } from 'lucide-react';
+import EditCreditModal from './EditCreditModal';
+import { Credit, Coaster } from '../types';
 
 const Dashboard: React.FC = () => {
   const { credits, wishlist, coasters, activeUser, changeView, setCoasterListViewMode } = useAppContext();
+
+  // State for editing the last credit
+  const [editingCreditData, setEditingCreditData] = useState<{ credit: Credit, coaster: Coaster } | null>(null);
 
   // Filter credits for active user
   const userCredits = useMemo(() => 
@@ -43,8 +48,14 @@ const Dashboard: React.FC = () => {
   const recentCredit = userCredits.length > 0 ? userCredits[userCredits.length - 1] : null;
   const recentCoaster = recentCredit ? coasters.find(c => c.id === recentCredit.coasterId) : null;
 
+  const handleLastRiddenClick = () => {
+    if (recentCredit && recentCoaster) {
+        setEditingCreditData({ credit: recentCredit, coaster: recentCoaster });
+    }
+  };
+
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in pb-10">
       
       {/* Hero Stat - Main Credit Count */}
       <div 
@@ -68,10 +79,15 @@ const Dashboard: React.FC = () => {
 
       {/* Quick Stats Grid */}
       <div className="grid grid-cols-2 gap-4">
-        <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center">
-            <MapPin className="text-accent mb-2" size={24} />
-            <span className="text-2xl font-bold">{uniqueParks}</span>
-            <span className="text-xs text-slate-400">Parks Visited</span>
+        {/* Parks Visited - Now Clickable */}
+        <div 
+            onClick={() => changeView('PARK_STATS')}
+            className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-slate-750 hover:border-accent/50 transition relative overflow-hidden group"
+        >
+            <div className="absolute inset-0 bg-accent/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+            <MapPin className="text-accent mb-2 relative z-10" size={24} />
+            <span className="text-2xl font-bold relative z-10">{uniqueParks}</span>
+            <span className="text-xs text-slate-400 relative z-10 group-hover:text-white transition-colors">Parks Visited</span>
         </div>
         
         {/* Bucket List Link - Secondary Count */}
@@ -138,18 +154,34 @@ const Dashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Recent Activity */}
+      {/* Recent Activity - Now Clickable to Edit */}
       {recentCoaster && (
-        <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex gap-4 items-center">
-            {recentCoaster.imageUrl && (
+        <div 
+            onClick={handleLastRiddenClick}
+            className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex gap-4 items-center cursor-pointer hover:bg-slate-750 hover:border-slate-500 transition-colors group"
+        >
+            {recentCoaster.imageUrl ? (
                 <img src={recentCoaster.imageUrl} alt={recentCoaster.name} className="w-16 h-16 rounded-lg object-cover" />
+            ) : (
+                <div className="w-16 h-16 rounded-lg bg-slate-700 flex items-center justify-center">
+                    <Trophy size={24} className="text-slate-500" />
+                </div>
             )}
             <div>
-                <div className="text-xs text-slate-400 uppercase font-semibold">Last Ridden</div>
+                <div className="text-xs text-slate-400 uppercase font-semibold group-hover:text-primary transition-colors">Last Ridden (Tap to Edit)</div>
                 <div className="font-bold text-lg">{recentCoaster.name}</div>
                 <div className="text-sm text-slate-400">{recentCoaster.park}</div>
             </div>
         </div>
+      )}
+
+      {/* Edit Modal for Last Ridden */}
+      {editingCreditData && (
+          <EditCreditModal 
+            credit={editingCreditData.credit}
+            coaster={editingCreditData.coaster}
+            onClose={() => setEditingCreditData(null)}
+          />
       )}
     </div>
   );

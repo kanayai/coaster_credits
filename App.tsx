@@ -5,6 +5,7 @@ import Dashboard from './components/Dashboard';
 import AddCredit from './components/AddCredit';
 import CoasterList from './components/CoasterList';
 import ProfileManager from './components/ProfileManager';
+import ParkStats from './components/ParkStats';
 
 const AppContent: React.FC = () => {
   const { currentView } = useAppContext();
@@ -19,6 +20,8 @@ const AppContent: React.FC = () => {
         return <CoasterList />;
       case 'PROFILE':
         return <ProfileManager />;
+      case 'PARK_STATS':
+        return <ParkStats />;
       default:
         return <Dashboard />;
     }
