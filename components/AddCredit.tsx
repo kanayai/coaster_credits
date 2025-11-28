@@ -5,6 +5,15 @@ import { Coaster, CoasterType } from '../types';
 import { Search, Plus, Calendar, Camera, Sparkles, Loader2, Filter, Bookmark, CheckCircle2, BookmarkCheck, Check, X, History, Trash2, ArrowRight, Lock, PlusCircle, Palmtree, MapPin, ArrowLeft } from 'lucide-react';
 import clsx from 'clsx';
 
+// Helper to remove accents/diacritics for fuzzy searching
+// e.g., "Kärnan" -> "karnan", "Parc Astérix" -> "parc asterix"
+const normalizeText = (text: string) => {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+};
+
 const AddCredit: React.FC = () => {
   const { coasters, addCredit, deleteCredit, addNewCoaster, searchOnlineCoaster, credits, activeUser, addToWishlist, removeFromWishlist, isInWishlist, lastSearchQuery, setLastSearchQuery } = useAppContext();
   
@@ -29,22 +38,23 @@ const AddCredit: React.FC = () => {
   // Check if the current search looks like a park filter (exact match on a park name)
   const activeParkFilter = useMemo(() => {
       if (!searchTerm) return null;
-      // Simple heuristic: if the search term matches a known park name exactly (case insensitive)
-      const exactParkMatch = coasters.find(c => c.park.toLowerCase() === searchTerm.toLowerCase());
+      // Simple heuristic: if the search term matches a known park name roughly (accent insensitive)
+      const normalizedSearch = normalizeText(searchTerm);
+      const exactParkMatch = coasters.find(c => normalizeText(c.park) === normalizedSearch);
       return exactParkMatch ? exactParkMatch.park : null;
   }, [searchTerm, coasters]);
   
   const filteredCoasters = useMemo(() => {
     let result = coasters;
     
-    // Filter by search term
+    // Filter by search term (Accent Insensitive)
     if (searchTerm) {
-        const lower = searchTerm.toLowerCase();
+        const normalizedSearch = normalizeText(searchTerm);
         result = result.filter(c => 
-            c.name.toLowerCase().includes(lower) || 
-            c.park.toLowerCase().includes(lower) ||
-            c.country.toLowerCase().includes(lower) ||
-            c.manufacturer.toLowerCase().includes(lower)
+            normalizeText(c.name).includes(normalizedSearch) || 
+            normalizeText(c.park).includes(normalizedSearch) ||
+            normalizeText(c.country).includes(normalizedSearch) ||
+            normalizeText(c.manufacturer).includes(normalizedSearch)
         );
     }
     
@@ -159,16 +169,22 @@ const AddCredit: React.FC = () => {
       return (
           <div className="animate-fade-in pb-16">
               <div className="space-y-4">
-                <div className="flex justify-between items-center mb-2">
-                    <button onClick={() => setSelectedCoaster(null)} className="text-sm text-slate-400 hover:text-white flex items-center gap-1">
-                        <X size={16} /> Back to Search
+                {/* Sticky Action Bar Top - Quick Filter */}
+                <div className="sticky top-0 -mx-4 -mt-4 p-4 z-20 bg-slate-900/95 backdrop-blur-md border-b border-slate-700/50 flex gap-2">
+                    <button 
+                        type="button"
+                        onClick={() => setSelectedCoaster(null)}
+                        className="p-3 rounded-xl bg-slate-800 border border-slate-700 text-slate-400 hover:text-white"
+                    >
+                         <ArrowLeft size={20} />
                     </button>
                     <button 
-                        onClick={() => handleParkFilter(selectedCoaster.park)}
-                        className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white px-3 py-1.5 rounded-full border border-slate-700 flex items-center gap-1 transition-colors"
+                        type="button"
+                        onClick={() => processLog(true)}
+                        className="flex-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-bold py-3 rounded-xl border border-emerald-500/30 flex items-center justify-center gap-2 text-sm transition-colors"
                     >
-                        <Palmtree size={12} />
-                        View all at {selectedCoaster.park}
+                        <Palmtree size={18} />
+                        Log & View Park
                     </button>
                 </div>
                 
@@ -199,17 +215,6 @@ const AddCredit: React.FC = () => {
                     <span>{selectedCoaster.manufacturer}</span>
                     <span>{selectedCoaster.type}</span>
                 </div>
-
-                {/* Speed Action: Log & Filter Park - Moved to Top */}
-                <button 
-                    type="button"
-                    onClick={() => processLog(true)}
-                    className="w-full bg-slate-800 hover:bg-slate-700 text-emerald-400 font-bold py-3 rounded-xl border border-emerald-500/30 shadow-lg shadow-emerald-500/10 transform transition active:scale-[0.98] flex items-center justify-center gap-2"
-                    title="Log ride and see all coasters in this park"
-                >
-                    <Palmtree size={20} />
-                    Quick Log & View Park
-                </button>
 
                 {/* Bucket List Action Section */}
                 <div 
@@ -490,7 +495,7 @@ const AddCredit: React.FC = () => {
                                 {/* Park Filter Button */}
                                 <button
                                     onClick={(e) => handleParkFilter(coaster.park, e)}
-                                    className="w-8 h-8 flex items-center justify-center rounded-lg text-emerald-500 hover:text-white hover:bg-emerald-600 transition-colors"
+                                    className="w-8 h-8 flex items-center justify-center rounded-lg text-emerald-400 hover:text-white hover:bg-emerald-600 transition-colors"
                                     title={`View all at ${coaster.park}`}
                                 >
                                     <Palmtree size={16} />
