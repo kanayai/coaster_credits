@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User, Coaster, Credit, ViewState, WishlistEntry } from '../types';
-import { INITIAL_COASTERS, INITIAL_USERS } from '../constants';
+import { INITIAL_COASTERS, INITIAL_USERS, normalizeManufacturer } from '../constants';
 import { generateCoasterInfo, generateAppIcon } from '../services/geminiService';
 import { fetchCoasterImageFromWiki } from '../services/wikipediaService';
 
@@ -263,7 +263,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
        if (wikiImage) finalImageUrl = wikiImage;
     }
 
-    const newCoaster: Coaster = { ...coasterData, id: newId, imageUrl: finalImageUrl };
+    // Normalize manufacturer
+    const normalizedManufacturer = normalizeManufacturer(coasterData.manufacturer);
+
+    const newCoaster: Coaster = { 
+        ...coasterData, 
+        manufacturer: normalizedManufacturer,
+        id: newId, 
+        imageUrl: finalImageUrl 
+    };
     setCoasters([...coasters, newCoaster]);
     showNotification("New Coaster Added to Database", 'success');
     return newId;

@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Coaster, CoasterType } from '../types';
 import { Search, Plus, Calendar, Camera, Sparkles, Loader2, Filter, Bookmark, CheckCircle2, BookmarkCheck, Check, X, History, Trash2, ArrowRight, Lock, PlusCircle, Palmtree, MapPin, ArrowLeft, Save, PenTool } from 'lucide-react';
+import { normalizeManufacturer } from '../constants';
 import clsx from 'clsx';
 
 // Helper to remove accents/diacritics for fuzzy searching
@@ -115,8 +116,12 @@ const AddCredit: React.FC = () => {
       e.preventDefault();
       if (!manualCoasterData.name || !manualCoasterData.park) return;
 
+      // Apply manufacturer normalization before saving
+      const normalizedManufacturer = normalizeManufacturer(manualCoasterData.manufacturer);
+
       const newId = await addNewCoaster({
           ...manualCoasterData,
+          manufacturer: normalizedManufacturer,
           isCustom: true,
           imageUrl: undefined // Will try to auto-fetch in background
       });
@@ -130,6 +135,7 @@ const AddCredit: React.FC = () => {
       // The ID matches what will be in state shortly.
       setSelectedCoaster({
           ...manualCoasterData,
+          manufacturer: normalizedManufacturer,
           id: newId,
           isCustom: true
       });

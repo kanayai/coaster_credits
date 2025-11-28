@@ -5,6 +5,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { Trophy, ClipboardList, Palmtree, Layers, Factory, Flag, CalendarRange, Edit2, Globe, Hash } from 'lucide-react';
 import EditCreditModal from './EditCreditModal';
 import { Credit, Coaster } from '../types';
+import { normalizeManufacturer } from '../constants';
 import clsx from 'clsx';
 
 type ChartMetric = 'PARK' | 'TYPE' | 'MANUFACTURER' | 'COUNTRY' | 'YEAR';
@@ -55,7 +56,9 @@ const Dashboard: React.FC = () => {
         switch (chartMetric) {
             case 'PARK': key = coaster.park; break;
             case 'TYPE': key = coaster.type; break;
-            case 'MANUFACTURER': key = coaster.manufacturer; break;
+            case 'MANUFACTURER': 
+                key = normalizeManufacturer(coaster.manufacturer); 
+                break;
             case 'COUNTRY': key = coaster.country; break;
             case 'YEAR': key = new Date(credit.date).getFullYear().toString(); break;
         }
