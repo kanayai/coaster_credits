@@ -54,6 +54,10 @@ export const normalizeManufacturer = (rawName: string): string => {
   return rawName.trim(); // Return cleaned original if no match
 };
 
+export const INITIAL_USERS: User[] = [
+  { id: 'u1', name: 'Main Rider', avatarColor: 'bg-blue-500' }
+];
+
 // A curated list of top roller coasters worldwide to simulate a large database
 export const INITIAL_COASTERS: Coaster[] = [
   // --- USA: CEDAR POINT ---
@@ -93,4 +97,31 @@ export const INITIAL_COASTERS: Coaster[] = [
   { id: 'fl6', name: 'Cheetah Hunt', park: 'Busch Gardens Tampa', country: 'USA', type: CoasterType.Steel, manufacturer: 'Intamin', imageUrl: 'https://picsum.photos/800/600?random=28' },
   { id: 'fl7', name: 'Hagrid\'s Magical Creatures Motorbike Adventure', park: 'Islands of Adventure', country: 'USA', type: CoasterType.Steel, manufacturer: 'Intamin', imageUrl: 'https://picsum.photos/800/600?random=29' },
   { id: 'fl8', name: 'Incredible Hulk', park: 'Islands of Adventure', country: 'USA', type: CoasterType.Steel, manufacturer: 'B&M', imageUrl: 'https://picsum.photos/800/600?random=30' },
-  { id: 'fl9', name: '
+  
+  // --- GERMANY: EUROPA PARK ---
+  { id: 'ep1', name: 'Silver Star', park: 'Europa Park', country: 'Germany', type: CoasterType.Steel, manufacturer: 'B&M', imageUrl: 'https://picsum.photos/800/600?random=31' },
+  { id: 'ep2', name: 'Blue Fire', park: 'Europa Park', country: 'Germany', type: CoasterType.Steel, manufacturer: 'Mack', imageUrl: 'https://picsum.photos/800/600?random=32' },
+  { id: 'ep3', name: 'Wodan Timbur Coaster', park: 'Europa Park', country: 'Germany', type: CoasterType.Wooden, manufacturer: 'GCI', imageUrl: 'https://picsum.photos/800/600?random=33' },
+  { id: 'ep4', name: 'Voltron Nevera', park: 'Europa Park', country: 'Germany', type: CoasterType.Steel, manufacturer: 'Mack', imageUrl: 'https://picsum.photos/800/600?random=34' },
+
+  // --- POLAND: ENERGYLANDIA ---
+  { id: 'el1', name: 'Zadra', park: 'Energylandia', country: 'Poland', type: CoasterType.Hybrid, manufacturer: 'RMC', imageUrl: 'https://picsum.photos/800/600?random=35' },
+  { id: 'el2', name: 'Hyperion', park: 'Energylandia', country: 'Poland', type: CoasterType.Steel, manufacturer: 'Intamin', imageUrl: 'https://picsum.photos/800/600?random=36' },
+  { id: 'el3', name: 'Abyssus', park: 'Energylandia', country: 'Poland', type: CoasterType.Steel, manufacturer: 'Vekoma', imageUrl: 'https://picsum.photos/800/600?random=37' },
+
+  // --- UK: ALTON TOWERS ---
+  { id: 'at1', name: 'Nemesis Reborn', park: 'Alton Towers', country: 'UK', type: CoasterType.Steel, manufacturer: 'B&M', imageUrl: 'https://picsum.photos/800/600?random=38' },
+  { id: 'at2', name: 'The Smiler', park: 'Alton Towers', country: 'UK', type: CoasterType.Steel, manufacturer: 'Gerstlauer', imageUrl: 'https://picsum.photos/800/600?random=39' },
+  { id: 'at3', name: 'Oblivion', park: 'Alton Towers', country: 'UK', type: CoasterType.Steel, manufacturer: 'B&M', imageUrl: 'https://picsum.photos/800/600?random=40' },
+  { id: 'at4', name: 'Wicker Man', park: 'Alton Towers', country: 'UK', type: CoasterType.Wooden, manufacturer: 'GCI', imageUrl: 'https://picsum.photos/800/600?random=41' },
+
+  // --- JAPAN: NAGASHIMA SPA LAND / FUJI-Q ---
+  { id: 'jp1', name: 'Steel Dragon 2000', park: 'Nagashima Spa Land', country: 'Japan', type: CoasterType.Steel, manufacturer: 'Morgan', imageUrl: 'https://picsum.photos/800/600?random=42' },
+  { id: 'jp2', name: 'Hakugei', park: 'Nagashima Spa Land', country: 'Japan', type: CoasterType.Hybrid, manufacturer: 'RMC', imageUrl: 'https://picsum.photos/800/600?random=43' },
+  { id: 'jp3', name: 'Eejanaika', park: 'Fuji-Q Highland', country: 'Japan', type: CoasterType.Steel, manufacturer: 'S&S', imageUrl: 'https://picsum.photos/800/600?random=44' },
+  { id: 'jp4', name: 'Takabisha', park: 'Fuji-Q Highland', country: 'Japan', type: CoasterType.Steel, manufacturer: 'Gerstlauer', imageUrl: 'https://picsum.photos/800/600?random=45' },
+
+  // --- AUSTRALIA ---
+  { id: 'au1', name: 'DC Rivals HyperCoaster', park: 'Warner Bros. Movie World', country: 'Australia', type: CoasterType.Steel, manufacturer: 'Mack', imageUrl: 'https://picsum.photos/800/600?random=46' },
+  { id: 'au2', name: 'Leviathan', park: 'Sea World', country: 'Australia', type: CoasterType.Wooden, manufacturer: 'Martin & Vleminckx', imageUrl: 'https://picsum.photos/800/600?random=47' },
+];
