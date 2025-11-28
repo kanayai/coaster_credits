@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Coaster, CoasterType } from '../types';
-import { Search, Plus, Calendar, Camera, Sparkles, Loader2, Filter, Bookmark, CheckCircle2, BookmarkCheck, Check, X, History, Trash2, ArrowRight, Lock, PlusCircle, Palmtree, MapPin, ArrowLeft } from 'lucide-react';
+import { Search, Plus, Calendar, Camera, Sparkles, Loader2, Filter, Bookmark, CheckCircle2, BookmarkCheck, Check, X, History, Trash2, ArrowRight, Lock, PlusCircle, Palmtree, MapPin, ArrowLeft, Save, PenTool } from 'lucide-react';
 import clsx from 'clsx';
 
 // Helper to remove accents/diacritics for fuzzy searching
@@ -24,6 +24,16 @@ const AddCredit: React.FC = () => {
   const [selectedCoaster, setSelectedCoaster] = useState<Coaster | null>(null);
   const [isAiSearching, setIsAiSearching] = useState(false);
   
+  // Manual Add State
+  const [isAddingManually, setIsAddingManually] = useState(false);
+  const [manualCoasterData, setManualCoasterData] = useState({
+      name: '',
+      park: '',
+      country: '',
+      manufacturer: '',
+      type: 'Steel' as CoasterType
+  });
+
   // Filter State
   const [filterType, setFilterType] = useState<string>('All');
   const [showFilters, setShowFilters] = useState(false);
@@ -101,6 +111,30 @@ const AddCredit: React.FC = () => {
       }
   };
 
+  const handleManualSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!manualCoasterData.name || !manualCoasterData.park) return;
+
+      const newId = await addNewCoaster({
+          ...manualCoasterData,
+          isCustom: true,
+          imageUrl: undefined // Will try to auto-fetch in background
+      });
+
+      // Reset
+      setManualCoasterData({ name: '', park: '', country: '', manufacturer: '', type: 'Steel' as CoasterType });
+      setIsAddingManually(false);
+
+      // Select for logging
+      // Note: addNewCoaster updates state async, so we manually construct the object to select immediately
+      // The ID matches what will be in state shortly.
+      setSelectedCoaster({
+          ...manualCoasterData,
+          id: newId,
+          isCustom: true
+      });
+  };
+
   const processLog = (filterByPark: boolean) => {
     if (selectedCoaster) {
         addCredit(selectedCoaster.id, date, notes, restraints, photo);
@@ -163,6 +197,98 @@ const AddCredit: React.FC = () => {
 
   const isRidden = existingCredits.length > 0;
   const isSelectedWishlisted = selectedCoaster ? isInWishlist(selectedCoaster.id) : false;
+
+  // Render Manual Add Form
+  if (isAddingManually) {
+      return (
+          <div className="animate-fade-in pb-20">
+              <div className="flex items-center gap-3 mb-6">
+                <button 
+                    onClick={() => setIsAddingManually(false)}
+                    className="p-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-400 hover:text-white"
+                >
+                    <ArrowLeft size={20} />
+                </button>
+                <h2 className="text-xl font-bold">Add Coaster Manually</h2>
+              </div>
+
+              <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl">
+                  <form onSubmit={handleManualSubmit} className="space-y-4">
+                      <div>
+                          <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Coaster Name</label>
+                          <input 
+                              type="text"
+                              required
+                              value={manualCoasterData.name}
+                              onChange={e => setManualCoasterData({...manualCoasterData, name: e.target.value})}
+                              className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white focus:ring-2 focus:ring-primary focus:outline-none"
+                              placeholder="e.g. Iron Gwazi"
+                          />
+                      </div>
+                      
+                      <div>
+                          <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Park Name</label>
+                          <input 
+                              type="text"
+                              required
+                              value={manualCoasterData.park}
+                              onChange={e => setManualCoasterData({...manualCoasterData, park: e.target.value})}
+                              className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white focus:ring-2 focus:ring-primary focus:outline-none"
+                              placeholder="e.g. Busch Gardens Tampa"
+                          />
+                      </div>
+
+                      <div>
+                          <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Country</label>
+                          <input 
+                              type="text"
+                              required
+                              value={manualCoasterData.country}
+                              onChange={e => setManualCoasterData({...manualCoasterData, country: e.target.value})}
+                              className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white focus:ring-2 focus:ring-primary focus:outline-none"
+                              placeholder="e.g. USA"
+                          />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Manufacturer</label>
+                            <input 
+                                type="text"
+                                value={manualCoasterData.manufacturer}
+                                onChange={e => setManualCoasterData({...manualCoasterData, manufacturer: e.target.value})}
+                                className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white focus:ring-2 focus:ring-primary focus:outline-none"
+                                placeholder="e.g. B&M"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Type</label>
+                            <select 
+                                value={manualCoasterData.type}
+                                onChange={e => setManualCoasterData({...manualCoasterData, type: e.target.value as CoasterType})}
+                                className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white focus:ring-2 focus:ring-primary focus:outline-none"
+                            >
+                                {Object.values(CoasterType).map(t => (
+                                    <option key={t} value={t}>{t}</option>
+                                ))}
+                            </select>
+                          </div>
+                      </div>
+
+                      <div className="pt-4">
+                          <button 
+                            type="submit"
+                            className="w-full bg-primary hover:bg-primary-hover text-white font-bold py-3.5 rounded-xl shadow-lg shadow-primary/25 flex items-center justify-center gap-2"
+                          >
+                              <Save size={18} />
+                              Save & Log Ride
+                          </button>
+                      </div>
+                  </form>
+              </div>
+          </div>
+      );
+  }
 
   if (selectedCoaster) {
       // Step 2: Log Details View
@@ -529,21 +655,36 @@ const AddCredit: React.FC = () => {
                     );
                 })
             ) : (
-                <div className="text-center py-12 px-4">
+                <div className="text-center py-12 px-4 space-y-6">
                     {searchTerm ? (
                         <>
-                            <p className="text-slate-400 mb-4">No database matches found.</p>
+                            <div className="space-y-2">
+                                <p className="text-slate-400">No matches for "{searchTerm}".</p>
+                                <p className="text-xs text-slate-500">Try checking spelling or use magic search.</p>
+                            </div>
+
                             <button 
                                 onClick={handleMagicSearch}
                                 disabled={isAiSearching}
-                                className="bg-accent hover:bg-violet-600 text-white px-6 py-3 rounded-xl flex items-center gap-2 mx-auto disabled:opacity-50 transition-all shadow-lg shadow-accent/20"
+                                className="w-full bg-accent hover:bg-violet-600 text-white px-6 py-3 rounded-xl flex items-center justify-center gap-2 mx-auto disabled:opacity-50 transition-all shadow-lg shadow-accent/20 font-bold"
                             >
                                 {isAiSearching ? <Loader2 className="animate-spin" size={20} /> : <Sparkles size={20} />}
                                 AI Magic Search
                             </button>
-                            <p className="text-xs text-slate-500 mt-3 max-w-xs mx-auto">
-                                Use Gemini AI to find and add "{searchTerm}" to the database automatically.
-                            </p>
+
+                            <div className="flex items-center gap-4 px-8">
+                                <div className="h-px bg-slate-700 flex-1"></div>
+                                <span className="text-xs text-slate-500 font-bold uppercase">OR</span>
+                                <div className="h-px bg-slate-700 flex-1"></div>
+                            </div>
+                            
+                            <button 
+                                onClick={() => setIsAddingManually(true)}
+                                className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 hover:text-white px-6 py-3 rounded-xl flex items-center justify-center gap-2 transition-all font-medium"
+                            >
+                                <PenTool size={18} />
+                                Create Manually
+                            </button>
                         </>
                     ) : (
                         <div className="text-slate-500 text-sm">
