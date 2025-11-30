@@ -3,16 +3,12 @@ import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Coaster, CoasterType } from '../types';
 import { Search, Plus, Calendar, Camera, Sparkles, Loader2, Filter, Bookmark, CheckCircle2, BookmarkCheck, Check, X, History, Trash2, ArrowRight, Lock, PlusCircle, Palmtree, MapPin, ArrowLeft, Save, PenTool } from 'lucide-react';
-import { normalizeManufacturer } from '../constants';
+import { normalizeManufacturer, cleanName } from '../constants';
 import clsx from 'clsx';
 
-// Helper to remove accents/diacritics for fuzzy searching
-// e.g., "Kärnan" -> "karnan", "Parc Astérix" -> "parc asterix"
+// Normalize text for search (remove accents + lowercase)
 const normalizeText = (text: string) => {
-  return text
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
+  return cleanName(text).toLowerCase();
 };
 
 const AddCredit: React.FC = () => {
@@ -116,12 +112,9 @@ const AddCredit: React.FC = () => {
       e.preventDefault();
       if (!manualCoasterData.name || !manualCoasterData.park) return;
 
-      // Apply manufacturer normalization before saving
-      const normalizedManufacturer = normalizeManufacturer(manualCoasterData.manufacturer);
-
+      // Manufacturer normalization happens in addNewCoaster, but we can do it here too implicitly
       const newId = await addNewCoaster({
           ...manualCoasterData,
-          manufacturer: normalizedManufacturer,
           isCustom: true,
           imageUrl: undefined // Will try to auto-fetch in background
       });
@@ -131,11 +124,13 @@ const AddCredit: React.FC = () => {
       setIsAddingManually(false);
 
       // Select for logging
-      // Note: addNewCoaster updates state async, so we manually construct the object to select immediately
-      // The ID matches what will be in state shortly.
+      // Note: addNewCoaster updates state async, so we select based on what we just submitted
+      // Ideally we would wait for state update but ID is known.
       setSelectedCoaster({
           ...manualCoasterData,
-          manufacturer: normalizedManufacturer,
+          manufacturer: normalizeManufacturer(manualCoasterData.manufacturer), // Mirror what addNewCoaster does for immediate UI consistency
+          park: cleanName(manualCoasterData.park), // Mirror cleaning
+          country: cleanName(manualCoasterData.country), // Mirror cleaning
           id: newId,
           isCustom: true
       });

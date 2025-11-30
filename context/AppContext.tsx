@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User, Coaster, Credit, ViewState, WishlistEntry } from '../types';
-import { INITIAL_COASTERS, INITIAL_USERS, normalizeManufacturer } from '../constants';
+import { INITIAL_COASTERS, INITIAL_USERS, normalizeManufacturer, cleanName } from '../constants';
 import { generateCoasterInfo, generateAppIcon } from '../services/geminiService';
 import { fetchCoasterImageFromWiki } from '../services/wikipediaService';
 
@@ -264,11 +264,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
        if (wikiImage) finalImageUrl = wikiImage;
     }
 
-    // Normalize manufacturer
+    // Normalize manufacturer & Clean Names (Remove accents from Park/Country)
     const normalizedManufacturer = normalizeManufacturer(coasterData.manufacturer);
+    const cleanedPark = cleanName(coasterData.park);
+    const cleanedCountry = cleanName(coasterData.country);
 
     const newCoaster: Coaster = { 
         ...coasterData, 
+        park: cleanedPark,
+        country: cleanedCountry,
         manufacturer: normalizedManufacturer,
         id: newId, 
         imageUrl: finalImageUrl 
@@ -403,13 +407,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const standardizeDatabase = () => {
     let changedCount = 0;
     
-    // Helper to clean spacing/casing
-    const cleanStr = (s: string) => s.trim().replace(/\s+/g, ' ');
-
     setCoasters(prev => prev.map(c => {
       const normalizedMfg = normalizeManufacturer(c.manufacturer);
-      const cleanedPark = cleanStr(c.park);
-      const cleanedCountry = cleanStr(c.country);
+      // Clean and remove accents from Park and Country to ensure grouping works
+      const cleanedPark = cleanName(c.park);
+      const cleanedCountry = cleanName(c.country);
       
       if (
         normalizedMfg !== c.manufacturer || 
@@ -428,7 +430,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }));
 
     if (changedCount > 0) {
-      showNotification(`Standardized ${changedCount} entries (e.g. Fixed Manufacturer names).`, 'success');
+      showNotification(`Standardized ${changedCount} entries (Merged accented names, etc).`, 'success');
     } else {
       showNotification("Database is already standardized.", 'info');
     }

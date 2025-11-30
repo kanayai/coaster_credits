@@ -1,6 +1,16 @@
 
 import { Coaster, CoasterType, User } from './types';
 
+// Helper to remove accents and clean spacing
+export const cleanName = (text: string): string => {
+  if (!text) return '';
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // Remove accents
+    .trim()
+    .replace(/\s+/g, ' '); // Collapse spaces
+};
+
 // Helper to standardize manufacturer names
 export const normalizeManufacturer = (rawName: string): string => {
   if (!rawName) return 'Unknown';
