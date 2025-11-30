@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { UserPlus, CheckCircle2, Smartphone, Share2, QrCode, Edit2, Save, X, FileSpreadsheet, Database, Download, Cloud, PaintBucket, Sparkles, Loader2, Copy, ExternalLink, Camera, ImageDown, Upload } from 'lucide-react';
+import { UserPlus, CheckCircle2, Smartphone, Share2, QrCode, Edit2, Save, X, FileSpreadsheet, Database, Download, Cloud, PaintBucket, Sparkles, Loader2, Copy, ExternalLink, Camera, ImageDown, Upload, Wrench } from 'lucide-react';
 import { User } from '../types';
 
 const ProfileManager: React.FC = () => {
-  const { users, activeUser, switchUser, addUser, updateUser, credits, wishlist, coasters, generateIcon, enrichDatabaseImages, importData } = useAppContext();
+  const { users, activeUser, switchUser, addUser, updateUser, credits, wishlist, coasters, generateIcon, enrichDatabaseImages, importData, standardizeDatabase } = useAppContext();
   const [isAdding, setIsAdding] = useState(false);
   const [newUserName, setNewUserName] = useState('');
   const [newUserPhoto, setNewUserPhoto] = useState<File | undefined>(undefined);
@@ -322,25 +322,41 @@ const ProfileManager: React.FC = () => {
       {/* Database Management / Image Enrichment */}
       <div className="border-t border-slate-800 pt-8">
         <div className="flex items-center gap-2 mb-4 text-white">
-            <ImageDown className="text-pink-500" size={24} />
-            <h2 className="text-xl font-bold">Database & Photos</h2>
+            <Database className="text-pink-500" size={24} />
+            <h2 className="text-xl font-bold">Database Management</h2>
         </div>
         
         <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700 shadow-xl space-y-4">
-             <p className="text-sm text-slate-400">
-               Replace placeholder images with real photos from Wikipedia/Wikimedia Commons. 
-            </p>
-            <button 
-                onClick={handleEnrichImages}
-                disabled={isEnriching}
-                className="w-full bg-pink-600 hover:bg-pink-500 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-50 shadow-lg shadow-pink-500/20"
-            >
-                {isEnriching ? <Loader2 className="animate-spin" size={18}/> : <Sparkles size={18} />}
-                {isEnriching ? "Searching Wikipedia..." : "Fetch Real Coaster Photos"}
-            </button>
-            <p className="text-xs text-slate-500 text-center">
-                This will check all coasters with generic images and try to update them.
-            </p>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <div className="space-y-3">
+                     <p className="text-sm text-slate-400 font-bold uppercase tracking-wider">Enhance Photos</p>
+                     <p className="text-xs text-slate-500">
+                        Fetch real photos from Wikipedia for coasters with placeholders.
+                     </p>
+                    <button 
+                        onClick={handleEnrichImages}
+                        disabled={isEnriching}
+                        className="w-full bg-pink-600 hover:bg-pink-500 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-50 shadow-lg shadow-pink-500/20"
+                    >
+                        {isEnriching ? <Loader2 className="animate-spin" size={18}/> : <Sparkles size={18} />}
+                        {isEnriching ? "Searching..." : "Fetch Real Photos"}
+                    </button>
+                 </div>
+
+                 <div className="space-y-3">
+                     <p className="text-sm text-slate-400 font-bold uppercase tracking-wider">Data Cleanup</p>
+                     <p className="text-xs text-slate-500">
+                        Fix inconsistent naming (e.g. "Arrow" vs "Arrow Dynamics", spaces in park names).
+                     </p>
+                     <button 
+                        onClick={standardizeDatabase}
+                        className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-lg shadow-indigo-500/20"
+                    >
+                        <Wrench size={18} />
+                        Fix & Standardize Names
+                    </button>
+                 </div>
+             </div>
         </div>
       </div>
 

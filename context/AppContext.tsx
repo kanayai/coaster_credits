@@ -52,8 +52,9 @@ interface AppContextType {
   updateCoasterImage: (coasterId: string, imageUrl: string) => void;
   autoFetchCoasterImage: (coasterId: string) => Promise<string | null>;
 
-  // Import
+  // Data Management
   importData: (jsonData: any) => void;
+  standardizeDatabase: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -309,28 +310,50 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const enrichDatabaseImages = async () => {
-      let count = 0;
       showNotification("Searching Wikipedia for photos...", 'info');
       
       // Filter coasters that have picsum placeholders or no image
       const targets = coasters.filter(c => !c.imageUrl || c.imageUrl.includes('picsum'));
+      let updatedCount = 0;
       
-      // Process in batches to avoid rate limits
-      for (const coaster of targets) {
-          const imageUrl = await fetchCoasterImageFromWiki(coaster.name, coaster.park);
-          if (imageUrl) {
-              // Update state functionally to ensure we don't lose updates
-              setCoasters(prev => prev.map(c => c.id === coaster.id ? { ...c, imageUrl } : c));
-              count++;
-          }
-          // Small delay
-          await new Promise(r => setTimeout(r, 200));
+      console.log(`Starting enrichment for ${targets.length} coasters`);
+
+      // Batch process to be polite but faster
+      const BATCH_SIZE = 5;
+      
+      for (let i = 0; i < targets.length; i += BATCH_SIZE) {
+          const batch = targets.slice(i, i + BATCH_SIZE);
+          
+          const results = await Promise.all(
+              batch.map(async (coaster) => {
+                  const url = await fetchCoasterImageFromWiki(coaster.name, coaster.park);
+                  return { id: coaster.id, url };
+              })
+          );
+
+          // Apply batch updates
+          setCoasters(prev => {
+              let nextState = [...prev];
+              results.forEach(res => {
+                  if (res.url) {
+                      const idx = nextState.findIndex(c => c.id === res.id);
+                      if (idx !== -1) {
+                          nextState[idx] = { ...nextState[idx], imageUrl: res.url };
+                          updatedCount++;
+                      }
+                  }
+              });
+              return nextState;
+          });
+          
+          // Small delay between batches to be nice to API
+          await new Promise(r => setTimeout(r, 100));
       }
 
-      if (count > 0) {
-          showNotification(`Updated ${count} coasters with real photos!`, 'success');
+      if (updatedCount > 0) {
+          showNotification(`Updated ${updatedCount} coasters with real photos!`, 'success');
       } else {
-          showNotification("No new photos found.", 'info');
+          showNotification(targets.length === 0 ? "Database already up to date." : "No new photos found.", 'info');
       }
   };
 
@@ -377,6 +400,40 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
   };
 
+  const standardizeDatabase = () => {
+    let changedCount = 0;
+    
+    // Helper to clean spacing/casing
+    const cleanStr = (s: string) => s.trim().replace(/\s+/g, ' ');
+
+    setCoasters(prev => prev.map(c => {
+      const normalizedMfg = normalizeManufacturer(c.manufacturer);
+      const cleanedPark = cleanStr(c.park);
+      const cleanedCountry = cleanStr(c.country);
+      
+      if (
+        normalizedMfg !== c.manufacturer || 
+        cleanedPark !== c.park || 
+        cleanedCountry !== c.country
+      ) {
+        changedCount++;
+        return {
+          ...c,
+          manufacturer: normalizedMfg,
+          park: cleanedPark,
+          country: cleanedCountry
+        };
+      }
+      return c;
+    }));
+
+    if (changedCount > 0) {
+      showNotification(`Standardized ${changedCount} entries (e.g. Fixed Manufacturer names).`, 'success');
+    } else {
+      showNotification("Database is already standardized.", 'info');
+    }
+  };
+
   return (
     <AppContext.Provider value={{
       activeUser,
@@ -408,7 +465,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       enrichDatabaseImages,
       updateCoasterImage,
       autoFetchCoasterImage,
-      importData
+      importData,
+      standardizeDatabase
     }}>
       {children}
     </AppContext.Provider>
