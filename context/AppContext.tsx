@@ -28,7 +28,7 @@ interface AppContextType {
   updateUser: (userId: string, newName: string, photo?: File) => void;
   addCredit: (coasterId: string, date: string, notes: string, restraints: string, photo?: File) => void;
   updateCredit: (creditId: string, date: string, notes: string, restraints: string, photo?: File) => void;
-  addNewCoaster: (coaster: Omit<Coaster, 'id'>) => Promise<string>;
+  addNewCoaster: (coaster: Omit<Coaster, 'id'>) => Promise<Coaster>;
   searchOnlineCoaster: (query: string) => Promise<Partial<Coaster> | null>;
   generateIcon: (prompt: string) => Promise<string | null>;
   changeView: (view: ViewState) => void;
@@ -254,7 +254,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
-  const addNewCoaster = async (coasterData: Omit<Coaster, 'id'>): Promise<string> => {
+  const addNewCoaster = async (coasterData: Omit<Coaster, 'id'>): Promise<Coaster> => {
     const newId = generateId('c');
     
     // Attempt to get a real image immediately upon creation if one wasn't provided or is a placeholder
@@ -279,7 +279,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
     setCoasters([...coasters, newCoaster]);
     showNotification("New Coaster Added to Database", 'success');
-    return newId;
+    return newCoaster;
   };
 
   const searchOnlineCoaster = async (query: string) => {
@@ -363,11 +363,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const importData = (jsonData: any) => {
       try {
+          let mergedCoasterCount = 0;
+          let mergedCreditCount = 0;
+
           // 1. Import Coasters (preserve custom ones)
           if (jsonData.coasters && Array.isArray(jsonData.coasters)) {
               setCoasters(prev => {
                   const existingIds = new Set(prev.map(c => c.id));
                   const newCoasters = jsonData.coasters.filter((c: Coaster) => !existingIds.has(c.id));
+                  mergedCoasterCount = newCoasters.length;
                   return [...prev, ...newCoasters];
               });
           }
@@ -381,6 +385,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     .filter((c: Credit) => !existingIds.has(c.id))
                     .map((c: Credit) => ({...c, userId: activeUser.id})); // Remap to current user
                   
+                  mergedCreditCount = toAdd.length;
                   return [...prev, ...toAdd];
               });
           }
@@ -397,7 +402,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               });
           }
           
-          showNotification("Database imported successfully!", 'success');
+          if (jsonData.type === 'COASTER_DB_ONLY') {
+              showNotification(`Database merged! Added ${mergedCoasterCount} new coasters.`, 'success');
+          } else {
+              showNotification(`Import success! Added ${mergedCreditCount} rides and ${mergedCoasterCount} coasters.`, 'success');
+          }
       } catch (e) {
           console.error(e);
           showNotification("Failed to import data. Invalid format.", 'error');

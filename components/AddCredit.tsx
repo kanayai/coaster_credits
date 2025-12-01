@@ -99,9 +99,8 @@ const AddCredit: React.FC = () => {
           };
           
           if (window.confirm(`Found: ${tempCoaster.name} at ${tempCoaster.park}. Add to database?`)) {
-             const newId = await addNewCoaster(result as Omit<Coaster, 'id'>);
-             const savedCoaster = { ...tempCoaster, id: newId };
-             setSelectedCoaster(savedCoaster);
+             const newCoaster = await addNewCoaster(result as Omit<Coaster, 'id'>);
+             setSelectedCoaster(newCoaster);
           }
       } else {
           alert("Coaster not found via magic search. Try adding manually.");
@@ -113,7 +112,7 @@ const AddCredit: React.FC = () => {
       if (!manualCoasterData.name || !manualCoasterData.park) return;
 
       // Manufacturer normalization happens in addNewCoaster, but we can do it here too implicitly
-      const newId = await addNewCoaster({
+      const newCoaster = await addNewCoaster({
           ...manualCoasterData,
           isCustom: true,
           imageUrl: undefined // Will try to auto-fetch in background
@@ -123,17 +122,8 @@ const AddCredit: React.FC = () => {
       setManualCoasterData({ name: '', park: '', country: '', manufacturer: '', type: 'Steel' as CoasterType });
       setIsAddingManually(false);
 
-      // Select for logging
-      // Note: addNewCoaster updates state async, so we select based on what we just submitted
-      // Ideally we would wait for state update but ID is known.
-      setSelectedCoaster({
-          ...manualCoasterData,
-          manufacturer: normalizeManufacturer(manualCoasterData.manufacturer), // Mirror what addNewCoaster does for immediate UI consistency
-          park: cleanName(manualCoasterData.park), // Mirror cleaning
-          country: cleanName(manualCoasterData.country), // Mirror cleaning
-          id: newId,
-          isCustom: true
-      });
+      // Select for logging - use returned coaster to get any auto-fetched image
+      setSelectedCoaster(newCoaster);
   };
 
   const processLog = (filterByPark: boolean) => {

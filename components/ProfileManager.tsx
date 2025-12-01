@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { UserPlus, CheckCircle2, Smartphone, Share2, QrCode, Edit2, Save, X, FileSpreadsheet, Database, Download, Cloud, PaintBucket, Sparkles, Loader2, Copy, ExternalLink, Camera, ImageDown, Upload, Wrench } from 'lucide-react';
+import { UserPlus, CheckCircle2, Smartphone, Share2, QrCode, Edit2, Save, X, FileSpreadsheet, Database, Download, Cloud, PaintBucket, Sparkles, Loader2, Copy, ExternalLink, Camera, ImageDown, Upload, Wrench, Share, FileJson } from 'lucide-react';
 import { User } from '../types';
 
 const ProfileManager: React.FC = () => {
@@ -115,6 +115,24 @@ const ProfileManager: React.FC = () => {
     document.body.removeChild(link);
   };
 
+  const handleExportCoastersOnly = () => {
+      const data = {
+          coasters: coasters,
+          exportDate: new Date().toISOString(),
+          type: 'COASTER_DB_ONLY'
+      };
+      
+      const jsonContent = JSON.stringify(data, null, 2);
+      const blob = new Blob([jsonContent], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `CoasterDB_Shared_${new Date().toISOString().split('T')[0]}.json`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+  };
+
   const handleExportJSON = () => {
     const data = {
       user: activeUser,
@@ -122,7 +140,8 @@ const ProfileManager: React.FC = () => {
       wishlist: wishlist.filter(w => w.userId === activeUser.id),
       coasters: coasters, // Export complete coaster DB to preserve custom ones
       exportDate: new Date().toISOString(),
-      appVersion: '1.2.0'
+      appVersion: '1.2.0',
+      type: 'FULL_BACKUP'
     };
     
     const jsonContent = JSON.stringify(data, null, 2);
@@ -144,7 +163,13 @@ const ProfileManager: React.FC = () => {
       reader.onload = (e) => {
           try {
               const json = JSON.parse(e.target?.result as string);
-              if (window.confirm("This will import credits, wishlist items, and custom coasters into your current profile. Continue?")) {
+              const isDbOnly = json.type === 'COASTER_DB_ONLY';
+              
+              const message = isDbOnly 
+                ? "Importing this file will merge new coasters into your database. Your personal credits will NOT be affected. Continue?"
+                : "This is a full backup. Importing will merge credits, wishlist items, and coasters into your current profile. Continue?";
+
+              if (window.confirm(message)) {
                   importData(json);
               }
           } catch (err) {
@@ -326,7 +351,8 @@ const ProfileManager: React.FC = () => {
             <h2 className="text-xl font-bold">Database Management</h2>
         </div>
         
-        <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700 shadow-xl space-y-4">
+        <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700 shadow-xl space-y-6">
+             {/* Section 1: Maintenance */}
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  <div className="space-y-3">
                      <p className="text-sm text-slate-400 font-bold uppercase tracking-wider">Enhance Photos</p>
@@ -355,6 +381,46 @@ const ProfileManager: React.FC = () => {
                         <Wrench size={18} />
                         Fix & Standardize Names
                     </button>
+                 </div>
+             </div>
+
+             <div className="h-px bg-slate-700/50 w-full" />
+
+             {/* Section 2: Sync & Share */}
+             <div className="space-y-3">
+                 <div className="flex items-center gap-2 text-white">
+                    <Share className="text-emerald-400" size={18} />
+                    <p className="text-sm font-bold uppercase tracking-wider">Sync / Share Database</p>
+                 </div>
+                 <p className="text-xs text-slate-500 leading-relaxed">
+                    This app stores data on your device. To add custom coasters to another device (e.g. tablet), export the database here and import it on the other device.
+                 </p>
+                 
+                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                     <button 
+                        onClick={handleExportCoastersOnly}
+                        className="flex items-center justify-center gap-2 p-3 bg-slate-900 border border-slate-600 rounded-xl hover:bg-slate-700 hover:border-emerald-500/50 transition"
+                    >
+                        <FileJson size={18} className="text-emerald-400" />
+                        <span className="text-xs font-bold text-white">Export Coaster List</span>
+                    </button>
+
+                     <div className="relative">
+                        <input 
+                            type="file" 
+                            accept=".json" 
+                            id="import-db-only" 
+                            className="hidden"
+                            onChange={handleImportJSON}
+                        />
+                        <label 
+                            htmlFor="import-db-only"
+                            className="flex items-center justify-center gap-2 p-3 bg-slate-900 border border-slate-600 border-dashed rounded-xl hover:bg-slate-700 hover:border-emerald-500/50 transition cursor-pointer h-full"
+                        >
+                            <Upload size={18} className="text-emerald-400" />
+                            <span className="text-xs font-bold text-white">Merge Coaster List</span>
+                        </label>
+                     </div>
                  </div>
              </div>
         </div>
@@ -409,7 +475,7 @@ const ProfileManager: React.FC = () => {
       <div className="border-t border-slate-800 pt-8">
         <div className="flex items-center gap-2 mb-4 text-white">
             <Cloud className="text-primary" size={24} />
-            <h2 className="text-xl font-bold">Export / Backup</h2>
+            <h2 className="text-xl font-bold">Full Profile Backup</h2>
         </div>
         
         <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700 shadow-xl space-y-4">
@@ -462,8 +528,8 @@ const ProfileManager: React.FC = () => {
                             <Upload className="text-amber-500" size={24} />
                         </div>
                         <div className="text-left">
-                            <div className="font-bold text-white text-sm">Import Database</div>
-                            <div className="text-[10px] text-slate-400">Restore from JSON Backup</div>
+                            <div className="font-bold text-white text-sm">Import Profile</div>
+                            <div className="text-[10px] text-slate-400">Restore from Full Backup</div>
                         </div>
                     </label>
                 </div>
