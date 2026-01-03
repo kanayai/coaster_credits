@@ -2,20 +2,22 @@
 import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Coaster, CoasterType } from '../types';
-import { Search, Plus, Calendar, Sparkles, Loader2, Filter, Bookmark, BookmarkCheck, PlusCircle, ArrowLeft as BackIcon, Zap, Ruler, ArrowUp, History, Trash2, Clock } from 'lucide-react';
+import { Search, Plus, Calendar, Sparkles, Loader2, Filter, Bookmark, BookmarkCheck, PlusCircle, ArrowLeft as BackIcon, Zap, Ruler, ArrowUp, History, Trash2, Clock, CheckCircle2, Globe } from 'lucide-react';
 import { cleanName } from '../constants';
 import clsx from 'clsx';
 
 const normalizeText = (text: string) => cleanName(text).toLowerCase();
 
 const AddCredit: React.FC = () => {
-  const { coasters, addCredit, deleteCredit, addNewCoaster, searchOnlineCoaster, credits, activeUser, addToWishlist, removeFromWishlist, isInWishlist, lastSearchQuery, setLastSearchQuery } = useAppContext();
+  const { coasters, addCredit, deleteCredit, addNewCoaster, searchOnlineCoaster, credits, activeUser, addToWishlist, removeFromWishlist, isInWishlist, lastSearchQuery, setLastSearchQuery, showNotification } = useAppContext();
   
   const searchTerm = lastSearchQuery;
   const setSearchTerm = setLastSearchQuery;
   const [selectedCoaster, setSelectedCoaster] = useState<Coaster | null>(null);
   const [isAiSearching, setIsAiSearching] = useState(false);
   const [isAddingManually, setIsAddingManually] = useState(false);
+  const [aiDiscoveryResults, setAiDiscoveryResults] = useState<Partial<Coaster>[]>([]);
+  
   const [manualCoasterData, setManualCoasterData] = useState({ name: '', park: '', country: '', manufacturer: '', type: 'Steel' as CoasterType });
   const [filterType, setFilterType] = useState<string>('All');
   const [showFilters, setShowFilters] = useState(false);
@@ -46,12 +48,37 @@ const AddCredit: React.FC = () => {
   const handleMagicSearch = async () => {
       if (!searchTerm) return;
       setIsAiSearching(true);
-      const result = await searchOnlineCoaster(searchTerm);
+      setAiDiscoveryResults([]);
+      const results = await searchOnlineCoaster(searchTerm);
       setIsAiSearching(false);
-      if (result && window.confirm(`Found: ${result.name} at ${result.park}. Add to database?`)) {
-          const newC = await addNewCoaster(result as Omit<Coaster, 'id'>);
-          setSelectedCoaster(newC);
+      
+      if (results && results.length > 0) {
+          if (results.length === 1) {
+              const res = results[0];
+              if (window.confirm(`Found: ${res.name} at ${res.park}. Add to database?`)) {
+                  const newC = await addNewCoaster(res as Omit<Coaster, 'id'>);
+                  setSelectedCoaster(newC);
+              }
+          } else {
+              setAiDiscoveryResults(results);
+          }
+      } else {
+          showNotification("No coasters found. Try refining your search.", "info");
       }
+  };
+
+  const handleAddDiscovery = async (item: Partial<Coaster>) => {
+      const newC = await addNewCoaster(item as Omit<Coaster, 'id'>);
+      setAiDiscoveryResults(prev => prev.filter(p => p.name !== item.name));
+      setSelectedCoaster(newC);
+  };
+
+  const handleAddAllDiscovery = async () => {
+      for (const item of aiDiscoveryResults) {
+          await addNewCoaster(item as Omit<Coaster, 'id'>);
+      }
+      setAiDiscoveryResults([]);
+      showNotification(`Added ${aiDiscoveryResults.length} coasters to your database!`, 'success');
   };
 
   const handleManualSubmit = async (e: React.FormEvent) => {
@@ -66,7 +93,6 @@ const AddCredit: React.FC = () => {
         addCredit(selectedCoaster.id, date, notes, restraints, photo);
         if (filterByPark) setSearchTerm(selectedCoaster.park);
         setNotes(''); setRestraints(''); setPhoto(undefined);
-        // We keep the coaster selected so they can see the updated history
     }
   };
 
@@ -99,61 +125,40 @@ const AddCredit: React.FC = () => {
                 {selectedCoaster.imageUrl && (
                     <div className="w-full h-48 rounded-2xl overflow-hidden shadow-lg border border-slate-700 relative">
                         <img src={selectedCoaster.imageUrl} alt={selectedCoaster.name} className="w-full h-full object-cover" />
-                        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 to-transparent" />
-                        <div className="absolute bottom-3 left-4">
-                            <h2 className="text-3xl font-bold text-white leading-tight">{selectedCoaster.name}</h2>
-                            <div className="text-slate-200 text-sm">{selectedCoaster.park}</div>
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent" />
+                        <div className="absolute bottom-4 left-4">
+                            <h2 className="text-3xl font-black text-white leading-tight italic drop-shadow-md">{selectedCoaster.name}</h2>
+                            <div className="text-slate-300 text-sm font-bold flex items-center gap-1 uppercase tracking-wider"><Globe size={14} className="text-primary"/> {selectedCoaster.park}</div>
                         </div>
                     </div>
                 )}
 
-                {/* Technical Specs Sheet */}
-                {selectedCoaster.specs && (
-                    <div className="grid grid-cols-3 gap-2">
-                        <div className="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50 flex flex-col items-center">
-                            <ArrowUp size={14} className="text-primary mb-1"/>
-                            <span className="text-[10px] text-slate-500 uppercase font-bold">Height</span>
-                            <span className="text-sm font-bold text-white">{selectedCoaster.specs.height || '—'}</span>
-                        </div>
-                        <div className="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50 flex flex-col items-center">
-                            <Zap size={14} className="text-yellow-500 mb-1"/>
-                            <span className="text-[10px] text-slate-500 uppercase font-bold">Speed</span>
-                            <span className="text-sm font-bold text-white">{selectedCoaster.specs.speed || '—'}</span>
-                        </div>
-                        <div className="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50 flex flex-col items-center">
-                            <Ruler size={14} className="text-accent mb-1"/>
-                            <span className="text-[10px] text-slate-500 uppercase font-bold">Length</span>
-                            <span className="text-sm font-bold text-white">{selectedCoaster.specs.length || '—'}</span>
-                        </div>
-                    </div>
-                )}
-
-                <div className="bg-slate-800 p-5 rounded-2xl border border-slate-700 space-y-4">
+                <div className="bg-slate-800 p-5 rounded-3xl border border-slate-700 space-y-4 shadow-xl">
                     <div className="flex items-center justify-between mb-2">
-                        <h3 className="font-bold text-white flex items-center gap-2 text-sm"><Clock size={16} className="text-primary"/> Log New Ride</h3>
+                        <h3 className="font-bold text-white flex items-center gap-2 text-sm uppercase tracking-widest text-slate-400"><Clock size={16} className="text-primary"/> Quick Log</h3>
                     </div>
                     <div>
                         <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Date</label>
-                        <input type="date" required value={date} onChange={e => setDate(e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white text-sm" />
+                        <input type="date" required value={date} onChange={e => setDate(e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" />
                     </div>
                     <div>
                         <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Experience (Optional)</label>
-                        <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="How was the ride? Seat location?" className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white text-sm h-20" />
+                        <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="How was the ride? Seat location?" className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white text-sm h-20 outline-none focus:border-primary" />
                     </div>
-                    <button onClick={() => processLog(false)} className="w-full bg-primary font-bold py-3.5 rounded-xl shadow-lg shadow-primary/25 flex items-center justify-center gap-2"><Plus size={20}/> Log This Date</button>
+                    <button onClick={() => processLog(false)} className="w-full bg-primary font-bold py-4 rounded-2xl shadow-xl shadow-primary/30 flex items-center justify-center gap-2 active:scale-95 transition-all"><Plus size={20}/> LOG CREDIT</button>
                 </div>
 
                 {/* Ride History Section */}
                 {coasterRideHistory.length > 0 && (
                     <div className="space-y-3">
-                        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2 px-1">
-                            <History size={14}/> Ride History ({coasterRideHistory.length})
+                        <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2 px-1">
+                            <History size={14}/> Recent Laps ({coasterRideHistory.length})
                         </h3>
                         <div className="space-y-2">
                             {coasterRideHistory.map((credit) => (
-                                <div key={credit.id} className="bg-slate-800/50 border border-slate-700/50 p-3 rounded-xl flex items-center justify-between group">
+                                <div key={credit.id} className="bg-slate-800/40 border border-slate-700/50 p-4 rounded-2xl flex items-center justify-between">
                                     <div className="flex items-center gap-3">
-                                        <div className="bg-slate-900 p-2 rounded-lg text-primary">
+                                        <div className="bg-slate-900 p-2.5 rounded-xl text-primary border border-slate-700">
                                             <Calendar size={14}/>
                                         </div>
                                         <div>
@@ -164,52 +169,105 @@ const AddCredit: React.FC = () => {
                                         </div>
                                     </div>
                                     <button 
-                                        onClick={(e) => { e.stopPropagation(); if(window.confirm('Delete this specific ride date?')) deleteCredit(credit.id); }}
-                                        className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
+                                        onClick={(e) => { e.stopPropagation(); if(window.confirm('Delete this lap?')) deleteCredit(credit.id); }}
+                                        className="p-2 text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all"
                                     >
-                                        <Trash2 size={14}/>
+                                        <Trash2 size={16}/>
                                     </button>
                                 </div>
                             ))}
                         </div>
                     </div>
                 )}
-
-                <div onClick={() => isSelectedWishlisted ? removeFromWishlist(selectedCoaster.id) : addToWishlist(selectedCoaster.id)} className={clsx("p-4 rounded-xl border flex items-center justify-between cursor-pointer transition-all", isSelectedWishlisted ? "bg-amber-500/10 border-amber-500/30" : "bg-slate-800/50 border-slate-700")}>
-                    <div className="flex items-center gap-3">
-                        <div className={clsx("p-2 rounded-full", isSelectedWishlisted ? "bg-amber-500 text-white" : "bg-slate-700 text-slate-400")}>{isSelectedWishlisted ? <Bookmark size={20}/> : <Bookmark size={20}/>}</div>
-                        <div className={clsx("font-bold text-sm", isSelectedWishlisted ? "text-amber-500" : "text-slate-300")}>{isSelectedWishlisted ? "In Bucket List" : "Add to Bucket List"}</div>
-                    </div>
-                </div>
           </div>
       );
   }
 
   return (
-    <div className="h-full flex flex-col space-y-4 animate-fade-in">
-        <h2 className="text-xl font-bold">Coaster Menu</h2>
+    <div className="h-full flex flex-col space-y-5 animate-fade-in">
+        <div className="space-y-1">
+            <h2 className="text-2xl font-black text-white italic tracking-tight">ADD <span className="text-primary">CREDIT</span></h2>
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">Search our database or use AI</p>
+        </div>
+
         <div className="flex gap-2">
             <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input type="text" placeholder="Search..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-10 py-3 text-white shadow-sm" />
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                <input 
+                    type="text" 
+                    placeholder="Search coaster or park name..." 
+                    value={searchTerm} 
+                    onChange={e => setSearchTerm(e.target.value)} 
+                    className="w-full bg-slate-900 border border-slate-700 rounded-2xl pl-12 py-4 text-white shadow-lg focus:border-primary focus:ring-1 focus:ring-primary outline-none text-sm transition-all" 
+                />
             </div>
-            <button onClick={() => setShowFilters(!showFilters)} className={clsx("p-3 rounded-xl border", showFilters ? "bg-primary text-white" : "bg-slate-800 text-slate-400")}><Filter size={20}/></button>
+            <button onClick={() => setShowFilters(!showFilters)} className={clsx("p-4 rounded-2xl border transition-all active:scale-95", showFilters ? "bg-primary border-primary text-white" : "bg-slate-800 border-slate-700 text-slate-500")}><Filter size={20}/></button>
         </div>
-        <div className="flex-1 overflow-y-auto space-y-2 no-scrollbar">
-            {filteredCoasters.map(c => (
-                <div key={c.id} onClick={() => setSelectedCoaster(c)} className="bg-slate-800/50 rounded-lg border border-slate-700/50 flex items-stretch h-20 overflow-hidden cursor-pointer hover:bg-slate-800 transition-colors">
-                    <div className="w-20 shrink-0 bg-slate-900">{c.imageUrl && <img src={c.imageUrl} className="w-full h-full object-cover opacity-80" />}</div>
-                    <div className="flex-1 px-3 py-1.5 flex flex-col justify-center min-w-0">
-                        <h3 className="font-bold text-slate-200 text-sm truncate">{c.name}</h3>
-                        <div className="text-[10px] text-slate-500 truncate">{c.park}</div>
+
+        {/* AI Discovery Results */}
+        {aiDiscoveryResults.length > 0 && (
+            <div className="bg-accent/10 border border-accent/30 p-5 rounded-3xl space-y-4 animate-scale-in">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <Sparkles size={16} className="text-accent" />
+                        <h3 className="font-bold text-white text-sm">Discovered at {aiDiscoveryResults[0].park}</h3>
                     </div>
-                    <div className="flex items-center px-1 border-l border-slate-700/50"><PlusCircle size={20} className="text-primary"/></div>
+                    <button onClick={handleAddAllDiscovery} className="text-[10px] font-bold text-accent uppercase tracking-widest bg-accent/10 px-3 py-1.5 rounded-full border border-accent/20">Add All to DB</button>
+                </div>
+                <div className="grid grid-cols-1 gap-2">
+                    {aiDiscoveryResults.map((res, i) => (
+                        <div key={i} className="bg-slate-900/60 p-3 rounded-xl flex items-center justify-between border border-slate-700/50">
+                            <div className="min-w-0 flex-1">
+                                <div className="text-xs font-bold text-white truncate">{res.name}</div>
+                                <div className="text-[10px] text-slate-500 truncate">{res.type} • {res.manufacturer}</div>
+                            </div>
+                            <button onClick={() => handleAddDiscovery(res)} className="p-2 text-accent hover:bg-accent/10 rounded-lg"><PlusCircle size={20}/></button>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        )}
+
+        <div className="flex-1 overflow-y-auto space-y-3 no-scrollbar pb-20">
+            {filteredCoasters.map(c => (
+                <div key={c.id} onClick={() => setSelectedCoaster(c)} className="bg-slate-800/40 rounded-2xl border border-slate-700/50 flex items-stretch h-24 overflow-hidden cursor-pointer hover:bg-slate-800 transition-all hover:scale-[1.01] active:scale-[0.99] group">
+                    <div className="w-24 shrink-0 bg-slate-900 border-r border-slate-700/50 overflow-hidden relative">
+                        {c.imageUrl && <img src={c.imageUrl} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />}
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent" />
+                    </div>
+                    <div className="flex-1 px-4 py-2 flex flex-col justify-center min-w-0">
+                        <h3 className="font-bold text-slate-100 text-base truncate leading-tight italic">{c.name}</h3>
+                        <div className="text-[10px] text-slate-500 truncate font-bold uppercase tracking-wider mt-0.5">{c.park}</div>
+                        <div className="flex items-center gap-2 mt-2">
+                            <span className="text-[8px] font-bold text-primary border border-primary/30 px-1.5 py-0.5 rounded uppercase tracking-widest">{c.type}</span>
+                        </div>
+                    </div>
+                    <div className="flex items-center px-4">
+                        <PlusCircle size={24} className="text-primary opacity-40 group-hover:opacity-100 transition-all" />
+                    </div>
                 </div>
             ))}
-            {searchTerm && filteredCoasters.length === 0 && (
-                <div className="text-center py-10 space-y-4">
-                    <button onClick={handleMagicSearch} disabled={isAiSearching} className="w-full bg-accent text-white py-3 rounded-xl flex items-center justify-center gap-2 font-bold">{isAiSearching ? <Loader2 className="animate-spin"/> : <Sparkles/>} AI Magic Search</button>
-                    <button onClick={() => setIsAddingManually(true)} className="w-full bg-slate-800 text-slate-300 py-3 rounded-xl font-medium">Create Manually</button>
+            
+            {(searchTerm || filteredCoasters.length === 0) && !aiDiscoveryResults.length && (
+                <div className="text-center py-8 space-y-6">
+                    <div className="space-y-1">
+                        <p className="text-slate-500 text-xs font-medium">Can't find it in our database?</p>
+                        <p className="text-[10px] text-slate-600 uppercase font-bold tracking-widest">Try our AI or add manually</p>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3">
+                        <button 
+                            onClick={handleMagicSearch} 
+                            disabled={isAiSearching || !searchTerm} 
+                            className={clsx(
+                                "w-full py-4 rounded-2xl flex items-center justify-center gap-3 font-bold text-sm transition-all shadow-xl active:scale-95",
+                                !searchTerm ? "bg-slate-800 text-slate-600 border border-slate-700" : "bg-accent text-white shadow-accent/20"
+                            )}
+                        >
+                            {isAiSearching ? <Loader2 className="animate-spin" size={18}/> : <Sparkles size={18}/>} 
+                            {isAiSearching ? 'SEARCHING THE WEB...' : 'AI MAGIC DISCOVERY'}
+                        </button>
+                        <button onClick={() => setIsAddingManually(true)} className="w-full bg-slate-800/50 text-slate-400 py-4 rounded-2xl font-bold text-xs uppercase tracking-[0.2em] border border-slate-700 hover:text-white transition-colors">Create Manually</button>
+                    </div>
                 </div>
             )}
         </div>
