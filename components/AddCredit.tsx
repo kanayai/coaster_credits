@@ -9,7 +9,7 @@ import clsx from 'clsx';
 const normalizeText = (text: string) => cleanName(text).toLowerCase();
 
 const AddCredit: React.FC = () => {
-  const { coasters, addCredit, deleteCredit, addNewCoaster, searchOnlineCoaster, credits, activeUser, addToWishlist, removeFromWishlist, isInWishlist, lastSearchQuery, setLastSearchQuery, showNotification } = useAppContext();
+  const { coasters, addCredit, deleteCredit, addNewCoaster, addMultipleCoasters, searchOnlineCoaster, credits, activeUser, addToWishlist, removeFromWishlist, isInWishlist, lastSearchQuery, setLastSearchQuery, showNotification } = useAppContext();
   
   const searchTerm = lastSearchQuery;
   const setSearchTerm = setLastSearchQuery;
@@ -74,11 +74,11 @@ const AddCredit: React.FC = () => {
   };
 
   const handleAddAllDiscovery = async () => {
-      for (const item of aiDiscoveryResults) {
-          await addNewCoaster(item as Omit<Coaster, 'id'>);
-      }
+      if (aiDiscoveryResults.length === 0) return;
+      // Convert partials to Omit<Coaster, 'id'>
+      const itemsToAdd = aiDiscoveryResults.map(item => item as Omit<Coaster, 'id'>);
+      await addMultipleCoasters(itemsToAdd);
       setAiDiscoveryResults([]);
-      showNotification(`Added ${aiDiscoveryResults.length} coasters to your database!`, 'success');
   };
 
   const handleManualSubmit = async (e: React.FormEvent) => {
@@ -196,7 +196,7 @@ const AddCredit: React.FC = () => {
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
                   <input 
                       type="text" 
-                      placeholder="Coaster or park name..." 
+                      placeholder="Search coaster or park name..." 
                       value={searchTerm} 
                       onChange={e => setSearchTerm(e.target.value)} 
                       className="w-full bg-slate-900 border border-slate-700 rounded-2xl pl-12 py-4 text-white shadow-lg focus:border-primary focus:ring-1 focus:ring-primary outline-none text-sm transition-all" 
@@ -204,9 +204,9 @@ const AddCredit: React.FC = () => {
               </div>
               <button onClick={() => setShowFilters(!showFilters)} className={clsx("p-4 rounded-2xl border transition-all active:scale-95", showFilters ? "bg-primary border-primary text-white" : "bg-slate-800 border-slate-700 text-slate-500")}><Filter size={20}/></button>
           </div>
-          <div className="flex items-center gap-2 px-2 text-slate-500">
-            <Info size={12} className="text-primary" />
-            <span className="text-[10px] font-medium italic">Type a coaster (e.g. 'Fury 325') or a park (e.g. 'Kings Island') to discover rides.</span>
+          <div className="flex items-center gap-2 px-2 text-slate-500 bg-slate-800/20 p-2 rounded-xl border border-slate-700/30">
+            <Info size={14} className="text-primary shrink-0" />
+            <span className="text-[10px] font-medium leading-tight">Pro Tip: Type a <strong className="text-white">coaster</strong> (e.g. 'Fury 325') or a <strong className="text-white">park</strong> (e.g. 'Kings Island') to discover rides.</span>
           </div>
         </div>
 
@@ -218,7 +218,7 @@ const AddCredit: React.FC = () => {
                         <Sparkles size={16} className="text-accent" />
                         <h3 className="font-bold text-white text-sm">Discovered at {aiDiscoveryResults[0].park}</h3>
                     </div>
-                    <button onClick={handleAddAllDiscovery} className="text-[10px] font-bold text-accent uppercase tracking-widest bg-accent/10 px-3 py-1.5 rounded-full border border-accent/20">Add All to DB</button>
+                    <button onClick={handleAddAllDiscovery} className="text-[10px] font-bold text-accent uppercase tracking-widest bg-accent/20 px-4 py-2 rounded-full border border-accent/40 hover:bg-accent/30 active:scale-95 transition-all">Add All to DB</button>
                 </div>
                 <div className="grid grid-cols-1 gap-2">
                     {aiDiscoveryResults.map((res, i) => (

@@ -29,6 +29,7 @@ interface AppContextType {
   addCredit: (coasterId: string, date: string, notes: string, restraints: string, photo?: File) => void;
   updateCredit: (creditId: string, date: string, notes: string, restraints: string, photo?: File) => void;
   addNewCoaster: (coaster: Omit<Coaster, 'id'>) => Promise<Coaster>;
+  addMultipleCoasters: (coasters: Omit<Coaster, 'id'>[]) => Promise<void>;
   searchOnlineCoaster: (query: string) => Promise<Partial<Coaster>[] | null>;
   generateIcon: (prompt: string) => Promise<string | null>;
   changeView: (view: ViewState) => void;
@@ -123,7 +124,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           avatarUrl,
           rankings: { steel: [], wooden: [] }
         };
-        setUsers([...users, newUser]);
+        setUsers(prev => [...prev, newUser]);
         setActiveUser(newUser);
         showNotification(`Profile "${name}" created!`, 'success');
     };
@@ -174,7 +175,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       coasterId,
       addedAt: new Date().toISOString()
     };
-    setWishlist([...wishlist, entry]);
+    setWishlist(prev => [...prev, entry]);
     showNotification("Added to Bucket List", 'success');
   };
 
@@ -215,7 +216,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       restraints,
       photoUrl
     };
-    setCredits([...credits, newCredit]);
+    setCredits(prev => [...prev, newCredit]);
     showNotification("Ride Logged Successfully!", 'success');
   };
 
@@ -263,9 +264,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         id: newId, 
         imageUrl: finalImageUrl 
     };
-    setCoasters([...coasters, newCoaster]);
+    setCoasters(prev => [...prev, newCoaster]);
     showNotification("Added to Database", 'success');
     return newCoaster;
+  };
+
+  const addMultipleCoasters = async (coasterItems: Omit<Coaster, 'id'>[]) => {
+      const newCoasters: Coaster[] = [];
+      for (const item of coasterItems) {
+          const newId = generateId('c');
+          // Standardize basic fields
+          const newCoaster: Coaster = {
+              ...item,
+              id: newId,
+              park: cleanName(item.park),
+              country: cleanName(item.country || 'Unknown'),
+              manufacturer: normalizeManufacturer(item.manufacturer || 'Unknown'),
+          };
+          newCoasters.push(newCoaster);
+      }
+      
+      setCoasters(prev => [...prev, ...newCoasters]);
+      showNotification(`Added ${newCoasters.length} coasters!`, 'success');
   };
 
   const searchOnlineCoaster = async (query: string) => {
@@ -412,7 +432,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   return (
     <AppContext.Provider value={{
       activeUser, users, coasters, credits, wishlist, currentView, coasterListViewMode, notification, lastSearchQuery,
-      switchUser, addUser, updateUser, addCredit, updateCredit, addNewCoaster, searchOnlineCoaster, generateIcon,
+      switchUser, addUser, updateUser, addCredit, updateCredit, addNewCoaster, addMultipleCoasters, searchOnlineCoaster, generateIcon,
       changeView, setCoasterListViewMode, deleteCredit, addToWishlist, removeFromWishlist, isInWishlist,
       showNotification, hideNotification, setLastSearchQuery, enrichDatabaseImages, updateCoasterImage, autoFetchCoasterImage,
       importData, standardizeDatabase, updateRankings
