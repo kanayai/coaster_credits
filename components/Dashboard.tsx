@@ -2,7 +2,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
-import { Trophy, ClipboardList, Palmtree, Layers, Factory, Flag, CalendarRange, Edit2, Globe, Hash, MapPin, Navigation } from 'lucide-react';
+import { Trophy, ClipboardList, Palmtree, Layers, Factory, Flag, CalendarRange, Edit2, Globe, Hash, MapPin, Navigation, ChevronRight } from 'lucide-react';
 import EditCreditModal from './EditCreditModal';
 import { Credit, Coaster } from '../types';
 import { normalizeManufacturer } from '../constants';
@@ -22,9 +22,6 @@ const Dashboard: React.FC = () => {
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          // In a real production app, we'd use lat/lng to calculate distance.
-          // For this prototype, we'll simulate the "Nearby" by highlighting top visited parks 
-          // or a random subset of the database to show UI variety.
           const uniqueParks = Array.from(new Set(coasters.map(c => c.park)));
           setNearbyParks(uniqueParks.slice(0, 3));
         },
@@ -91,7 +88,24 @@ const Dashboard: React.FC = () => {
   return (
     <div className="space-y-6 animate-fade-in pb-10">
       
-      {/* Top Stats Row */}
+      {/* 1. Rankings Shortcut (New Top Placement) */}
+      <button 
+          onClick={() => changeView('RANKINGS')}
+          className="w-full bg-gradient-to-br from-amber-500/20 via-yellow-600/10 to-transparent border border-amber-500/30 p-4 rounded-2xl flex items-center justify-between group active:scale-[0.98] transition-all shadow-xl shadow-amber-950/20"
+      >
+          <div className="flex items-center gap-4">
+              <div className="bg-gradient-to-br from-amber-400 to-yellow-600 p-2.5 rounded-xl text-slate-900 shadow-lg shadow-amber-500/30">
+                  <Trophy size={22} fill="currentColor" />
+              </div>
+              <div className="text-left">
+                  <h3 className="font-bold text-white text-base leading-tight">My Top 10 Rankings</h3>
+                  <p className="text-[10px] text-amber-500/80 font-bold uppercase tracking-widest mt-0.5">Manage Your Credits</p>
+              </div>
+          </div>
+          <ChevronRight size={18} className="text-amber-500/50 group-hover:text-amber-500 group-hover:translate-x-1 transition-all" />
+      </button>
+
+      {/* 2. Top Stats Row */}
       <div className="grid grid-cols-2 gap-4">
         <div 
             className="bg-slate-800 rounded-2xl p-5 shadow-lg border border-slate-700 relative overflow-hidden cursor-pointer active:scale-95 transition-transform group"
@@ -120,32 +134,7 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Nearby Parks Widget */}
-      {nearbyParks.length > 0 && (
-          <div className="bg-gradient-to-r from-emerald-600/20 to-teal-600/10 p-5 rounded-2xl border border-emerald-500/30 shadow-xl">
-              <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <Navigation size={18} className="text-emerald-400" />
-                    <h3 className="font-bold text-white">Parks Near You</h3>
-                  </div>
-                  <span className="text-[10px] font-bold text-emerald-400/80 bg-emerald-400/10 px-2 py-0.5 rounded-full uppercase">GPS Active</span>
-              </div>
-              <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
-                  {nearbyParks.map(park => (
-                      <button 
-                        key={park}
-                        onClick={() => { setLastSearchQuery(park); changeView('ADD_CREDIT'); }}
-                        className="bg-slate-900/60 hover:bg-slate-900 border border-slate-700/50 p-3 rounded-xl flex items-center gap-2 shrink-0 transition-colors"
-                      >
-                          <div className="bg-emerald-500/10 p-1.5 rounded-lg text-emerald-400"><Palmtree size={14}/></div>
-                          <span className="text-xs font-bold text-slate-200">{park}</span>
-                      </button>
-                  ))}
-              </div>
-          </div>
-      )}
-
-      {/* Statistics Panel */}
+      {/* 3. Statistics Panel */}
       <div className="bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-xl">
             <div className="mb-4">
                 <div className="flex justify-between items-start mb-3">
@@ -218,6 +207,31 @@ const Dashboard: React.FC = () => {
                 <div className="text-xs text-slate-400 truncate">{recentCoaster.park}</div>
             </div>
         </div>
+      )}
+
+      {/* 4. Nearby Parks Widget (Moved to bottom) */}
+      {nearbyParks.length > 0 && (
+          <div className="bg-gradient-to-r from-emerald-600/20 to-teal-600/10 p-5 rounded-2xl border border-emerald-500/30 shadow-xl">
+              <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Navigation size={18} className="text-emerald-400" />
+                    <h3 className="font-bold text-white">Parks Near You</h3>
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-400/80 bg-emerald-400/10 px-2 py-0.5 rounded-full uppercase">GPS Active</span>
+              </div>
+              <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
+                  {nearbyParks.map(park => (
+                      <button 
+                        key={park}
+                        onClick={() => { setLastSearchQuery(park); changeView('ADD_CREDIT'); }}
+                        className="bg-slate-900/60 hover:bg-slate-900 border border-slate-700/50 p-3 rounded-xl flex items-center gap-2 shrink-0 transition-colors"
+                      >
+                          <div className="bg-emerald-500/10 p-1.5 rounded-lg text-emerald-400"><Palmtree size={14}/></div>
+                          <span className="text-xs font-bold text-slate-200">{park}</span>
+                      </button>
+                  ))}
+              </div>
+          </div>
       )}
 
       {editingCreditData && <EditCreditModal credit={editingCreditData.credit} coaster={editingCreditData.coaster} onClose={() => setEditingCreditData(null)} />}
