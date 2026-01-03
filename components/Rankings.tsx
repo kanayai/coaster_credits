@@ -1,17 +1,20 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { Trophy, ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, Save, Layers, TreeDeciduous, Search, Hash, Zap, Flag, TrendingUp, Sparkles, X } from 'lucide-react';
+import { Trophy, ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, Save, Layers, TreeDeciduous, Search, Hash, Zap, Flag, TrendingUp, Sparkles, X, Globe, ListOrdered } from 'lucide-react';
 import clsx from 'clsx';
 import { Coaster, CoasterType, RankingList } from '../types';
 
-type RankMode = 'steel' | 'wooden' | 'elements';
+type RankMode = 'overall' | 'steel' | 'wooden' | 'elements';
 
 const Rankings: React.FC = () => {
   const { activeUser, coasters, credits, updateRankings, changeView, showNotification } = useAppContext();
   
-  const [activeTab, setActiveTab] = useState<RankMode>('steel');
+  const [activeTab, setActiveTab] = useState<RankMode>('overall');
   const [activeElementKey, setActiveElementKey] = useState<string>('Best First Drop');
+  
+  // Ranking Limit State
+  const [rankingLimit, setRankingLimit] = useState<number>(10);
   
   // State for adding a new category
   const [isAddingCategory, setIsAddingCategory] = useState(false);
@@ -19,8 +22,9 @@ const Rankings: React.FC = () => {
 
   // Initialize temp rankings with defaults if they don't exist
   const [tempRankings, setTempRankings] = useState<RankingList>(() => {
-    const base = activeUser.rankings || { steel: [], wooden: [] };
+    const base = activeUser.rankings || { overall: [], steel: [], wooden: [] };
     const elements = base.elements || {};
+    const overall = base.overall || [];
     
     // Ensure default elements exist
     if (!elements['Best First Drop']) elements['Best First Drop'] = [];
@@ -29,6 +33,7 @@ const Rankings: React.FC = () => {
 
     return {
         ...base,
+        overall,
         elements
     };
   });
@@ -41,17 +46,11 @@ const Rankings: React.FC = () => {
       return coasters.filter(c => riddenIds.has(c.id));
   }, [coasters, credits, activeUser.id]);
 
-  // Statistics for the tabs
-  const stats = useMemo(() => {
-    const steelCount = riddenCoasters.filter(c => c.type !== CoasterType.Wooden).length;
-    const woodenCount = riddenCoasters.filter(c => c.type === CoasterType.Wooden).length;
-    return { steelCount, woodenCount };
-  }, [riddenCoasters]);
-
   // Available coasters to add
   const availableCoasters = useMemo(() => {
       let currentList: string[] = [];
-      if (activeTab === 'steel') currentList = tempRankings.steel;
+      if (activeTab === 'overall') currentList = tempRankings.overall || [];
+      else if (activeTab === 'steel') currentList = tempRankings.steel;
       else if (activeTab === 'wooden') currentList = tempRankings.wooden;
       else if (activeTab === 'elements' && tempRankings.elements) currentList = tempRankings.elements[activeElementKey] || [];
       
@@ -60,7 +59,7 @@ const Rankings: React.FC = () => {
           let matchesType = true;
           if (activeTab === 'steel') matchesType = (c.type !== CoasterType.Wooden);
           if (activeTab === 'wooden') matchesType = (c.type === CoasterType.Wooden);
-          // Elements tab allows ALL coaster types
+          // Overall and Elements tab allows ALL coaster types
           
           const isNotRanked = !currentList.includes(c.id);
           const matchesSearch = c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -98,27 +97,25 @@ const Rankings: React.FC = () => {
   };
 
   const addItem = (id: string) => {
+      const addToList = (currentList: string[], key: string, isElement = false) => {
+          if (currentList.length >= rankingLimit) {
+            showNotification(`List is full (Max ${rankingLimit}). Increase limit or remove items.`, 'error');
+            return;
+          }
+          if (isElement) {
+               setTempRankings(prev => ({
+                  ...prev,
+                  elements: { ...prev.elements, [key]: [...currentList, id] }
+               }));
+          } else {
+              setTempRankings(prev => ({ ...prev, [key]: [...currentList, id] }));
+          }
+      };
+
       if (activeTab === 'elements') {
-          const list = tempRankings.elements?.[activeElementKey] || [];
-          if (list.length >= 10) {
-            alert("Maximum 10 entries per list.");
-            return;
-          }
-          setTempRankings({
-              ...tempRankings,
-              elements: {
-                  ...tempRankings.elements,
-                  [activeElementKey]: [...list, id]
-              }
-          });
+          addToList(tempRankings.elements?.[activeElementKey] || [], activeElementKey, true);
       } else {
-          const listKey = activeTab;
-          const list = tempRankings[listKey];
-          if (list.length >= 10) {
-            alert("Maximum 10 entries per list.");
-            return;
-          }
-          setTempRankings({ ...tempRankings, [listKey]: [...list, id] });
+          addToList(tempRankings[activeTab], activeTab);
       }
       setSearchQuery('');
   };
@@ -185,19 +182,51 @@ const Rankings: React.FC = () => {
 
   return (
     <div className="animate-fade-in space-y-6 pb-24">
-      <div className="flex items-center gap-3">
-          <button onClick={() => changeView('PROFILE')} className="bg-slate-800 p-2 rounded-full border border-slate-700 text-slate-400 hover:text-white transition-colors">
-            <ArrowLeft size={20}/>
-          </button>
-          <h2 className="text-2xl font-bold">My Top 10 Rankings</h2>
+      <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button onClick={() => changeView('PROFILE')} className="bg-slate-800 p-2 rounded-full border border-slate-700 text-slate-400 hover:text-white transition-colors">
+                <ArrowLeft size={20}/>
+            </button>
+            <h2 className="text-2xl font-bold">Rankings</h2>
+          </div>
+
+          {/* Limit Selector */}
+          <div className="flex items-center gap-2 bg-slate-800 p-1 pl-3 rounded-xl border border-slate-700">
+              <ListOrdered size={16} className="text-slate-400" />
+              <select 
+                value={rankingLimit} 
+                onChange={(e) => setRankingLimit(Number(e.target.value))}
+                className="bg-transparent text-xs font-bold text-white focus:outline-none appearance-none pr-6 cursor-pointer"
+                style={{ backgroundImage: 'none' }}
+              >
+                  <option value={10}>Top 10</option>
+                  <option value={25}>Top 25</option>
+                  <option value={50}>Top 50</option>
+                  <option value={100}>Top 100</option>
+              </select>
+              <div className="pointer-events-none absolute right-3">
+                 <ChevronDown size={12} className="text-slate-500" />
+              </div>
+          </div>
       </div>
 
       {/* Tab Switcher */}
-      <div className="flex bg-slate-900/50 p-1 rounded-2xl border border-slate-700">
+      <div className="flex bg-slate-900/50 p-1 rounded-2xl border border-slate-700 overflow-x-auto no-scrollbar">
+          <button 
+            onClick={() => { setActiveTab('overall'); setSearchQuery(''); }} 
+            className={clsx(
+                "flex-1 min-w-[70px] py-3 rounded-xl flex flex-col items-center justify-center gap-1 transition-all relative overflow-hidden", 
+                activeTab === 'overall' ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" : "text-slate-500 hover:text-slate-300"
+            )}
+          >
+              <div className="flex items-center gap-2 font-bold uppercase text-[10px] tracking-widest relative z-10">
+                <Globe size={14}/> Overall
+              </div>
+          </button>
           <button 
             onClick={() => { setActiveTab('steel'); setSearchQuery(''); }} 
             className={clsx(
-                "flex-1 py-3 rounded-xl flex flex-col items-center justify-center gap-1 transition-all relative overflow-hidden", 
+                "flex-1 min-w-[70px] py-3 rounded-xl flex flex-col items-center justify-center gap-1 transition-all relative overflow-hidden", 
                 activeTab === 'steel' ? "bg-primary text-white shadow-lg shadow-primary/20" : "text-slate-500 hover:text-slate-300"
             )}
           >
@@ -208,7 +237,7 @@ const Rankings: React.FC = () => {
           <button 
             onClick={() => { setActiveTab('wooden'); setSearchQuery(''); }} 
             className={clsx(
-                "flex-1 py-3 rounded-xl flex flex-col items-center justify-center gap-1 transition-all relative overflow-hidden", 
+                "flex-1 min-w-[70px] py-3 rounded-xl flex flex-col items-center justify-center gap-1 transition-all relative overflow-hidden", 
                 activeTab === 'wooden' ? "bg-amber-600 text-white shadow-lg shadow-amber-600/20" : "text-slate-500 hover:text-slate-300"
             )}
           >
@@ -219,7 +248,7 @@ const Rankings: React.FC = () => {
           <button 
             onClick={() => { setActiveTab('elements'); setSearchQuery(''); }} 
             className={clsx(
-                "flex-1 py-3 rounded-xl flex flex-col items-center justify-center gap-1 transition-all relative overflow-hidden", 
+                "flex-1 min-w-[70px] py-3 rounded-xl flex flex-col items-center justify-center gap-1 transition-all relative overflow-hidden", 
                 activeTab === 'elements' ? "bg-pink-600 text-white shadow-lg shadow-pink-600/20" : "text-slate-500 hover:text-slate-300"
             )}
           >
@@ -282,9 +311,12 @@ const Rankings: React.FC = () => {
 
       {/* Current Rankings List */}
       <div className="space-y-3">
-          <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">
-             {activeTab === 'elements' ? activeElementKey : `Your Top 10 ${activeTab}`}
-          </h3>
+          <div className="flex justify-between items-center px-1">
+             <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                {activeTab === 'elements' ? activeElementKey : `Your Top ${rankingLimit} ${activeTab}`}
+             </h3>
+             <span className="text-[10px] font-bold text-slate-600">{currentRankedList.length} / {rankingLimit}</span>
+          </div>
           
           {currentRankedList.length === 0 ? (
               <div className="h-32 flex flex-col items-center justify-center bg-slate-800/30 border-2 border-dashed border-slate-700 rounded-2xl text-slate-500">
@@ -311,7 +343,8 @@ const Rankings: React.FC = () => {
                               <div className="font-bold text-white text-sm truncate">{coaster.name}</div>
                               <div className="flex items-center gap-2 text-[10px] text-slate-400">
                                   <span className="truncate">{coaster.park}</span>
-                                  {activeTab === 'elements' && (
+                                  {/* Show Type Badge in Overall/Elements views */}
+                                  {(activeTab === 'overall' || activeTab === 'elements') && (
                                      <span className={clsx("px-1.5 py-0.5 rounded text-[8px] font-black uppercase", coaster.type === CoasterType.Wooden ? "bg-amber-600/20 text-amber-500" : "bg-blue-500/20 text-blue-400")}>
                                          {coaster.type === CoasterType.Wooden ? 'WOOD' : 'STEEL'}
                                      </span>
@@ -334,7 +367,7 @@ const Rankings: React.FC = () => {
       </div>
 
       {/* Search & Add New Section */}
-      {currentRankedList.length < 10 && (activeTab !== 'elements' || activeElementKey) && (
+      {currentRankedList.length < rankingLimit && (activeTab !== 'elements' || activeElementKey) && (
           <div className="space-y-4 pt-4 border-t border-slate-800">
               <div className="flex items-center justify-between">
                   <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Add Ridden Coasters</h3>
