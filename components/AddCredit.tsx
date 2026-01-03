@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Coaster, CoasterType } from '../types';
-import { Search, Plus, Calendar, Sparkles, Loader2, Filter, Bookmark, BookmarkCheck, PlusCircle, ArrowLeft as BackIcon, Zap, Ruler, ArrowUp, History, Trash2, Clock, CheckCircle2, Globe } from 'lucide-react';
+import { Search, Plus, Calendar, Sparkles, Loader2, Filter, Bookmark, BookmarkCheck, PlusCircle, ArrowLeft as BackIcon, Zap, Ruler, ArrowUp, History, Trash2, Clock, CheckCircle2, Globe, Info } from 'lucide-react';
 import { cleanName } from '../constants';
 import clsx from 'clsx';
 
@@ -190,18 +190,24 @@ const AddCredit: React.FC = () => {
             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">Search our database or use AI</p>
         </div>
 
-        <div className="flex gap-2">
-            <div className="relative flex-1">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                <input 
-                    type="text" 
-                    placeholder="Search coaster or park name..." 
-                    value={searchTerm} 
-                    onChange={e => setSearchTerm(e.target.value)} 
-                    className="w-full bg-slate-900 border border-slate-700 rounded-2xl pl-12 py-4 text-white shadow-lg focus:border-primary focus:ring-1 focus:ring-primary outline-none text-sm transition-all" 
-                />
-            </div>
-            <button onClick={() => setShowFilters(!showFilters)} className={clsx("p-4 rounded-2xl border transition-all active:scale-95", showFilters ? "bg-primary border-primary text-white" : "bg-slate-800 border-slate-700 text-slate-500")}><Filter size={20}/></button>
+        <div className="space-y-3">
+          <div className="flex gap-2">
+              <div className="relative flex-1">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                  <input 
+                      type="text" 
+                      placeholder="Coaster or park name..." 
+                      value={searchTerm} 
+                      onChange={e => setSearchTerm(e.target.value)} 
+                      className="w-full bg-slate-900 border border-slate-700 rounded-2xl pl-12 py-4 text-white shadow-lg focus:border-primary focus:ring-1 focus:ring-primary outline-none text-sm transition-all" 
+                  />
+              </div>
+              <button onClick={() => setShowFilters(!showFilters)} className={clsx("p-4 rounded-2xl border transition-all active:scale-95", showFilters ? "bg-primary border-primary text-white" : "bg-slate-800 border-slate-700 text-slate-500")}><Filter size={20}/></button>
+          </div>
+          <div className="flex items-center gap-2 px-2 text-slate-500">
+            <Info size={12} className="text-primary" />
+            <span className="text-[10px] font-medium italic">Type a coaster (e.g. 'Fury 325') or a park (e.g. 'Kings Island') to discover rides.</span>
+          </div>
         </div>
 
         {/* AI Discovery Results */}
@@ -264,7 +270,7 @@ const AddCredit: React.FC = () => {
                             )}
                         >
                             {isAiSearching ? <Loader2 className="animate-spin" size={18}/> : <Sparkles size={18}/>} 
-                            {isAiSearching ? 'SEARCHING THE WEB...' : 'AI MAGIC DISCOVERY'}
+                            {isAiSearching ? 'SCOUTING...' : 'AI MAGIC DISCOVERY'}
                         </button>
                         <button onClick={() => setIsAddingManually(true)} className="w-full bg-slate-800/50 text-slate-400 py-4 rounded-2xl font-bold text-xs uppercase tracking-[0.2em] border border-slate-700 hover:text-white transition-colors">Create Manually</button>
                     </div>

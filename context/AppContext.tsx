@@ -29,7 +29,7 @@ interface AppContextType {
   addCredit: (coasterId: string, date: string, notes: string, restraints: string, photo?: File) => void;
   updateCredit: (creditId: string, date: string, notes: string, restraints: string, photo?: File) => void;
   addNewCoaster: (coaster: Omit<Coaster, 'id'>) => Promise<Coaster>;
-  searchOnlineCoaster: (query: string) => Promise<Partial<Coaster> | null>;
+  searchOnlineCoaster: (query: string) => Promise<Partial<Coaster>[] | null>;
   generateIcon: (prompt: string) => Promise<string | null>;
   changeView: (view: ViewState) => void;
   setCoasterListViewMode: (mode: 'CREDITS' | 'WISHLIST') => void;
