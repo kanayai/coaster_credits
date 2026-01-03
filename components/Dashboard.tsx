@@ -11,25 +11,10 @@ import clsx from 'clsx';
 type ChartMetric = 'PARK' | 'TYPE' | 'MANUFACTURER' | 'COUNTRY' | 'YEAR';
 
 const Dashboard: React.FC = () => {
-  const { credits, wishlist, coasters, activeUser, changeView, setCoasterListViewMode, setLastSearchQuery, addCredit } = useAppContext();
+  const { credits, wishlist, coasters, activeUser, changeView, setCoasterListViewMode, setLastSearchQuery, addCredit, showNotification } = useAppContext();
 
   const [editingCreditData, setEditingCreditData] = useState<{ credit: Credit, coaster: Coaster } | null>(null);
   const [chartMetric, setChartMetric] = useState<ChartMetric>('PARK');
-  const [nearbyParks, setNearbyParks] = useState<string[]>([]);
-
-  // Geolocation Logic
-  useEffect(() => {
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const uniqueParks = Array.from(new Set(coasters.map(c => c.park)));
-          setNearbyParks(uniqueParks.slice(0, 3));
-        },
-        (error) => console.warn("Location permission denied"),
-        { timeout: 10000 }
-      );
-    }
-  }, [coasters]);
 
   const userCredits = useMemo(() => 
     credits
@@ -40,6 +25,13 @@ const Dashboard: React.FC = () => {
   const userWishlist = useMemo(() => wishlist.filter(w => w.userId === activeUser.id), [wishlist, activeUser.id]);
   const uniqueCreditsCount = useMemo(() => new Set(userCredits.map(c => c.coasterId)).size, [userCredits]);
   const totalRidesCount = userCredits.length;
+
+  const lastParkVisited = useMemo(() => {
+    if (userCredits.length === 0) return null;
+    const lastCredit = userCredits[0];
+    const coaster = coasters.find(c => c.id === lastCredit.coasterId);
+    return coaster ? coaster.park : null;
+  }, [userCredits, coasters]);
 
   // Milestone Logic
   const milestoneLevels = [1, 10, 25, 50, 100, 250, 500];
@@ -85,11 +77,11 @@ const Dashboard: React.FC = () => {
   const recentCredit = userCredits.length > 0 ? userCredits[0] : null;
   const recentCoaster = recentCredit ? coasters.find(c => c.id === recentCredit.coasterId) : null;
 
-  const handleQuickLog = (e: React.MouseEvent) => {
-      e.stopPropagation();
-      if (recentCoaster) {
-          addCredit(recentCoaster.id, new Date().toISOString().split('T')[0], 'Marathon ride!', '');
-      }
+  const handleContinueMarathon = () => {
+    if (lastParkVisited) {
+        setLastSearchQuery(lastParkVisited);
+        changeView('ADD_CREDIT');
+    }
   };
 
   const MetricButton = ({ mode, label, icon: Icon }: { mode: ChartMetric, label: string, icon: React.ElementType }) => (
@@ -108,12 +100,11 @@ const Dashboard: React.FC = () => {
   return (
     <div className="space-y-6 animate-fade-in pb-10">
       
-      {/* 1. Milestone Progress Card - Actionable & Highly Visual */}
+      {/* 1. Milestone Progress Card */}
       <div 
         onClick={() => changeView('MILESTONES')}
         className="group relative bg-slate-800/60 backdrop-blur-md border border-slate-700 p-6 rounded-[32px] overflow-hidden cursor-pointer active:scale-[0.98] transition-all shadow-2xl"
       >
-          {/* Animated Glow Background */}
           <div className="absolute top-0 right-0 w-32 h-32 bg-primary/20 blur-[60px] group-hover:bg-primary/40 transition-all rounded-full" />
           
           <div className="flex items-center justify-between relative z-10">
@@ -152,22 +143,24 @@ const Dashboard: React.FC = () => {
           </div>
       </div>
 
-      {/* 2. Rankings Quick-Access */}
-      <button 
-          onClick={() => changeView('RANKINGS')}
-          className="w-full bg-gradient-to-br from-amber-500/20 via-yellow-600/10 to-transparent border border-amber-500/30 p-4 rounded-2xl flex items-center justify-between group active:scale-[0.98] transition-all shadow-xl"
-      >
-          <div className="flex items-center gap-4">
-              <div className="bg-gradient-to-br from-amber-400 to-yellow-600 p-2.5 rounded-xl text-slate-900 shadow-lg">
-                  <Trophy size={22} fill="currentColor" />
-              </div>
-              <div className="text-left">
-                  <h3 className="font-bold text-white text-base leading-tight">My Top 10 Rankings</h3>
-                  <p className="text-[10px] text-amber-500/80 font-bold uppercase tracking-widest mt-0.5">Manage Your Credits</p>
-              </div>
-          </div>
-          <ChevronRight size={18} className="text-amber-500/50 group-hover:text-amber-500 group-hover:translate-x-1 transition-all" />
-      </button>
+      {/* 2. Marathon Continue (Recovered Feature with correct Green Palm Tree icon) */}
+      {lastParkVisited && (
+        <button 
+            onClick={handleContinueMarathon}
+            className="w-full bg-gradient-to-r from-emerald-600/20 to-teal-600/10 border border-emerald-500/30 p-4 rounded-3xl flex items-center justify-between group active:scale-[0.98] transition-all shadow-xl"
+        >
+            <div className="flex items-center gap-4">
+                <div className="bg-emerald-500 p-2.5 rounded-2xl text-white shadow-lg shadow-emerald-500/30 rotate-3 group-hover:rotate-0 transition-transform">
+                    <Palmtree size={22} fill="currentColor" />
+                </div>
+                <div className="text-left">
+                    <h3 className="font-bold text-white text-base leading-tight">Park Lineup</h3>
+                    <p className="text-[10px] text-emerald-500 font-black uppercase tracking-widest mt-0.5">Quick-log at {lastParkVisited}</p>
+                </div>
+            </div>
+            <ChevronRight size={18} className="text-emerald-500/50 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" />
+        </button>
+      )}
 
       {/* 3. Main Stats Grid */}
       <div className="grid grid-cols-2 gap-4">
@@ -179,7 +172,7 @@ const Dashboard: React.FC = () => {
                 <h2 className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Unique Credits</h2>
                 <div className="text-4xl font-black text-white mt-1 tracking-tighter">{uniqueCreditsCount}</div>
                 <div className="flex items-center gap-1 mt-2 text-[10px] font-bold text-primary bg-primary/10 w-fit px-2 py-1 rounded-md">
-                    <Zap size={10} /> {totalRidesCount} TOTAL RIDES
+                    <Zap size={10} /> {totalRidesCount} TOTAL
                 </div>
             </div>
         </div>
@@ -196,34 +189,8 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* 4. Quick Log / Last Ridden (UX SPEED) */}
-      {recentCoaster && (
-        <div className="relative group">
-            <div 
-                onClick={() => { setEditingCreditData({ credit: recentCredit!, coaster: recentCoaster }); }}
-                className="bg-slate-800 p-4 rounded-2xl border border-slate-700 flex gap-4 items-center cursor-pointer hover:bg-slate-750 transition-all active:scale-[0.99]"
-            >
-                <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0 shadow-lg border border-slate-600">
-                    <img src={recentCoaster.imageUrl} alt={recentCoaster.name} className="w-full h-full object-cover" />
-                </div>
-                <div className="flex-1 min-w-0">
-                    <div className="text-[10px] text-primary uppercase font-bold tracking-widest mb-0.5">Last Logged</div>
-                    <div className="font-bold text-lg text-white truncate leading-tight">{recentCoaster.name}</div>
-                    <div className="text-xs text-slate-500 truncate">{recentCoaster.park}</div>
-                </div>
-                <button 
-                    onClick={handleQuickLog}
-                    className="bg-primary/10 hover:bg-primary text-primary hover:text-white p-3 rounded-xl transition-all border border-primary/20 flex flex-col items-center gap-1 shrink-0"
-                >
-                    <Plus size={20} />
-                    <span className="text-[8px] font-bold uppercase">Log Again</span>
-                </button>
-            </div>
-        </div>
-      )}
-
-      {/* 5. Statistics Panel */}
-      <div className="bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-xl">
+      {/* 4. Statistics Panel */}
+      <div className="bg-slate-800 p-5 rounded-3xl border border-slate-700 shadow-xl">
             <div className="flex justify-between items-center mb-6">
                 <h3 className="text-lg font-bold text-white flex items-center gap-2">Insights</h3>
                 <div className="flex gap-1 overflow-x-auto no-scrollbar max-w-[60%]">
