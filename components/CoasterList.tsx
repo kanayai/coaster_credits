@@ -6,6 +6,7 @@ import clsx from 'clsx';
 import { Credit, Coaster } from '../types';
 import EditCreditModal from './EditCreditModal';
 import ShareCardModal from './ShareCardModal';
+import RideDetailModal from './RideDetailModal';
 
 type GroupMode = 'PARK' | 'COUNTRY' | 'TYPE' | 'MANUFACTURER' | 'YEAR';
 
@@ -18,6 +19,7 @@ const CoasterList: React.FC = () => {
 
   // Modal States
   const [editingCreditData, setEditingCreditData] = useState<{ credit: Credit, coaster: Coaster } | null>(null);
+  const [viewingCreditData, setViewingCreditData] = useState<{ credit: Credit, coaster: Coaster } | null>(null);
   const [sharingCreditData, setSharingCreditData] = useState<{ credit: Credit, coaster: Coaster } | null>(null);
 
   const itemsToDisplay = useMemo(() => {
@@ -191,7 +193,18 @@ const CoasterList: React.FC = () => {
                             const displayImage = (item as any).photoUrl || item.coaster.imageUrl;
 
                             return (
-                                <div key={item.id} className={clsx("bg-slate-800 rounded-xl overflow-hidden shadow-sm border flex flex-col sm:flex-row transition-transform hover:scale-[1.01] active:scale-[0.99] relative", isWishlist ? "border-amber-500/20" : "border-slate-700")}>
+                                <div 
+                                    key={item.id} 
+                                    onClick={() => {
+                                        if (!isWishlist) {
+                                            setViewingCreditData({ credit: item as unknown as Credit, coaster: item.coaster! });
+                                        }
+                                    }}
+                                    className={clsx(
+                                        "bg-slate-800 rounded-xl overflow-hidden shadow-sm border flex flex-col sm:flex-row transition-transform hover:scale-[1.01] active:scale-[0.99] relative cursor-pointer", 
+                                        isWishlist ? "border-amber-500/20" : "border-slate-700"
+                                    )}
+                                >
                                     <div className="h-32 sm:w-32 sm:h-auto bg-slate-900 flex-none relative">
                                         {displayImage && <img src={displayImage} alt="Coaster" className={clsx("w-full h-full object-cover", isWishlist ? "opacity-60" : "opacity-80")} />}
                                         <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent" />
@@ -206,9 +219,9 @@ const CoasterList: React.FC = () => {
                                                     </h3>
                                                     <div className="flex items-center text-sm text-slate-400 mt-1"><MapPin size={12} className="mr-1 shrink-0" /><span className="truncate text-xs">{item.coaster.park}</span></div>
                                                 </div>
-                                                <div className="flex gap-1">
-                                                    {!isWishlist && <button onClick={() => setSharingCreditData({ credit: item, coaster: item.coaster! })} className="text-primary p-2 rounded-full hover:bg-primary/10 transition-colors"><Share2 size={18} /></button>}
-                                                    {isWishlist ? <button onClick={() => changeView('ADD_CREDIT')} className="text-primary p-2 rounded-full"><ArrowRightCircle size={20} /></button> : <button onClick={() => setEditingCreditData({ credit: item, coaster: item.coaster! })} className="text-slate-500 hover:text-white p-2 rounded-full"><Edit2 size={18} /></button>}
+                                                <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                                                    {!isWishlist && <button onClick={() => setSharingCreditData({ credit: item as unknown as Credit, coaster: item.coaster! })} className="text-primary p-2 rounded-full hover:bg-primary/10 transition-colors"><Share2 size={18} /></button>}
+                                                    {isWishlist ? <button onClick={() => changeView('ADD_CREDIT')} className="text-primary p-2 rounded-full"><ArrowRightCircle size={20} /></button> : <button onClick={() => setEditingCreditData({ credit: item as unknown as Credit, coaster: item.coaster! })} className="text-slate-500 hover:text-white p-2 rounded-full"><Edit2 size={18} /></button>}
                                                     <button onClick={() => isWishlist ? removeFromWishlist(item.coasterId) : deleteCredit(item.id)} className="text-slate-500 hover:text-red-400 p-2 rounded-full"><Trash2 size={18} /></button>
                                                 </div>
                                             </div>
@@ -229,6 +242,22 @@ const CoasterList: React.FC = () => {
                 </div>
             )}
           </>
+      )}
+
+      {viewingCreditData && (
+          <RideDetailModal 
+            credit={viewingCreditData.credit} 
+            coaster={viewingCreditData.coaster} 
+            onClose={() => setViewingCreditData(null)}
+            onEdit={() => {
+                setEditingCreditData(viewingCreditData);
+                setViewingCreditData(null);
+            }}
+            onShare={() => {
+                setSharingCreditData(viewingCreditData);
+                // Can keep details open or close it
+            }}
+          />
       )}
 
       {editingCreditData && <EditCreditModal credit={editingCreditData.credit} coaster={editingCreditData.coaster} onClose={() => setEditingCreditData(null)} />}

@@ -2,8 +2,10 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
-import { Trophy, ClipboardList, Palmtree, Layers, Factory, Flag, CalendarRange, Edit2, Globe, Hash, MapPin, Navigation, ChevronRight, Zap, Star, Share2, Plus, Award, Sparkles, ExternalLink, Loader2, ListOrdered } from 'lucide-react';
+import { Trophy, ClipboardList, Palmtree, Layers, Factory, Flag, CalendarRange, Edit2, Globe, Hash, MapPin, Navigation, ChevronRight, Zap, Star, Share2, Plus, Award, Sparkles, ExternalLink, Loader2, ListOrdered, Ticket } from 'lucide-react';
 import EditCreditModal from './EditCreditModal';
+import RideDetailModal from './RideDetailModal';
+import ShareCardModal from './ShareCardModal';
 import { Credit, Coaster } from '../types';
 import { normalizeManufacturer } from '../constants';
 import { findNearbyParks } from '../services/geminiService';
@@ -14,7 +16,11 @@ type ChartMetric = 'PARK' | 'TYPE' | 'MANUFACTURER' | 'COUNTRY' | 'YEAR';
 const Dashboard: React.FC = () => {
   const { credits, wishlist, coasters, activeUser, changeView, setCoasterListViewMode, setLastSearchQuery, addCredit, showNotification } = useAppContext();
 
+  // Modal States
   const [editingCreditData, setEditingCreditData] = useState<{ credit: Credit, coaster: Coaster } | null>(null);
+  const [viewingCreditData, setViewingCreditData] = useState<{ credit: Credit, coaster: Coaster } | null>(null);
+  const [sharingCreditData, setSharingCreditData] = useState<{ credit: Credit, coaster: Coaster } | null>(null);
+  
   const [chartMetric, setChartMetric] = useState<ChartMetric>('PARK');
 
   // Nearby Parks State
@@ -191,7 +197,10 @@ const Dashboard: React.FC = () => {
           </div>
           
           {recentCredit && recentCoaster ? (
-              <div className="bg-slate-800 p-4 rounded-2xl border border-slate-700 flex gap-4 items-center shadow-md relative overflow-hidden">
+              <div 
+                onClick={() => setViewingCreditData({ credit: recentCredit, coaster: recentCoaster })}
+                className="bg-slate-800 p-4 rounded-2xl border border-slate-700 flex gap-4 items-center shadow-md relative overflow-hidden cursor-pointer hover:bg-slate-750 transition-colors active:scale-[0.98]"
+              >
                   <div className="w-16 h-16 rounded-xl bg-slate-900 shrink-0 overflow-hidden relative border border-slate-600">
                       {recentImage ? (
                           <img src={recentImage} className="w-full h-full object-cover" alt={recentCoaster.name} />
@@ -210,9 +219,9 @@ const Dashboard: React.FC = () => {
                           {recentCredit.rideCount > 1 && <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded border border-primary/20 font-bold">x{recentCredit.rideCount}</span>}
                       </div>
                   </div>
-                  <button onClick={() => setEditingCreditData({ credit: recentCredit, coaster: recentCoaster })} className="absolute top-2 right-2 p-2 text-slate-500 hover:text-white bg-slate-900/50 rounded-lg backdrop-blur-sm">
-                      <Edit2 size={14} />
-                  </button>
+                  <div className="p-2 text-slate-500">
+                      <ChevronRight size={20} />
+                  </div>
               </div>
           ) : (
               <div className="bg-slate-800/50 p-6 rounded-2xl border border-dashed border-slate-700 text-center">
@@ -221,6 +230,23 @@ const Dashboard: React.FC = () => {
               </div>
           )}
       </div>
+
+      {/* Park Mode Session Button (Bottom) */}
+      <button 
+        onClick={() => changeView('ADD_CREDIT')}
+        className="w-full bg-gradient-to-r from-emerald-600 to-emerald-800 p-5 rounded-[24px] shadow-2xl shadow-emerald-900/40 border border-white/10 flex items-center justify-between group active:scale-[0.98] transition-all"
+      >
+          <div className="flex items-center gap-4">
+              <div className="bg-white/10 p-3 rounded-2xl">
+                  <Ticket size={24} className="text-white" />
+              </div>
+              <div className="text-left">
+                  <h3 className="text-lg font-black text-white italic tracking-tight uppercase">Enter Park Mode</h3>
+                  <p className="text-xs text-emerald-200 font-medium">Quick logging & filtering for your current location</p>
+              </div>
+          </div>
+          <ChevronRight size={24} className="text-emerald-200 group-hover:translate-x-1 transition-transform" />
+      </button>
 
       {/* Analytics Chart */}
       <div className="space-y-3">
@@ -347,7 +373,26 @@ const Dashboard: React.FC = () => {
            )}
       </div>
       
+      {/* Modals */}
+      {viewingCreditData && (
+          <RideDetailModal 
+            credit={viewingCreditData.credit} 
+            coaster={viewingCreditData.coaster} 
+            onClose={() => setViewingCreditData(null)}
+            onEdit={() => {
+                setEditingCreditData(viewingCreditData);
+                setViewingCreditData(null);
+            }}
+            onShare={() => {
+                setSharingCreditData(viewingCreditData);
+                // Don't close viewing data, just layer on top or close it if you prefer
+            }}
+          />
+      )}
+      
       {editingCreditData && <EditCreditModal credit={editingCreditData.credit} coaster={editingCreditData.coaster} onClose={() => setEditingCreditData(null)} />}
+      
+      {sharingCreditData && <ShareCardModal credit={sharingCreditData.credit} coaster={sharingCreditData.coaster} onClose={() => setSharingCreditData(null)} />}
     </div>
   );
 };

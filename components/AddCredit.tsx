@@ -207,7 +207,7 @@ const AddCredit: React.FC = () => {
       e.stopPropagation();
       setActiveParkFilter(parkName);
       setSearchTerm(''); // Clear search to show all rides in park
-      showNotification(`Viewing ${parkName}`, 'info');
+      showNotification(`Filtering by ${parkName}`, 'info');
   };
 
   const exitParkMode = () => {
@@ -448,7 +448,7 @@ const AddCredit: React.FC = () => {
                 <div className="sticky top-0 -mx-4 -mt-4 p-4 z-20 bg-slate-900/95 backdrop-blur-md border-b border-slate-700/50 flex gap-2">
                     <button onClick={() => setSelectedCoaster(null)} className="p-3 rounded-xl bg-slate-800 border border-slate-700 text-slate-400"><BackIcon size={20}/></button>
                     <button onClick={() => { setActiveParkFilter(selectedCoaster.park); processLog(); }} className="flex-1 bg-emerald-500/10 text-emerald-400 font-bold py-3 rounded-xl border border-emerald-500/30 flex items-center justify-center gap-2">
-                        <Palmtree size={18} /> Log & View Park
+                        <Palmtree size={18} /> Log & Filter by Park
                     </button>
                 </div>
                 
@@ -525,34 +525,11 @@ const AddCredit: React.FC = () => {
   return (
     <div className="h-full flex flex-col space-y-5 animate-fade-in relative">
         
-        {/* Park Mode Header (Renamed from Marathon) */}
-        {activeParkFilter && parkStats ? (
-            <div className="bg-gradient-to-r from-emerald-500 to-emerald-700 rounded-3xl p-5 flex items-center justify-between shadow-xl shadow-emerald-900/40 border border-white/20 animate-scale-in relative overflow-hidden group">
-                <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:scale-125 transition-transform">
-                    <Palmtree size={100} />
-                </div>
-                <div className="flex items-center gap-4 relative z-10">
-                    <div className="bg-white p-3 rounded-2xl text-emerald-600 shadow-lg rotate-3">
-                        <Palmtree size={24} fill="currentColor" />
-                    </div>
-                    <div>
-                        <h3 className="text-base font-black text-white italic leading-tight uppercase tracking-tight">PARK MODE</h3>
-                        <p className="text-xs text-emerald-100 font-bold uppercase tracking-widest opacity-80">{activeParkFilter}</p>
-                    </div>
-                </div>
-                <div className="flex items-center gap-2 relative z-10">
-                    <button onClick={exitParkMode} className="bg-black/20 hover:bg-black/40 p-2.5 rounded-xl text-white transition-colors border border-white/10 flex items-center gap-2">
-                        <span className="text-[10px] font-bold uppercase hidden sm:inline">Exit</span>
-                        <X size={20} />
-                    </button>
-                </div>
-            </div>
-        ) : (
-            <div className="space-y-1">
-                <h2 className="text-2xl font-black text-white italic tracking-tight">ADD <span className="text-primary">CREDIT</span></h2>
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">Search our database or use AI</p>
-            </div>
-        )}
+        {/* Simplified Header - Always visible */}
+        <div className="space-y-1">
+            <h2 className="text-2xl font-black text-white italic tracking-tight">ADD <span className="text-primary">CREDIT</span></h2>
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">Search our database or use AI</p>
+        </div>
 
         <div className="space-y-3">
           <div className="flex gap-2">
@@ -560,11 +537,19 @@ const AddCredit: React.FC = () => {
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
                   <input 
                       type="text" 
-                      placeholder={activeParkFilter ? `Search ${activeParkFilter}...` : "Search coaster or park name..."}
+                      placeholder={activeParkFilter ? `Searching ${activeParkFilter}...` : "Search coaster or park name..."}
                       value={searchTerm} 
                       onChange={e => setSearchTerm(e.target.value)} 
                       className="w-full bg-slate-900 border border-slate-700 rounded-2xl pl-12 py-4 text-white shadow-lg focus:border-primary focus:ring-1 focus:ring-primary outline-none text-sm transition-all" 
                   />
+                  {/* Subtle Filter Chip inside search area */}
+                  {activeParkFilter && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 bg-emerald-500/10 text-emerald-500 px-2 py-1 rounded-lg border border-emerald-500/20 text-[10px] font-bold animate-fade-in">
+                          <Palmtree size={10} />
+                          <span className="max-w-[100px] truncate">{activeParkFilter}</span>
+                          <button onClick={exitParkMode} className="ml-1 hover:text-white"><X size={12} /></button>
+                      </div>
+                  )}
               </div>
               
               {/* Multi-Select Toggle */}
