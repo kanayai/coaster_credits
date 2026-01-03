@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { X, Camera, Save, Lock, Sparkles, Loader2, Edit3, AlertTriangle } from 'lucide-react';
+import { X, Camera, Save, Lock, Sparkles, Loader2, Edit3, AlertTriangle, Link, ArrowDownCircle } from 'lucide-react';
 import { Credit, Coaster, CoasterType } from '../types';
 import clsx from 'clsx';
 
@@ -12,7 +12,7 @@ interface EditCreditModalProps {
 }
 
 const EditCreditModal: React.FC<EditCreditModalProps> = ({ credit, coaster, onClose }) => {
-  const { updateCredit, editCoaster, autoFetchCoasterImage } = useAppContext();
+  const { updateCredit, editCoaster, autoFetchCoasterImage, extractFromUrl, showNotification } = useAppContext();
   
   // Credit Log State
   const [date, setDate] = useState(credit.date);
@@ -28,6 +28,11 @@ const EditCreditModal: React.FC<EditCreditModalProps> = ({ credit, coaster, onCl
 
   const [isFetchingImage, setIsFetchingImage] = useState(false);
   const [localCoasterImage, setLocalCoasterImage] = useState(coaster.imageUrl);
+  
+  // URL Extraction State
+  const [importUrl, setImportUrl] = useState('');
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [showUrlInput, setShowUrlInput] = useState(false);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,11 +42,12 @@ const EditCreditModal: React.FC<EditCreditModalProps> = ({ credit, coaster, onCl
 
     // 2. Update the Coaster Data if changed
     if (isEditingCoaster) {
-        if (coasterName !== coaster.name || coasterPark !== coaster.park || coasterType !== coaster.type) {
+        if (coasterName !== coaster.name || coasterPark !== coaster.park || coasterType !== coaster.type || localCoasterImage !== coaster.imageUrl) {
             editCoaster(coaster.id, {
                 name: coasterName,
                 park: coasterPark,
-                type: coasterType
+                type: coasterType,
+                imageUrl: localCoasterImage // Also save the image if it changed via URL extraction
             });
         }
     }
@@ -56,6 +62,28 @@ const EditCreditModal: React.FC<EditCreditModalProps> = ({ credit, coaster, onCl
       setIsFetchingImage(false);
       if (url) {
           setLocalCoasterImage(url);
+      }
+  };
+
+  const handleUrlExtract = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!importUrl) return;
+      
+      setIsExtracting(true);
+      const data = await extractFromUrl(importUrl);
+      setIsExtracting(false);
+      
+      if (data) {
+          if (data.name) setCoasterName(data.name);
+          if (data.park) setCoasterPark(data.park);
+          if (data.type) setCoasterType(data.type);
+          if (data.imageUrl) setLocalCoasterImage(data.imageUrl);
+          
+          showNotification("Details updated from URL!", "success");
+          setShowUrlInput(false);
+          setImportUrl('');
+      } else {
+          showNotification("Could not extract data.", "error");
       }
   };
 
@@ -88,7 +116,43 @@ const EditCreditModal: React.FC<EditCreditModalProps> = ({ credit, coaster, onCl
               </div>
 
               {isEditingCoaster ? (
-                  <div className="space-y-2 animate-fade-in">
+                  <div className="space-y-3 animate-fade-in">
+                      {/* URL Import Toggle */}
+                      {!showUrlInput ? (
+                          <button 
+                            type="button" 
+                            onClick={() => setShowUrlInput(true)}
+                            className="w-full text-xs flex items-center justify-center gap-2 py-2 border border-dashed border-slate-600 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+                          >
+                              <Link size={12} /> Auto-fill from URL
+                          </button>
+                      ) : (
+                          <div className="flex gap-2">
+                              <input 
+                                type="url" 
+                                value={importUrl}
+                                onChange={e => setImportUrl(e.target.value)}
+                                placeholder="Paste RCDB/Park Link..."
+                                className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-2 text-xs text-white"
+                              />
+                              <button 
+                                type="button" 
+                                onClick={handleUrlExtract}
+                                disabled={isExtracting}
+                                className="bg-emerald-600 text-white px-3 rounded-lg text-xs font-bold"
+                              >
+                                  {isExtracting ? <Loader2 size={12} className="animate-spin" /> : <ArrowDownCircle size={14} />}
+                              </button>
+                              <button 
+                                type="button" 
+                                onClick={() => setShowUrlInput(false)}
+                                className="bg-slate-700 text-slate-300 px-2 rounded-lg"
+                              >
+                                  <X size={14} />
+                              </button>
+                          </div>
+                      )}
+
                       <input 
                           value={coasterName}
                           onChange={e => setCoasterName(e.target.value)}

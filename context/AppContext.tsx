@@ -124,7 +124,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           name,
           avatarColor: ['bg-red-500', 'bg-green-500', 'bg-yellow-500', 'bg-purple-500', 'bg-pink-500', 'bg-indigo-500'][Math.floor(Math.random() * 6)],
           avatarUrl,
-          rankings: { steel: [], wooden: [] }
+          rankings: { steel: [], wooden: [], elements: {} }
         };
         setUsers(prev => [...prev, newUser]);
         setActiveUser(newUser);

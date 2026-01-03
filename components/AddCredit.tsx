@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Coaster, CoasterType } from '../types';
-import { Search, Plus, Calendar, Sparkles, Loader2, Filter, Bookmark, BookmarkCheck, PlusCircle, ArrowLeft as BackIcon, Zap, Ruler, ArrowUp, History, Trash2, Clock, CheckCircle2, Globe, Info, X, Palmtree, ChevronRight, ListChecks, CheckSquare, Square, Check, Edit2, Copy, AlertCircle, Link, Image as ImageIcon } from 'lucide-react';
+import { Search, Plus, Calendar, Sparkles, Loader2, Filter, Bookmark, BookmarkCheck, PlusCircle, ArrowLeft as BackIcon, Zap, Ruler, ArrowUp, History, Trash2, Clock, CheckCircle2, Globe, Info, X, Palmtree, ChevronRight, ListChecks, CheckSquare, Square, Check, Edit2, Copy, AlertCircle, Link, Image as ImageIcon, ArrowDownCircle } from 'lucide-react';
 import { cleanName } from '../constants';
 import clsx from 'clsx';
 
@@ -21,6 +21,11 @@ const AddCredit: React.FC = () => {
   // URL Import State
   const [showUrlImport, setShowUrlImport] = useState(false);
   const [importUrl, setImportUrl] = useState('');
+
+  // Form URL Import State
+  const [formImportUrl, setFormImportUrl] = useState('');
+  const [isFormImporting, setIsFormImporting] = useState(false);
+  const [showFormImportInput, setShowFormImportInput] = useState(false);
 
   // Multi-Select State
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
@@ -153,6 +158,30 @@ const AddCredit: React.FC = () => {
       }
   };
 
+  const handleFormUrlImport = async () => {
+      if (!formImportUrl) return;
+      setIsFormImporting(true);
+      const data = await extractFromUrl(formImportUrl);
+      setIsFormImporting(false);
+      
+      if (data) {
+          setManualCoasterData(prev => ({
+              ...prev,
+              name: data.name || prev.name,
+              park: data.park || prev.park,
+              country: data.country || prev.country,
+              manufacturer: data.manufacturer || prev.manufacturer,
+              type: (data.type as CoasterType) || prev.type,
+              imageUrl: data.imageUrl || prev.imageUrl
+          }));
+          showNotification("Form updated from URL!", "success");
+          setShowFormImportInput(false);
+          setFormImportUrl('');
+      } else {
+          showNotification("Could not extract data from URL.", "error");
+      }
+  };
+
   const handleQuickLogOneTap = (e: React.MouseEvent, coasterId: string) => {
     e.stopPropagation();
     addCredit(coasterId, new Date().toISOString().split('T')[0], '', '');
@@ -280,6 +309,43 @@ const AddCredit: React.FC = () => {
                   setIsAddingManually(false);
               }} className="bg-slate-800 p-6 rounded-2xl border border-slate-700 space-y-4">
                   
+                  {/* Form Import Toggle */}
+                  <div className="flex justify-end">
+                      {!showFormImportInput ? (
+                          <button 
+                             type="button" 
+                             onClick={() => setShowFormImportInput(true)} 
+                             className="text-[10px] font-bold uppercase tracking-wider text-primary flex items-center gap-1 hover:text-primary-hover"
+                          >
+                              <Link size={12} /> Auto-fill from URL
+                          </button>
+                      ) : (
+                          <div className="w-full flex gap-2 animate-fade-in mb-2">
+                             <input 
+                                value={formImportUrl}
+                                onChange={e => setFormImportUrl(e.target.value)}
+                                placeholder="Paste link to overwrite fields..."
+                                className="flex-1 bg-slate-900 border border-slate-600 rounded-lg px-2 py-1 text-xs text-white"
+                             />
+                             <button 
+                                type="button" 
+                                onClick={handleFormUrlImport}
+                                disabled={isFormImporting}
+                                className="bg-emerald-600 text-white px-3 rounded-lg text-xs font-bold"
+                             >
+                                 {isFormImporting ? <Loader2 size={12} className="animate-spin" /> : <ArrowDownCircle size={14} />}
+                             </button>
+                             <button 
+                                type="button" 
+                                onClick={() => setShowFormImportInput(false)} 
+                                className="bg-slate-700 text-slate-300 px-2 rounded-lg"
+                             >
+                                 <X size={14} />
+                             </button>
+                          </div>
+                      )}
+                  </div>
+
                   {manualCoasterData.imageUrl && (
                       <div className="w-full h-40 rounded-xl overflow-hidden mb-2 border border-slate-600 relative group">
                           <img src={manualCoasterData.imageUrl} alt="Preview" className="w-full h-full object-cover" />

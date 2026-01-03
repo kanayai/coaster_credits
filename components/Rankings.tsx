@@ -1,15 +1,38 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { Trophy, ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, Save, Layers, TreeDeciduous, Search, Hash } from 'lucide-react';
+import { Trophy, ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, Save, Layers, TreeDeciduous, Search, Hash, Zap, Flag, TrendingUp, Sparkles, X } from 'lucide-react';
 import clsx from 'clsx';
-import { Coaster, CoasterType } from '../types';
+import { Coaster, CoasterType, RankingList } from '../types';
+
+type RankMode = 'steel' | 'wooden' | 'elements';
 
 const Rankings: React.FC = () => {
-  const { activeUser, coasters, credits, updateRankings, changeView } = useAppContext();
+  const { activeUser, coasters, credits, updateRankings, changeView, showNotification } = useAppContext();
   
-  const [activeTab, setActiveTab] = useState<'steel' | 'wooden'>('steel');
-  const [tempRankings, setTempRankings] = useState(activeUser.rankings || { steel: [], wooden: [] });
+  const [activeTab, setActiveTab] = useState<RankMode>('steel');
+  const [activeElementKey, setActiveElementKey] = useState<string>('Best First Drop');
+  
+  // State for adding a new category
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+
+  // Initialize temp rankings with defaults if they don't exist
+  const [tempRankings, setTempRankings] = useState<RankingList>(() => {
+    const base = activeUser.rankings || { steel: [], wooden: [] };
+    const elements = base.elements || {};
+    
+    // Ensure default elements exist
+    if (!elements['Best First Drop']) elements['Best First Drop'] = [];
+    if (!elements['Best Finale']) elements['Best Finale'] = [];
+    if (!elements['Best Zero-G Roll']) elements['Best Zero-G Roll'] = [];
+
+    return {
+        ...base,
+        elements
+    };
+  });
+
   const [searchQuery, setSearchQuery] = useState('');
 
   // Filter only coasters that the user has actually RIDDEN
@@ -25,15 +48,19 @@ const Rankings: React.FC = () => {
     return { steelCount, woodenCount };
   }, [riddenCoasters]);
 
-  // Coasters available to be ADDED to the current list
+  // Available coasters to add
   const availableCoasters = useMemo(() => {
-      const currentList = activeTab === 'steel' ? tempRankings.steel : tempRankings.wooden;
+      let currentList: string[] = [];
+      if (activeTab === 'steel') currentList = tempRankings.steel;
+      else if (activeTab === 'wooden') currentList = tempRankings.wooden;
+      else if (activeTab === 'elements' && tempRankings.elements) currentList = tempRankings.elements[activeElementKey] || [];
       
       return riddenCoasters
         .filter(c => {
-          const matchesType = activeTab === 'steel' 
-            ? (c.type !== CoasterType.Wooden) 
-            : (c.type === CoasterType.Wooden);
+          let matchesType = true;
+          if (activeTab === 'steel') matchesType = (c.type !== CoasterType.Wooden);
+          if (activeTab === 'wooden') matchesType = (c.type === CoasterType.Wooden);
+          // Elements tab allows ALL coaster types
           
           const isNotRanked = !currentList.includes(c.id);
           const matchesSearch = c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -42,7 +69,7 @@ const Rankings: React.FC = () => {
           return matchesType && isNotRanked && matchesSearch;
         })
         .sort((a, b) => a.name.localeCompare(b.name));
-  }, [riddenCoasters, tempRankings, activeTab, searchQuery]);
+  }, [riddenCoasters, tempRankings, activeTab, activeElementKey, searchQuery]);
 
   const handleSave = () => {
       updateRankings(tempRankings);
@@ -50,31 +77,111 @@ const Rankings: React.FC = () => {
   };
 
   const moveItem = (index: number, direction: 'up' | 'down') => {
-      const listKey = activeTab === 'steel' ? 'steel' : 'wooden';
-      const list = [...tempRankings[listKey]];
       const target = direction === 'up' ? index - 1 : index + 1;
-      if (target < 0 || target >= list.length) return;
-      [list[index], list[target]] = [list[target], list[index]];
-      setTempRankings({ ...tempRankings, [listKey]: list });
+      
+      if (activeTab === 'elements') {
+          if (!tempRankings.elements) return;
+          const list = [...(tempRankings.elements[activeElementKey] || [])];
+          if (target < 0 || target >= list.length) return;
+          [list[index], list[target]] = [list[target], list[index]];
+          setTempRankings({
+              ...tempRankings,
+              elements: { ...tempRankings.elements, [activeElementKey]: list }
+          });
+      } else {
+          const listKey = activeTab;
+          const list = [...tempRankings[listKey]];
+          if (target < 0 || target >= list.length) return;
+          [list[index], list[target]] = [list[target], list[index]];
+          setTempRankings({ ...tempRankings, [listKey]: list });
+      }
   };
 
   const addItem = (id: string) => {
-      const listKey = activeTab === 'steel' ? 'steel' : 'wooden';
-      const list = tempRankings[listKey];
-      if (list.length >= 10) {
-        alert("Maximum 10 entries per list. Remove a coaster to add a new one.");
-        return;
+      if (activeTab === 'elements') {
+          const list = tempRankings.elements?.[activeElementKey] || [];
+          if (list.length >= 10) {
+            alert("Maximum 10 entries per list.");
+            return;
+          }
+          setTempRankings({
+              ...tempRankings,
+              elements: {
+                  ...tempRankings.elements,
+                  [activeElementKey]: [...list, id]
+              }
+          });
+      } else {
+          const listKey = activeTab;
+          const list = tempRankings[listKey];
+          if (list.length >= 10) {
+            alert("Maximum 10 entries per list.");
+            return;
+          }
+          setTempRankings({ ...tempRankings, [listKey]: [...list, id] });
       }
-      setTempRankings({ ...tempRankings, [listKey]: [...list, id] });
-      setSearchQuery(''); // Clear search after adding
+      setSearchQuery('');
   };
 
   const removeItem = (id: string) => {
-      const listKey = activeTab === 'steel' ? 'steel' : 'wooden';
-      setTempRankings({ ...tempRankings, [listKey]: tempRankings[listKey].filter(itemId => itemId !== id) });
+      if (activeTab === 'elements') {
+           const list = tempRankings.elements?.[activeElementKey] || [];
+           setTempRankings({
+               ...tempRankings,
+               elements: {
+                   ...tempRankings.elements,
+                   [activeElementKey]: list.filter(item => item !== id)
+               }
+           });
+      } else {
+          const listKey = activeTab;
+          setTempRankings({ ...tempRankings, [listKey]: tempRankings[listKey].filter(itemId => itemId !== id) });
+      }
   };
 
-  const currentRankedList = activeTab === 'steel' ? tempRankings.steel : tempRankings.wooden;
+  const handleCreateCategory = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!newCategoryName.trim()) return;
+      if (tempRankings.elements && tempRankings.elements[newCategoryName]) {
+          showNotification("Category already exists", "error");
+          return;
+      }
+
+      setTempRankings(prev => ({
+          ...prev,
+          elements: {
+              ...prev.elements,
+              [newCategoryName.trim()]: []
+          }
+      }));
+      setActiveElementKey(newCategoryName.trim());
+      setIsAddingCategory(false);
+      setNewCategoryName('');
+      showNotification("Category created!", "success");
+  };
+
+  const deleteCategory = (categoryName: string) => {
+      if (!window.confirm(`Delete ranking list "${categoryName}"?`)) return;
+      
+      const newElements = { ...tempRankings.elements };
+      delete newElements[categoryName];
+      
+      setTempRankings(prev => ({ ...prev, elements: newElements }));
+      
+      // If we deleted the active one, switch to another
+      if (activeElementKey === categoryName) {
+          const remainingKeys = Object.keys(newElements);
+          if (remainingKeys.length > 0) setActiveElementKey(remainingKeys[0]);
+          else setActiveElementKey(''); // No categories left
+      }
+  };
+
+  const currentRankedList = useMemo(() => {
+      if (activeTab === 'elements') {
+          return tempRankings.elements?.[activeElementKey] || [];
+      }
+      return tempRankings[activeTab];
+  }, [tempRankings, activeTab, activeElementKey]);
 
   return (
     <div className="animate-fade-in space-y-6 pb-24">
@@ -90,32 +197,95 @@ const Rankings: React.FC = () => {
           <button 
             onClick={() => { setActiveTab('steel'); setSearchQuery(''); }} 
             className={clsx(
-                "flex-1 py-3 rounded-xl flex flex-col items-center justify-center gap-1 transition-all", 
+                "flex-1 py-3 rounded-xl flex flex-col items-center justify-center gap-1 transition-all relative overflow-hidden", 
                 activeTab === 'steel' ? "bg-primary text-white shadow-lg shadow-primary/20" : "text-slate-500 hover:text-slate-300"
             )}
           >
-              <div className="flex items-center gap-2 font-bold uppercase text-[10px] tracking-widest">
+              <div className="flex items-center gap-2 font-bold uppercase text-[10px] tracking-widest relative z-10">
                 <Layers size={14}/> Steel
               </div>
-              <span className="text-[10px] opacity-70 font-medium">{stats.steelCount} Credits</span>
           </button>
           <button 
             onClick={() => { setActiveTab('wooden'); setSearchQuery(''); }} 
             className={clsx(
-                "flex-1 py-3 rounded-xl flex flex-col items-center justify-center gap-1 transition-all", 
+                "flex-1 py-3 rounded-xl flex flex-col items-center justify-center gap-1 transition-all relative overflow-hidden", 
                 activeTab === 'wooden' ? "bg-amber-600 text-white shadow-lg shadow-amber-600/20" : "text-slate-500 hover:text-slate-300"
             )}
           >
-              <div className="flex items-center gap-2 font-bold uppercase text-[10px] tracking-widest">
+              <div className="flex items-center gap-2 font-bold uppercase text-[10px] tracking-widest relative z-10">
                 <TreeDeciduous size={14}/> Wooden
               </div>
-              <span className="text-[10px] opacity-70 font-medium">{stats.woodenCount} Credits</span>
+          </button>
+          <button 
+            onClick={() => { setActiveTab('elements'); setSearchQuery(''); }} 
+            className={clsx(
+                "flex-1 py-3 rounded-xl flex flex-col items-center justify-center gap-1 transition-all relative overflow-hidden", 
+                activeTab === 'elements' ? "bg-pink-600 text-white shadow-lg shadow-pink-600/20" : "text-slate-500 hover:text-slate-300"
+            )}
+          >
+              <div className="flex items-center gap-2 font-bold uppercase text-[10px] tracking-widest relative z-10">
+                <Zap size={14}/> Elements
+              </div>
           </button>
       </div>
 
+      {/* Elements Sub-Nav */}
+      {activeTab === 'elements' && (
+          <div className="animate-fade-in-down">
+              <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
+                  <button 
+                    onClick={() => setIsAddingCategory(true)}
+                    className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-full border border-dashed border-slate-600 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors text-xs font-bold"
+                  >
+                      <Plus size={14} /> New
+                  </button>
+                  {tempRankings.elements && Object.keys(tempRankings.elements).map(key => (
+                      <button
+                        key={key}
+                        onClick={() => setActiveElementKey(key)}
+                        className={clsx(
+                            "shrink-0 px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all border flex items-center gap-2 group",
+                            activeElementKey === key 
+                                ? "bg-pink-600 text-white border-pink-500 shadow-md" 
+                                : "bg-slate-800 text-slate-400 border-slate-700 hover:text-white"
+                        )}
+                      >
+                          {key}
+                          {activeElementKey === key && (
+                              <span 
+                                onClick={(e) => { e.stopPropagation(); deleteCategory(key); }}
+                                className="bg-black/20 rounded-full p-0.5 hover:bg-black/40"
+                              >
+                                  <X size={10} />
+                              </span>
+                          )}
+                      </button>
+                  ))}
+              </div>
+
+              {isAddingCategory && (
+                  <form onSubmit={handleCreateCategory} className="flex gap-2 mt-2 animate-fade-in">
+                      <input 
+                        autoFocus
+                        type="text" 
+                        placeholder="Category Name (e.g. Best Airtime)" 
+                        value={newCategoryName}
+                        onChange={e => setNewCategoryName(e.target.value)}
+                        className="flex-1 bg-slate-900 border border-slate-600 rounded-xl px-4 py-2 text-sm text-white"
+                      />
+                      <button type="submit" className="bg-emerald-600 text-white px-4 rounded-xl font-bold text-xs">Create</button>
+                      <button type="button" onClick={() => setIsAddingCategory(false)} className="bg-slate-800 text-slate-400 px-4 rounded-xl font-bold text-xs">Cancel</button>
+                  </form>
+              )}
+          </div>
+      )}
+
       {/* Current Rankings List */}
       <div className="space-y-3">
-          <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Your Top 10 {activeTab}</h3>
+          <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">
+             {activeTab === 'elements' ? activeElementKey : `Your Top 10 ${activeTab}`}
+          </h3>
+          
           {currentRankedList.length === 0 ? (
               <div className="h-32 flex flex-col items-center justify-center bg-slate-800/30 border-2 border-dashed border-slate-700 rounded-2xl text-slate-500">
                   <Trophy size={28} className="mb-2 opacity-20"/>
@@ -139,7 +309,14 @@ const Rankings: React.FC = () => {
                           </div>
                           <div className="flex-1 min-w-0">
                               <div className="font-bold text-white text-sm truncate">{coaster.name}</div>
-                              <div className="text-[10px] text-slate-400 truncate">{coaster.park}</div>
+                              <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                                  <span className="truncate">{coaster.park}</span>
+                                  {activeTab === 'elements' && (
+                                     <span className={clsx("px-1.5 py-0.5 rounded text-[8px] font-black uppercase", coaster.type === CoasterType.Wooden ? "bg-amber-600/20 text-amber-500" : "bg-blue-500/20 text-blue-400")}>
+                                         {coaster.type === CoasterType.Wooden ? 'WOOD' : 'STEEL'}
+                                     </span>
+                                  )}
+                              </div>
                           </div>
                           <div className="flex items-center gap-1">
                               <div className="flex flex-col">
@@ -157,7 +334,7 @@ const Rankings: React.FC = () => {
       </div>
 
       {/* Search & Add New Section */}
-      {currentRankedList.length < 10 && (
+      {currentRankedList.length < 10 && (activeTab !== 'elements' || activeElementKey) && (
           <div className="space-y-4 pt-4 border-t border-slate-800">
               <div className="flex items-center justify-between">
                   <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Add Ridden Coasters</h3>
@@ -168,7 +345,7 @@ const Rankings: React.FC = () => {
                   <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                   <input 
                     type="text" 
-                    placeholder={`Search your ${activeTab} credits...`} 
+                    placeholder={`Search...`} 
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 py-2.5 text-sm text-white focus:ring-1 focus:ring-primary focus:outline-none"
@@ -196,7 +373,7 @@ const Rankings: React.FC = () => {
                   )}
                   {riddenCoasters.length === 0 && (
                       <div className="text-center py-6 bg-slate-900/30 rounded-2xl border border-dashed border-slate-800">
-                        <p className="text-xs text-slate-500 mb-3 px-4">You haven't logged any {activeTab} coasters yet!</p>
+                        <p className="text-xs text-slate-500 mb-3 px-4">You haven't logged any coasters yet!</p>
                         <button onClick={() => changeView('ADD_CREDIT')} className="text-[10px] font-bold text-primary uppercase tracking-widest border border-primary/30 px-3 py-1.5 rounded-lg hover:bg-primary/10">Log Rides Now</button>
                       </div>
                   )}

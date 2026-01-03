@@ -1,4 +1,5 @@
 
+
 export enum CoasterType {
   Steel = 'Steel',
   Wooden = 'Wooden',
@@ -50,6 +51,7 @@ export interface WishlistEntry {
 export interface RankingList {
   steel: string[]; // Coaster IDs in order
   wooden: string[]; // Coaster IDs in order
+  elements?: Record<string, string[]>; // Key = Element Name, Value = Coaster IDs in order
 }
 
 export interface User {
