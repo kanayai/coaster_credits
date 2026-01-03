@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Coaster, CoasterType } from '../types';
-import { Search, Plus, Calendar, Sparkles, Loader2, Filter, Bookmark, BookmarkCheck, PlusCircle, ArrowLeft as BackIcon, Zap, Ruler, ArrowUp, History, Trash2, Clock, CheckCircle2, Globe, Info, X, Palmtree, ChevronRight, ListChecks, CheckSquare, Square } from 'lucide-react';
+import { Search, Plus, Calendar, Sparkles, Loader2, Filter, Bookmark, BookmarkCheck, PlusCircle, ArrowLeft as BackIcon, Zap, Ruler, ArrowUp, History, Trash2, Clock, CheckCircle2, Globe, Info, X, Palmtree, ChevronRight, ListChecks, CheckSquare, Square, Check } from 'lucide-react';
 import { cleanName } from '../constants';
 import clsx from 'clsx';
 
@@ -21,6 +21,7 @@ const AddCredit: React.FC = () => {
   // Multi-Select State
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDate, setBulkDate] = useState<string>(new Date().toISOString().split('T')[0]);
   
   const [manualCoasterData, setManualCoasterData] = useState({ name: '', park: '', country: '', manufacturer: '', type: 'Steel' as CoasterType });
   const [filterType, setFilterType] = useState<string>('All');
@@ -38,13 +39,9 @@ const AddCredit: React.FC = () => {
     return coasters.some(c => normalizeText(c.park) === normalizeText(searchTerm));
   }, [searchTerm, coasters]);
 
-  // Reset multi-select when leaving marathon mode
-  useEffect(() => {
-    if (!isMarathonMode) {
-      setIsMultiSelectMode(false);
-      setSelectedIds(new Set());
-    }
-  }, [isMarathonMode]);
+  // We no longer force reset multi-select when leaving marathon mode to allow flexible usage,
+  // but we can clear selection if the search term changes drastically if needed. 
+  // For now, keeping selection state independent gives more power to user.
 
   const filteredCoasters = useMemo(() => {
     let result = coasters;
@@ -110,9 +107,8 @@ const AddCredit: React.FC = () => {
 
   const handleBulkLog = () => {
       if (selectedIds.size === 0) return;
-      const today = new Date().toISOString().split('T')[0];
       selectedIds.forEach(id => {
-          addCredit(id, today, '', '');
+          addCredit(id, bulkDate, '', '');
       });
       showNotification(`Bulk logged ${selectedIds.size} rides!`, 'success');
       setSelectedIds(new Set());
@@ -209,18 +205,6 @@ const AddCredit: React.FC = () => {
                     </div>
                 </div>
                 <div className="flex items-center gap-2 relative z-10">
-                    {/* Multi-Select Toggle */}
-                    <button 
-                        onClick={() => setIsMultiSelectMode(!isMultiSelectMode)}
-                        className={clsx(
-                            "p-2.5 rounded-xl transition-all border",
-                            isMultiSelectMode 
-                                ? "bg-white text-emerald-600 border-white shadow-lg" 
-                                : "bg-black/20 text-white border-white/10 hover:bg-black/40"
-                        )}
-                    >
-                        <ListChecks size={20} />
-                    </button>
                     <button onClick={() => setSearchTerm('')} className="bg-black/20 hover:bg-black/40 p-2.5 rounded-xl text-white transition-colors border border-white/10">
                         <X size={20} />
                     </button>
@@ -245,11 +229,34 @@ const AddCredit: React.FC = () => {
                       className="w-full bg-slate-900 border border-slate-700 rounded-2xl pl-12 py-4 text-white shadow-lg focus:border-primary focus:ring-1 focus:ring-primary outline-none text-sm transition-all" 
                   />
               </div>
+              
+              {/* Multi-Select Toggle - Now always available */}
+              <button 
+                  onClick={() => setIsMultiSelectMode(!isMultiSelectMode)}
+                  className={clsx(
+                      "p-4 rounded-2xl border transition-all active:scale-95",
+                      isMultiSelectMode 
+                          ? "bg-primary border-primary text-white shadow-lg shadow-primary/20" 
+                          : "bg-slate-800 border-slate-700 text-slate-500 hover:text-white"
+                  )}
+              >
+                  {isMultiSelectMode ? <ListChecks size={20} className="animate-pulse" /> : <ListChecks size={20} />}
+              </button>
+
               <button onClick={() => setShowFilters(!showFilters)} className={clsx("p-4 rounded-2xl border transition-all active:scale-95", showFilters ? "bg-primary border-primary text-white" : "bg-slate-800 border-slate-700 text-slate-500")}><Filter size={20}/></button>
           </div>
+          
+          {isMultiSelectMode && (
+             <div className="bg-primary/10 border border-primary/20 rounded-xl p-2 px-3 flex items-center justify-between text-xs text-primary font-bold animate-fade-in">
+                 <span>Tap items to select ({selectedIds.size})</span>
+                 {selectedIds.size > 0 && (
+                     <button onClick={() => setSelectedIds(new Set())} className="hover:underline opacity-80">Clear</button>
+                 )}
+             </div>
+          )}
         </div>
 
-        <div className="flex-1 overflow-y-auto space-y-3 no-scrollbar pb-32">
+        <div className="flex-1 overflow-y-auto space-y-3 no-scrollbar pb-40">
             {filteredCoasters.map(c => {
                 const isRidden = credits.some(cr => cr.userId === activeUser.id && cr.coasterId === c.id);
                 const isSelected = selectedIds.has(c.id);
@@ -275,9 +282,17 @@ const AddCredit: React.FC = () => {
                             {c.imageUrl && <img src={c.imageUrl} className={clsx("w-full h-full object-cover transition-opacity", isRidden || isSelected ? "opacity-30" : "opacity-80 group-hover:opacity-100")} />}
                             <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent" />
                             {isRidden && !isMultiSelectMode && <div className="absolute inset-0 flex items-center justify-center"><CheckCircle2 size={24} className="text-emerald-500 drop-shadow-md" /></div>}
+                            
+                            {/* Selection Checkmark Overlay */}
                             {isMultiSelectMode && (
-                                <div className="absolute inset-0 flex items-center justify-center">
-                                    {isSelected ? <CheckSquare size={28} className="text-primary drop-shadow-md fill-current" /> : <Square size={24} className="text-slate-500" />}
+                                <div className="absolute inset-0 flex items-center justify-center bg-slate-900/40 backdrop-blur-[1px]">
+                                    {isSelected ? (
+                                        <div className="bg-primary text-white p-1 rounded-lg shadow-lg transform scale-110 transition-transform">
+                                           <Check size={20} strokeWidth={4} />
+                                        </div>
+                                    ) : (
+                                        <div className="w-6 h-6 rounded-lg border-2 border-slate-400/50" />
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -333,13 +348,24 @@ const AddCredit: React.FC = () => {
         {/* Multi-Select Floating Action Bar */}
         {isMultiSelectMode && selectedIds.size > 0 && (
             <div className="fixed bottom-24 left-4 right-4 z-50 animate-fade-in-up">
-                <button 
-                    onClick={handleBulkLog}
-                    className="w-full bg-primary hover:bg-primary-hover text-white font-bold py-4 rounded-2xl shadow-xl shadow-primary/30 flex items-center justify-center gap-2 transition-all transform active:scale-95 border border-primary/50 backdrop-blur-md"
-                >
-                    <ListChecks size={20}/>
-                    Log {selectedIds.size} Selected Ride{selectedIds.size !== 1 ? 's' : ''}
-                </button>
+                <div className="bg-slate-900/90 backdrop-blur-xl border border-primary/30 p-4 rounded-[28px] shadow-2xl flex flex-col gap-3">
+                    <div className="flex items-center justify-between px-2">
+                        <span className="text-xs font-bold text-primary uppercase tracking-wider">{selectedIds.size} RIDES SELECTED</span>
+                        <input 
+                            type="date" 
+                            value={bulkDate}
+                            onChange={(e) => setBulkDate(e.target.value)}
+                            className="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1 text-xs text-white"
+                        />
+                    </div>
+                    <button 
+                        onClick={handleBulkLog}
+                        className="w-full bg-primary hover:bg-primary-hover text-white font-bold py-3.5 rounded-xl shadow-lg shadow-primary/20 flex items-center justify-center gap-2 transition-all active:scale-95"
+                    >
+                        <ListChecks size={20}/>
+                        Log All Selected
+                    </button>
+                </div>
             </div>
         )}
     </div>
