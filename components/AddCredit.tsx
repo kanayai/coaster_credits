@@ -1,8 +1,8 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Coaster, CoasterType } from '../types';
-import { Search, Plus, Calendar, Sparkles, Loader2, Filter, Bookmark, BookmarkCheck, PlusCircle, ArrowLeft as BackIcon, Zap, Ruler, ArrowUp, History, Trash2, Clock, CheckCircle2, Globe, Info, X, Palmtree, ChevronRight } from 'lucide-react';
+import { Search, Plus, Calendar, Sparkles, Loader2, Filter, Bookmark, BookmarkCheck, PlusCircle, ArrowLeft as BackIcon, Zap, Ruler, ArrowUp, History, Trash2, Clock, CheckCircle2, Globe, Info, X, Palmtree, ChevronRight, ListChecks, CheckSquare, Square } from 'lucide-react';
 import { cleanName } from '../constants';
 import clsx from 'clsx';
 
@@ -17,6 +17,10 @@ const AddCredit: React.FC = () => {
   const [isAiSearching, setIsAiSearching] = useState(false);
   const [isAddingManually, setIsAddingManually] = useState(false);
   const [aiDiscoveryResults, setAiDiscoveryResults] = useState<Partial<Coaster>[]>([]);
+  
+  // Multi-Select State
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   
   const [manualCoasterData, setManualCoasterData] = useState({ name: '', park: '', country: '', manufacturer: '', type: 'Steel' as CoasterType });
   const [filterType, setFilterType] = useState<string>('All');
@@ -33,6 +37,14 @@ const AddCredit: React.FC = () => {
     // Check if the search term exactly matches a park name in our database
     return coasters.some(c => normalizeText(c.park) === normalizeText(searchTerm));
   }, [searchTerm, coasters]);
+
+  // Reset multi-select when leaving marathon mode
+  useEffect(() => {
+    if (!isMarathonMode) {
+      setIsMultiSelectMode(false);
+      setSelectedIds(new Set());
+    }
+  }, [isMarathonMode]);
 
   const filteredCoasters = useMemo(() => {
     let result = coasters;
@@ -84,6 +96,27 @@ const AddCredit: React.FC = () => {
       e.stopPropagation();
       setSearchTerm(parkName);
       showNotification(`Entering ${parkName} Lineup`, 'info');
+  };
+
+  const toggleSelection = (id: string) => {
+    const newSet = new Set(selectedIds);
+    if (newSet.has(id)) {
+        newSet.delete(id);
+    } else {
+        newSet.add(id);
+    }
+    setSelectedIds(newSet);
+  };
+
+  const handleBulkLog = () => {
+      if (selectedIds.size === 0) return;
+      const today = new Date().toISOString().split('T')[0];
+      selectedIds.forEach(id => {
+          addCredit(id, today, '', '');
+      });
+      showNotification(`Bulk logged ${selectedIds.size} rides!`, 'success');
+      setSelectedIds(new Set());
+      setIsMultiSelectMode(false);
   };
 
   const processLog = (filterByPark: boolean) => {
@@ -158,9 +191,9 @@ const AddCredit: React.FC = () => {
   }
 
   return (
-    <div className="h-full flex flex-col space-y-5 animate-fade-in">
+    <div className="h-full flex flex-col space-y-5 animate-fade-in relative">
         
-        {/* Marathon Mode Header (RECOVERED & ENHANCED) */}
+        {/* Marathon Mode Header */}
         {isMarathonMode && marathonStats ? (
             <div className="bg-gradient-to-r from-emerald-500 to-emerald-700 rounded-3xl p-5 flex items-center justify-between shadow-xl shadow-emerald-900/40 border border-white/20 animate-scale-in relative overflow-hidden group">
                 <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:scale-125 transition-transform">
@@ -175,12 +208,20 @@ const AddCredit: React.FC = () => {
                         <p className="text-xs text-emerald-100 font-bold uppercase tracking-widest opacity-80">{searchTerm}</p>
                     </div>
                 </div>
-                <div className="flex items-center gap-4 relative z-10">
-                    <div className="text-right">
-                        <div className="text-xl font-black text-white italic">{marathonStats.ridden} / {marathonStats.total}</div>
-                        <div className="text-[8px] text-emerald-100 font-black uppercase tracking-[0.2em]">RIDDEN</div>
-                    </div>
-                    <button onClick={() => setSearchTerm('')} className="bg-black/20 hover:bg-black/40 p-2 rounded-xl text-white transition-colors border border-white/10">
+                <div className="flex items-center gap-2 relative z-10">
+                    {/* Multi-Select Toggle */}
+                    <button 
+                        onClick={() => setIsMultiSelectMode(!isMultiSelectMode)}
+                        className={clsx(
+                            "p-2.5 rounded-xl transition-all border",
+                            isMultiSelectMode 
+                                ? "bg-white text-emerald-600 border-white shadow-lg" 
+                                : "bg-black/20 text-white border-white/10 hover:bg-black/40"
+                        )}
+                    >
+                        <ListChecks size={20} />
+                    </button>
+                    <button onClick={() => setSearchTerm('')} className="bg-black/20 hover:bg-black/40 p-2.5 rounded-xl text-white transition-colors border border-white/10">
                         <X size={20} />
                     </button>
                 </div>
@@ -208,21 +249,43 @@ const AddCredit: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto space-y-3 no-scrollbar pb-20">
+        <div className="flex-1 overflow-y-auto space-y-3 no-scrollbar pb-32">
             {filteredCoasters.map(c => {
                 const isRidden = credits.some(cr => cr.userId === activeUser.id && cr.coasterId === c.id);
+                const isSelected = selectedIds.has(c.id);
+
                 return (
-                    <div key={c.id} onClick={() => setSelectedCoaster(c)} className={clsx("bg-slate-800/40 rounded-2xl border flex items-stretch h-24 overflow-hidden cursor-pointer hover:bg-slate-800 transition-all active:scale-[0.99] group", isRidden ? "border-emerald-500/30 bg-emerald-500/5" : "border-slate-700/50")}>
+                    <div 
+                        key={c.id} 
+                        onClick={() => {
+                            if (isMultiSelectMode) {
+                                toggleSelection(c.id);
+                            } else {
+                                setSelectedCoaster(c);
+                            }
+                        }} 
+                        className={clsx(
+                            "rounded-2xl border flex items-stretch h-24 overflow-hidden cursor-pointer transition-all active:scale-[0.99] group relative",
+                            isMultiSelectMode && isSelected ? "bg-primary/20 border-primary" : 
+                            isRidden ? "border-emerald-500/30 bg-emerald-500/5" : 
+                            "bg-slate-800/40 border-slate-700/50 hover:bg-slate-800"
+                        )}
+                    >
                         <div className="w-24 shrink-0 bg-slate-900 border-r border-slate-700/50 overflow-hidden relative">
-                            {c.imageUrl && <img src={c.imageUrl} className={clsx("w-full h-full object-cover transition-opacity", isRidden ? "opacity-30" : "opacity-80 group-hover:opacity-100")} />}
+                            {c.imageUrl && <img src={c.imageUrl} className={clsx("w-full h-full object-cover transition-opacity", isRidden || isSelected ? "opacity-30" : "opacity-80 group-hover:opacity-100")} />}
                             <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent" />
-                            {isRidden && <div className="absolute inset-0 flex items-center justify-center"><CheckCircle2 size={24} className="text-emerald-500 drop-shadow-md" /></div>}
+                            {isRidden && !isMultiSelectMode && <div className="absolute inset-0 flex items-center justify-center"><CheckCircle2 size={24} className="text-emerald-500 drop-shadow-md" /></div>}
+                            {isMultiSelectMode && (
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    {isSelected ? <CheckSquare size={28} className="text-primary drop-shadow-md fill-current" /> : <Square size={24} className="text-slate-500" />}
+                                </div>
+                            )}
                         </div>
                         <div className="flex-1 px-4 py-2 flex flex-col justify-center min-w-0">
-                            <h3 className={clsx("font-bold text-base truncate leading-tight italic", isRidden ? "text-emerald-400" : "text-slate-100")}>{c.name}</h3>
+                            <h3 className={clsx("font-bold text-base truncate leading-tight italic", isRidden ? "text-emerald-400" : isSelected ? "text-primary" : "text-slate-100")}>{c.name}</h3>
                             <div className="text-[10px] text-slate-500 truncate font-bold uppercase tracking-wider mt-0.5">{c.park}</div>
                             
-                            {!isMarathonMode && (
+                            {!isMarathonMode && !isMultiSelectMode && (
                                 <button 
                                     onClick={(e) => handleEnterMarathon(e, c.park)}
                                     className="mt-2 flex items-center gap-1.5 text-[8px] font-black text-emerald-500 uppercase tracking-widest bg-emerald-500/10 w-fit px-2 py-1 rounded-md border border-emerald-500/20 hover:bg-emerald-500 hover:text-white transition-all"
@@ -233,14 +296,16 @@ const AddCredit: React.FC = () => {
                         </div>
                         
                         <div className="flex items-center px-4">
-                            {isRidden && isMarathonMode ? (
+                            {isRidden && isMarathonMode && !isMultiSelectMode ? (
                                 <button onClick={(e) => handleQuickLogOneTap(e, c.id)} className="bg-emerald-500 p-2.5 rounded-xl text-white shadow-lg active:scale-90 transition-all">
                                     <Plus size={18} />
                                 </button>
                             ) : (
-                                <div className="p-3 text-slate-700 group-hover:text-primary transition-colors">
-                                    <ChevronRight size={20} />
-                                </div>
+                                !isMultiSelectMode && (
+                                    <div className="p-3 text-slate-700 group-hover:text-primary transition-colors">
+                                        <ChevronRight size={20} />
+                                    </div>
+                                )
                             )}
                         </div>
                     </div>
@@ -264,6 +329,19 @@ const AddCredit: React.FC = () => {
                 </div>
             )}
         </div>
+
+        {/* Multi-Select Floating Action Bar */}
+        {isMultiSelectMode && selectedIds.size > 0 && (
+            <div className="fixed bottom-24 left-4 right-4 z-50 animate-fade-in-up">
+                <button 
+                    onClick={handleBulkLog}
+                    className="w-full bg-primary hover:bg-primary-hover text-white font-bold py-4 rounded-2xl shadow-xl shadow-primary/30 flex items-center justify-center gap-2 transition-all transform active:scale-95 border border-primary/50 backdrop-blur-md"
+                >
+                    <ListChecks size={20}/>
+                    Log {selectedIds.size} Selected Ride{selectedIds.size !== 1 ? 's' : ''}
+                </button>
+            </div>
+        )}
     </div>
   );
 };

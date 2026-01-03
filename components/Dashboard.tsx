@@ -2,10 +2,11 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
-import { Trophy, ClipboardList, Palmtree, Layers, Factory, Flag, CalendarRange, Edit2, Globe, Hash, MapPin, Navigation, ChevronRight, Zap, Star, Share2, Plus, Award, Sparkles } from 'lucide-react';
+import { Trophy, ClipboardList, Palmtree, Layers, Factory, Flag, CalendarRange, Edit2, Globe, Hash, MapPin, Navigation, ChevronRight, Zap, Star, Share2, Plus, Award, Sparkles, ExternalLink, Loader2 } from 'lucide-react';
 import EditCreditModal from './EditCreditModal';
 import { Credit, Coaster } from '../types';
 import { normalizeManufacturer } from '../constants';
+import { findNearbyParks } from '../services/geminiService';
 import clsx from 'clsx';
 
 type ChartMetric = 'PARK' | 'TYPE' | 'MANUFACTURER' | 'COUNTRY' | 'YEAR';
@@ -15,6 +16,10 @@ const Dashboard: React.FC = () => {
 
   const [editingCreditData, setEditingCreditData] = useState<{ credit: Credit, coaster: Coaster } | null>(null);
   const [chartMetric, setChartMetric] = useState<ChartMetric>('PARK');
+
+  // Nearby Parks State
+  const [nearbyParks, setNearbyParks] = useState<{ text: string, groundingChunks?: any[] } | null>(null);
+  const [isLoadingParks, setIsLoadingParks] = useState(false);
 
   const userCredits = useMemo(() => 
     credits
@@ -84,6 +89,24 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const handleLocateParks = () => {
+    if (!navigator.geolocation) {
+        showNotification("Geolocation not supported", "error");
+        return;
+    }
+    setIsLoadingParks(true);
+    navigator.geolocation.getCurrentPosition(async (position) => {
+        const { latitude, longitude } = position.coords;
+        const result = await findNearbyParks(latitude, longitude);
+        setNearbyParks(result);
+        setIsLoadingParks(false);
+    }, (err) => {
+        console.error(err);
+        showNotification("Unable to retrieve location", "error");
+        setIsLoadingParks(false);
+    });
+  };
+
   const MetricButton = ({ mode, label, icon: Icon }: { mode: ChartMetric, label: string, icon: React.ElementType }) => (
       <button
         onClick={() => setChartMetric(mode)}
@@ -143,26 +166,7 @@ const Dashboard: React.FC = () => {
           </div>
       </div>
 
-      {/* 2. Marathon Continue (Recovered Feature with correct Green Palm Tree icon) */}
-      {lastParkVisited && (
-        <button 
-            onClick={handleContinueMarathon}
-            className="w-full bg-gradient-to-r from-emerald-600/20 to-teal-600/10 border border-emerald-500/30 p-4 rounded-3xl flex items-center justify-between group active:scale-[0.98] transition-all shadow-xl"
-        >
-            <div className="flex items-center gap-4">
-                <div className="bg-emerald-500 p-2.5 rounded-2xl text-white shadow-lg shadow-emerald-500/30 rotate-3 group-hover:rotate-0 transition-transform">
-                    <Palmtree size={22} fill="currentColor" />
-                </div>
-                <div className="text-left">
-                    <h3 className="font-bold text-white text-base leading-tight">Park Lineup</h3>
-                    <p className="text-[10px] text-emerald-500 font-black uppercase tracking-widest mt-0.5">Quick-log at {lastParkVisited}</p>
-                </div>
-            </div>
-            <ChevronRight size={18} className="text-emerald-500/50 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" />
-        </button>
-      )}
-
-      {/* 3. Main Stats Grid */}
+      {/* 2. Main Stats Grid */}
       <div className="grid grid-cols-2 gap-4">
         <div 
             className="bg-slate-800 rounded-2xl p-5 shadow-lg border border-slate-700 relative overflow-hidden cursor-pointer active:scale-95 transition-transform group"
@@ -189,7 +193,7 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* 4. Statistics Panel */}
+      {/* 3. Statistics Panel */}
       <div className="bg-slate-800 p-5 rounded-3xl border border-slate-700 shadow-xl">
             <div className="flex justify-between items-center mb-6">
                 <h3 className="text-lg font-bold text-white flex items-center gap-2">Insights</h3>
@@ -230,6 +234,85 @@ const Dashboard: React.FC = () => {
                 </div>
             )}
       </div>
+
+      {/* 4. Parks Near Me (Restored) */}
+      <div className="bg-slate-800 rounded-[32px] p-6 border border-slate-700 shadow-xl overflow-hidden relative">
+          <div className="absolute top-0 right-0 p-8 opacity-5 text-emerald-500 pointer-events-none">
+              <Globe size={120} />
+          </div>
+          
+          <div className="relative z-10 space-y-4">
+              <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                      <div className="bg-emerald-500/10 p-2 rounded-xl text-emerald-500">
+                          <Navigation size={20} />
+                      </div>
+                      <div>
+                          <h3 className="font-bold text-white text-lg">Parks Near Me</h3>
+                          <p className="text-[10px] text-slate-400 uppercase tracking-widest">Find local thrills</p>
+                      </div>
+                  </div>
+                  <button 
+                    onClick={handleLocateParks} 
+                    disabled={isLoadingParks}
+                    className="bg-emerald-500 hover:bg-emerald-600 text-white p-2.5 rounded-xl transition-all shadow-lg active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                      {isLoadingParks ? <Loader2 size={20} className="animate-spin" /> : <Sparkles size={20} />}
+                  </button>
+              </div>
+
+              {nearbyParks ? (
+                  <div className="animate-fade-in-up space-y-3">
+                      <div className="text-sm text-slate-300 bg-slate-900/50 p-4 rounded-xl border border-slate-700/50 leading-relaxed whitespace-pre-wrap">
+                        {nearbyParks.text}
+                      </div>
+                      
+                      {nearbyParks.groundingChunks && nearbyParks.groundingChunks.length > 0 && (
+                          <div className="grid grid-cols-1 gap-2">
+                             {nearbyParks.groundingChunks.map((chunk, idx) => {
+                                 if (!chunk.maps) return null;
+                                 return (
+                                     <a 
+                                        key={idx}
+                                        href={chunk.maps.uri}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center justify-between bg-slate-700/30 hover:bg-slate-700/50 p-3 rounded-xl border border-slate-600/30 transition-all group"
+                                     >
+                                         <span className="text-sm font-bold text-emerald-400 truncate">{chunk.maps.title}</span>
+                                         <ExternalLink size={14} className="text-slate-500 group-hover:text-white" />
+                                     </a>
+                                 );
+                             })}
+                          </div>
+                      )}
+                  </div>
+              ) : (
+                  <div className="py-6 text-center border-2 border-dashed border-slate-700/50 rounded-2xl">
+                      <p className="text-xs text-slate-500 font-medium">Tap the sparkle button to scan your area.</p>
+                  </div>
+              )}
+          </div>
+      </div>
+
+      {/* 5. Marathon Continue (Moved to Bottom) */}
+      {lastParkVisited && (
+        <button 
+            onClick={handleContinueMarathon}
+            className="w-full bg-gradient-to-r from-emerald-600/20 to-teal-600/10 border border-emerald-500/30 p-4 rounded-3xl flex items-center justify-between group active:scale-[0.98] transition-all shadow-xl"
+        >
+            <div className="flex items-center gap-4">
+                <div className="bg-emerald-500 p-2.5 rounded-2xl text-white shadow-lg shadow-emerald-500/30 rotate-3 group-hover:rotate-0 transition-transform">
+                    <Palmtree size={22} fill="currentColor" />
+                </div>
+                <div className="text-left">
+                    <h3 className="font-bold text-white text-base leading-tight">Park Lineup</h3>
+                    <p className="text-[10px] text-emerald-500 font-black uppercase tracking-widest">Quick-log at {lastParkVisited}</p>
+                </div>
+            </div>
+            <ChevronRight size={18} className="text-emerald-500/50 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" />
+        </button>
+      )}
 
       {editingCreditData && <EditCreditModal credit={editingCreditData.credit} coaster={editingCreditData.coaster} onClose={() => setEditingCreditData(null)} />}
     </div>

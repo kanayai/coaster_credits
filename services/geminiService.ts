@@ -108,3 +108,29 @@ export const generateAppIcon = async (prompt: string): Promise<string | null> =>
     return null;
   }
 };
+
+export const findNearbyParks = async (lat: number, lng: number): Promise<{ text: string, groundingChunks?: any[] } | null> => {
+  if (!genAI) return null;
+  try {
+    const response = await genAI.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: "Find 3 closest amusement parks or theme parks near this location. Briefly list them with distance and current status (Open/Closed) if available.",
+      config: {
+        tools: [{ googleMaps: {} }],
+        toolConfig: {
+          retrievalConfig: {
+            latLng: { latitude: lat, longitude: lng }
+          }
+        }
+      },
+    });
+    
+    return {
+        text: response.text || "No parks found nearby.",
+        groundingChunks: response.candidates?.[0]?.groundingMetadata?.groundingChunks || []
+    };
+  } catch (error) {
+    console.error("Gemini Maps Error:", error);
+    return null;
+  }
+};
