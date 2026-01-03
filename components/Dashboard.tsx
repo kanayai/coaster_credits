@@ -1,8 +1,8 @@
 
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
-import { Trophy, ClipboardList, Palmtree, Layers, Factory, Flag, CalendarRange, Edit2, Globe, Hash, MapPin, Navigation, ChevronRight, Zap, Star, Share2, Plus, Award, Sparkles, ExternalLink, Loader2, ListOrdered, Ticket } from 'lucide-react';
+import { Trophy, Palmtree, Layers, Factory, Flag, CalendarRange, Edit2, Globe, MapPin, Navigation, ChevronRight, Share2, Plus, Sparkles, Loader2, ListOrdered, Ticket, Zap } from 'lucide-react';
 import EditCreditModal from './EditCreditModal';
 import RideDetailModal from './RideDetailModal';
 import ShareCardModal from './ShareCardModal';
@@ -14,7 +14,7 @@ import clsx from 'clsx';
 type ChartMetric = 'PARK' | 'TYPE' | 'MANUFACTURER' | 'COUNTRY' | 'YEAR';
 
 const Dashboard: React.FC = () => {
-  const { credits, wishlist, coasters, activeUser, changeView, setCoasterListViewMode, setLastSearchQuery, addCredit, showNotification } = useAppContext();
+  const { credits, wishlist, coasters, activeUser, changeView, setLastSearchQuery, showNotification } = useAppContext();
 
   // Modal States
   const [editingCreditData, setEditingCreditData] = useState<{ credit: Credit, coaster: Coaster } | null>(null);
@@ -23,9 +23,8 @@ const Dashboard: React.FC = () => {
   
   const [chartMetric, setChartMetric] = useState<ChartMetric>('PARK');
 
-  // Nearby Parks State
-  const [nearbyParks, setNearbyParks] = useState<{ text: string, groundingChunks?: any[] } | null>(null);
-  const [isLoadingParks, setIsLoadingParks] = useState(false);
+  // Smart Button State
+  const [isLocatingSession, setIsLocatingSession] = useState(false);
 
   const userCredits = useMemo(() => 
     credits
@@ -33,7 +32,6 @@ const Dashboard: React.FC = () => {
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
   [credits, activeUser.id]);
   
-  const userWishlist = useMemo(() => wishlist.filter(w => w.userId === activeUser.id), [wishlist, activeUser.id]);
   const uniqueCreditsCount = useMemo(() => new Set(userCredits.map(c => c.coasterId)).size, [userCredits]);
   const totalRidesCount = userCredits.length;
 
@@ -82,22 +80,39 @@ const Dashboard: React.FC = () => {
   const recentCoaster = recentCredit ? coasters.find(c => c.id === recentCredit.coasterId) : null;
   const recentImage = recentCredit?.photoUrl || recentCoaster?.imageUrl;
 
-  const handleLocateParks = () => {
-    if (!navigator.geolocation) {
-        showNotification("Geolocation not supported", "error");
-        return;
-    }
-    setIsLoadingParks(true);
-    navigator.geolocation.getCurrentPosition(async (position) => {
-        const { latitude, longitude } = position.coords;
-        const result = await findNearbyParks(latitude, longitude);
-        setNearbyParks(result);
-        setIsLoadingParks(false);
-    }, (err) => {
-        console.error(err);
-        showNotification("Unable to retrieve location", "error");
-        setIsLoadingParks(false);
-    });
+  const handleStartParkSession = () => {
+      if (!navigator.geolocation) {
+          changeView('ADD_CREDIT');
+          return;
+      }
+
+      setIsLocatingSession(true);
+      navigator.geolocation.getCurrentPosition(async (position) => {
+          const { latitude, longitude } = position.coords;
+          // Use the findNearbyParks service
+          const result = await findNearbyParks(latitude, longitude);
+          setIsLocatingSession(false);
+          
+          if (result && result.groundingChunks && result.groundingChunks.length > 0) {
+              // Extract the first park title found
+              const firstPark = result.groundingChunks.find(c => c.web?.title)?.web?.title;
+              if (firstPark) {
+                  // Clean up title
+                  const cleanParkName = firstPark.split('|')[0].trim();
+                  setLastSearchQuery(cleanParkName);
+                  showNotification(`Detected ${cleanParkName}!`, 'success');
+              } else {
+                  showNotification("Park found, opening list...", 'info');
+              }
+          } else {
+             showNotification("Opening ride list...", 'info');
+          }
+          changeView('ADD_CREDIT');
+      }, (err) => {
+          console.error(err);
+          setIsLocatingSession(false);
+          changeView('ADD_CREDIT');
+      });
   };
 
   const MetricButton = ({ mode, label, icon: Icon }: { mode: ChartMetric, label: string, icon: React.ElementType }) => (
@@ -115,7 +130,7 @@ const Dashboard: React.FC = () => {
   );
 
   return (
-    <div className="animate-fade-in pb-12 space-y-6">
+    <div className="animate-fade-in pb-12 space-y-6 relative">
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
@@ -199,7 +214,7 @@ const Dashboard: React.FC = () => {
           {recentCredit && recentCoaster ? (
               <div 
                 onClick={() => setViewingCreditData({ credit: recentCredit, coaster: recentCoaster })}
-                className="bg-slate-800 p-4 rounded-2xl border border-slate-700 flex gap-4 items-center shadow-md relative overflow-hidden cursor-pointer hover:bg-slate-750 transition-colors active:scale-[0.98]"
+                className="bg-slate-800 p-4 rounded-2xl border border-slate-700 flex gap-4 items-center shadow-md relative overflow-hidden cursor-pointer hover:bg-slate-750 transition-colors active:scale-[0.98] group"
               >
                   <div className="w-16 h-16 rounded-xl bg-slate-900 shrink-0 overflow-hidden relative border border-slate-600">
                       {recentImage ? (
@@ -209,7 +224,7 @@ const Dashboard: React.FC = () => {
                       )}
                   </div>
                   <div className="flex-1 min-w-0">
-                      <h4 className="font-bold text-white truncate text-lg leading-tight">{recentCoaster.name}</h4>
+                      <h4 className="font-bold text-white truncate text-lg leading-tight group-hover:text-primary transition-colors">{recentCoaster.name}</h4>
                       <div className="flex items-center gap-1.5 text-slate-400 text-xs mt-1">
                           <MapPin size={12} className="text-primary"/>
                           <span className="truncate">{recentCoaster.park}</span>
@@ -230,23 +245,6 @@ const Dashboard: React.FC = () => {
               </div>
           )}
       </div>
-
-      {/* Park Mode Session Button (Bottom) */}
-      <button 
-        onClick={() => changeView('ADD_CREDIT')}
-        className="w-full bg-gradient-to-r from-emerald-600 to-emerald-800 p-5 rounded-[24px] shadow-2xl shadow-emerald-900/40 border border-white/10 flex items-center justify-between group active:scale-[0.98] transition-all"
-      >
-          <div className="flex items-center gap-4">
-              <div className="bg-white/10 p-3 rounded-2xl">
-                  <Ticket size={24} className="text-white" />
-              </div>
-              <div className="text-left">
-                  <h3 className="text-lg font-black text-white italic tracking-tight uppercase">Enter Park Mode</h3>
-                  <p className="text-xs text-emerald-200 font-medium">Quick logging & filtering for your current location</p>
-              </div>
-          </div>
-          <ChevronRight size={24} className="text-emerald-200 group-hover:translate-x-1 transition-transform" />
-      </button>
 
       {/* Analytics Chart */}
       <div className="space-y-3">
@@ -312,7 +310,7 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Rankings Teaser */}
-      <div onClick={() => changeView('RANKINGS')} className="bg-gradient-to-r from-indigo-900/50 to-purple-900/50 p-6 rounded-[28px] border border-indigo-500/30 relative overflow-hidden group cursor-pointer">
+      <div onClick={() => changeView('RANKINGS')} className="bg-gradient-to-r from-indigo-900/50 to-purple-900/50 p-6 rounded-[28px] border border-indigo-500/30 relative overflow-hidden group cursor-pointer mb-2">
           <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-gradient-to-l from-indigo-500/20 to-transparent" />
           <div className="relative z-10 flex items-center justify-between">
               <div>
@@ -329,49 +327,28 @@ const Dashboard: React.FC = () => {
           </div>
       </div>
 
-      {/* Nearby Parks Widget (Gemini Grounding) */}
-      <div className="bg-slate-800 rounded-2xl p-5 border border-slate-700 shadow-md">
-           <div className="flex items-center justify-between mb-4">
-               <div className="flex items-center gap-2">
-                   <MapPin size={16} className="text-primary" />
-                   <h3 className="text-sm font-bold text-white">Nearby Parks</h3>
-               </div>
-               <button 
-                  onClick={handleLocateParks} 
-                  disabled={isLoadingParks}
-                  className="text-[10px] bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded-lg font-bold transition-colors flex items-center gap-1"
-               >
-                   {isLoadingParks ? <Loader2 size={10} className="animate-spin" /> : <Navigation size={10} />}
-                   LOCATE
-               </button>
-           </div>
-           
-           {nearbyParks ? (
-               <div className="space-y-3">
-                   <div className="text-xs text-slate-300 whitespace-pre-line leading-relaxed">
-                       {nearbyParks.text}
-                   </div>
-                   {nearbyParks.groundingChunks && nearbyParks.groundingChunks.length > 0 && (
-                       <div className="flex flex-wrap gap-2 mt-2">
-                           {nearbyParks.groundingChunks.map((chunk, idx) => {
-                               if (chunk.web?.uri) {
-                                   return (
-                                       <a key={idx} href={chunk.web.uri} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 bg-slate-900 text-slate-400 hover:text-white px-2 py-1 rounded-md text-[10px] border border-slate-700 truncate max-w-full">
-                                           <ExternalLink size={10} /> {chunk.web.title || 'Source'}
-                                       </a>
-                                   );
-                               }
-                               return null;
-                           })}
-                       </div>
-                   )}
-               </div>
-           ) : (
-               <div className="text-center py-4 text-xs text-slate-500 italic">
-                   Tap Locate to find parks near you using AI.
-               </div>
-           )}
-      </div>
+      {/* Park Mode Session Button (Bottom) */}
+      <button 
+        onClick={handleStartParkSession}
+        disabled={isLocatingSession}
+        className="w-full bg-gradient-to-r from-emerald-600 to-emerald-800 p-5 rounded-[24px] shadow-2xl shadow-emerald-900/40 border border-white/10 flex items-center justify-between group active:scale-[0.98] transition-all relative overflow-hidden"
+      >
+          {isLocatingSession && <div className="absolute inset-0 bg-white/20 animate-pulse" />}
+          <div className="flex items-center gap-4 relative z-10">
+              <div className="bg-white/10 p-3 rounded-2xl">
+                  {isLocatingSession ? <Loader2 size={24} className="text-white animate-spin" /> : <Ticket size={24} className="text-white" />}
+              </div>
+              <div className="text-left">
+                  <h3 className="text-lg font-black text-white italic tracking-tight uppercase">
+                      {isLocatingSession ? 'Locating Park...' : 'Start Park Session'}
+                  </h3>
+                  <p className="text-xs text-emerald-200 font-medium">
+                      {isLocatingSession ? 'Using GPS to find nearest park' : 'Auto-detect park & quick log'}
+                  </p>
+              </div>
+          </div>
+          <ChevronRight size={24} className="text-emerald-200 group-hover:translate-x-1 transition-transform relative z-10" />
+      </button>
       
       {/* Modals */}
       {viewingCreditData && (
@@ -385,7 +362,6 @@ const Dashboard: React.FC = () => {
             }}
             onShare={() => {
                 setSharingCreditData(viewingCreditData);
-                // Don't close viewing data, just layer on top or close it if you prefer
             }}
           />
       )}

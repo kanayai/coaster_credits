@@ -59,6 +59,18 @@ const AddCredit: React.FC = () => {
   const [restraints, setRestraints] = useState('');
   // Changed to an array of files for gallery support
   const [photos, setPhotos] = useState<File[]>([]);
+
+  // Effect: Auto-Enable Park Mode if search matches a park name exactly (from Dashboard auto-locate)
+  useEffect(() => {
+    if (searchTerm && !activeParkFilter) {
+        // Check if the search term matches any park name in database
+        const match = coasters.find(c => normalizeText(c.park) === normalizeText(searchTerm));
+        if (match) {
+            setActiveParkFilter(match.park);
+            setSearchTerm(''); // Clear search to show all rides
+        }
+    }
+  }, [searchTerm, coasters, activeParkFilter]);
   
   // Logic to filter coasters
   const filteredCoasters = useMemo(() => {
