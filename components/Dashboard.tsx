@@ -31,13 +31,6 @@ const Dashboard: React.FC = () => {
   const uniqueCreditsCount = useMemo(() => new Set(userCredits.map(c => c.coasterId)).size, [userCredits]);
   const totalRidesCount = userCredits.length;
 
-  const lastParkVisited = useMemo(() => {
-    if (userCredits.length === 0) return null;
-    const lastCredit = userCredits[0];
-    const coaster = coasters.find(c => c.id === lastCredit.coasterId);
-    return coaster ? coaster.park : null;
-  }, [userCredits, coasters]);
-
   // Milestone Logic
   const milestoneLevels = [1, 10, 25, 50, 100, 250, 500];
   const nextMilestone = milestoneLevels.find(m => m > uniqueCreditsCount) || (Math.ceil((uniqueCreditsCount + 1) / 100) * 100);
@@ -81,13 +74,7 @@ const Dashboard: React.FC = () => {
   const COLORS = ['#0ea5e9', '#8b5cf6', '#f43f5e', '#10b981', '#f59e0b', '#6366f1', '#ec4899', '#14b8a6'];
   const recentCredit = userCredits.length > 0 ? userCredits[0] : null;
   const recentCoaster = recentCredit ? coasters.find(c => c.id === recentCredit.coasterId) : null;
-
-  const handleContinueMarathon = () => {
-    if (lastParkVisited) {
-        setLastSearchQuery(lastParkVisited);
-        changeView('ADD_CREDIT');
-    }
-  };
+  const recentImage = recentCredit?.photoUrl || recentCoaster?.imageUrl;
 
   const handleLocateParks = () => {
     if (!navigator.geolocation) {
@@ -206,8 +193,8 @@ const Dashboard: React.FC = () => {
           {recentCredit && recentCoaster ? (
               <div className="bg-slate-800 p-4 rounded-2xl border border-slate-700 flex gap-4 items-center shadow-md relative overflow-hidden">
                   <div className="w-16 h-16 rounded-xl bg-slate-900 shrink-0 overflow-hidden relative border border-slate-600">
-                      {recentCoaster.imageUrl ? (
-                          <img src={recentCoaster.imageUrl} className="w-full h-full object-cover" alt={recentCoaster.name} />
+                      {recentImage ? (
+                          <img src={recentImage} className="w-full h-full object-cover" alt={recentCoaster.name} />
                       ) : (
                           <div className="w-full h-full flex items-center justify-center text-slate-600"><Palmtree size={20}/></div>
                       )}
@@ -232,22 +219,6 @@ const Dashboard: React.FC = () => {
                   <p className="text-slate-500 text-sm mb-2">No rides logged yet.</p>
                   <button onClick={() => changeView('ADD_CREDIT')} className="text-primary text-xs font-bold uppercase">Start Logging</button>
               </div>
-          )}
-
-          {/* Quick Continue Marathon */}
-          {lastParkVisited && (
-             <div onClick={handleContinueMarathon} className="bg-gradient-to-r from-emerald-900/40 to-slate-800 border border-emerald-500/20 p-3 rounded-xl flex items-center justify-between cursor-pointer hover:border-emerald-500/40 transition-colors">
-                 <div className="flex items-center gap-3">
-                     <div className="bg-emerald-500/20 p-2 rounded-lg text-emerald-500">
-                         <Palmtree size={18} />
-                     </div>
-                     <div>
-                         <div className="text-[10px] font-bold text-emerald-400 uppercase tracking-wide">Continue Marathon</div>
-                         <div className="text-sm font-bold text-white">Add more at {lastParkVisited}</div>
-                     </div>
-                 </div>
-                 <ChevronRight size={16} className="text-slate-500" />
-             </div>
           )}
       </div>
 

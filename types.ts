@@ -35,7 +35,8 @@ export interface Credit {
   coasterId: string;
   date: string;
   rideCount: number;
-  photoUrl?: string;
+  photoUrl?: string; // This is the MAIN photo
+  gallery?: string[]; // These are additional photos
   notes?: string;
   restraints?: string;
 }

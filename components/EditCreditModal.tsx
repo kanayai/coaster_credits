@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { X, Camera, Save, Lock, Sparkles, Loader2, Edit3, AlertTriangle, Link, ArrowDownCircle } from 'lucide-react';
+import { X, Camera, Save, Lock, Sparkles, Loader2, Edit3, AlertTriangle, Link, ArrowDownCircle, Trash2, CheckCircle2, Star, Plus } from 'lucide-react';
 import { Credit, Coaster, CoasterType } from '../types';
 import clsx from 'clsx';
 
@@ -18,8 +18,12 @@ const EditCreditModal: React.FC<EditCreditModalProps> = ({ credit, coaster, onCl
   const [date, setDate] = useState(credit.date);
   const [notes, setNotes] = useState(credit.notes || '');
   const [restraints, setRestraints] = useState(credit.restraints || '');
-  const [photo, setPhoto] = useState<File | undefined>(undefined);
   
+  // Gallery Management State
+  const [currentMainPhoto, setCurrentMainPhoto] = useState<string | undefined>(credit.photoUrl);
+  const [currentGallery, setCurrentGallery] = useState<string[]>(credit.gallery || []);
+  const [newPhotos, setNewPhotos] = useState<File[]>([]);
+
   // Coaster Data State (For renaming/fixing info)
   const [isEditingCoaster, setIsEditingCoaster] = useState(false);
   const [coasterName, setCoasterName] = useState(coaster.name);
@@ -34,11 +38,26 @@ const EditCreditModal: React.FC<EditCreditModalProps> = ({ credit, coaster, onCl
   const [isExtracting, setIsExtracting] = useState(false);
   const [showUrlInput, setShowUrlInput] = useState(false);
 
-  const handleSave = (e: React.FormEvent) => {
+  // Preview Logic for NEW photos
+  const newPhotoPreviews = useMemo(() => {
+    return newPhotos.map(file => ({
+        url: URL.createObjectURL(file),
+        file
+    }));
+  }, [newPhotos]);
+
+  // Cleanup effect for preview URLs
+  useEffect(() => {
+    return () => {
+      newPhotoPreviews.forEach(p => URL.revokeObjectURL(p.url));
+    };
+  }, [newPhotoPreviews]);
+
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // 1. Update the Log
-    updateCredit(credit.id, date, notes, restraints, photo);
+    // 1. Update the Log with Gallery Info
+    await updateCredit(credit.id, date, notes, restraints, currentMainPhoto, currentGallery, newPhotos);
 
     // 2. Update the Coaster Data if changed
     if (isEditingCoaster) {
@@ -47,7 +66,7 @@ const EditCreditModal: React.FC<EditCreditModalProps> = ({ credit, coaster, onCl
                 name: coasterName,
                 park: coasterPark,
                 type: coasterType,
-                imageUrl: localCoasterImage // Also save the image if it changed via URL extraction
+                imageUrl: localCoasterImage
             });
         }
     }
@@ -55,9 +74,45 @@ const EditCreditModal: React.FC<EditCreditModalProps> = ({ credit, coaster, onCl
     onClose();
   };
 
+  const handleMakeMain = (url: string) => {
+      const oldMain = currentMainPhoto;
+      setCurrentMainPhoto(url);
+      
+      // Move old main to gallery, remove new main from gallery
+      let nextGallery = [...currentGallery];
+      if (oldMain) nextGallery.push(oldMain);
+      nextGallery = nextGallery.filter(g => g !== url);
+      
+      setCurrentGallery(nextGallery);
+  };
+
+  const handleDeletePhoto = (url: string, isMain: boolean) => {
+      if (isMain) {
+          // If deleting main, try to promote first gallery item
+          if (currentGallery.length > 0) {
+              const newMain = currentGallery[0];
+              setCurrentMainPhoto(newMain);
+              setCurrentGallery(currentGallery.slice(1));
+          } else {
+              setCurrentMainPhoto(undefined);
+          }
+      } else {
+          setCurrentGallery(currentGallery.filter(g => g !== url));
+      }
+  };
+
+  const handleRemoveNewPhoto = (index: number) => {
+      setNewPhotos(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleAddPhotos = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files) {
+          setNewPhotos(prev => [...prev, ...Array.from(e.target.files!)]);
+      }
+  };
+
   const handleAutoFetch = async () => {
       setIsFetchingImage(true);
-      // Use the potentially updated name/park for better results
       const url = await autoFetchCoasterImage(coaster.id);
       setIsFetchingImage(false);
       if (url) {
@@ -89,7 +144,7 @@ const EditCreditModal: React.FC<EditCreditModalProps> = ({ credit, coaster, onCl
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
-      <div className="bg-slate-800 w-full max-w-md rounded-2xl border border-slate-700 shadow-2xl overflow-hidden animate-fade-in-down max-h-[90vh] overflow-y-auto no-scrollbar">
+      <div className="bg-slate-800 w-full max-w-lg rounded-2xl border border-slate-700 shadow-2xl overflow-hidden animate-fade-in-down max-h-[90vh] overflow-y-auto no-scrollbar">
         <div className="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-900/50">
           <h3 className="font-bold text-white">Edit Entry</h3>
           <button 
@@ -204,40 +259,106 @@ const EditCreditModal: React.FC<EditCreditModalProps> = ({ credit, coaster, onCl
                 />
               </div>
 
-              {/* Image Options Row */}
-              <div className="flex gap-2">
-                <div className="flex-1">
-                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Your Photo</label>
-                    <div className="relative">
-                    <input 
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => setPhoto(e.target.files?.[0])}
-                        className="hidden"
-                        id="edit-photo-upload"
-                    />
-                    <label htmlFor="edit-photo-upload" className="w-full bg-slate-900 border border-slate-600 border-dashed rounded-xl p-3 flex items-center justify-center gap-2 cursor-pointer hover:bg-slate-900/80 transition-colors text-slate-400">
-                        <Camera size={18} />
-                        <span className="text-xs sm:text-sm">{photo ? "Changed" : "Upload"}</span>
-                    </label>
-                    </div>
-                </div>
+              {/* === RIDE GALLERY SECTION === */}
+              <div>
+                  <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs font-bold uppercase text-slate-500">Ride Gallery</label>
+                      <label htmlFor="gallery-upload" className="text-xs font-bold text-primary flex items-center gap-1 cursor-pointer hover:underline">
+                          <Plus size={14} /> Add Photos
+                      </label>
+                      <input 
+                          type="file"
+                          multiple
+                          accept="image/*"
+                          onChange={handleAddPhotos}
+                          className="hidden"
+                          id="gallery-upload"
+                      />
+                  </div>
 
-                {(!localCoasterImage || localCoasterImage.includes('picsum')) && (
-                     <div className="flex-1">
-                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Database Photo</label>
+                  <div className="grid grid-cols-3 gap-2">
+                      {/* Main Photo Card */}
+                      <div className="col-span-3 sm:col-span-1 aspect-square rounded-xl overflow-hidden relative border-2 border-primary bg-slate-900 group">
+                           {currentMainPhoto ? (
+                               <img src={currentMainPhoto} className="w-full h-full object-cover" />
+                           ) : (
+                               <div className="w-full h-full flex flex-col items-center justify-center text-slate-500 bg-slate-900">
+                                   <Camera size={24} />
+                                   <span className="text-[10px] uppercase font-bold mt-1">No Main</span>
+                               </div>
+                           )}
+                           <div className="absolute top-2 left-2 bg-primary text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm">MAIN</div>
+                           
+                           {currentMainPhoto && (
+                                <button 
+                                    type="button"
+                                    onClick={() => handleDeletePhoto(currentMainPhoto, true)}
+                                    className="absolute top-2 right-2 bg-black/50 hover:bg-red-500 text-white p-1.5 rounded-full backdrop-blur-sm transition-colors opacity-0 group-hover:opacity-100"
+                                >
+                                    <Trash2 size={12} />
+                                </button>
+                           )}
+                      </div>
+
+                      {/* Gallery Items */}
+                      {currentGallery.map((url, idx) => (
+                          <div key={idx} className="aspect-square rounded-xl overflow-hidden relative border border-slate-600 bg-slate-900 group">
+                               <img src={url} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+                               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
+                                   <button
+                                      type="button" 
+                                      onClick={() => handleMakeMain(url)}
+                                      className="bg-primary/90 hover:bg-primary text-white text-[10px] font-bold px-2 py-1 rounded-lg flex items-center gap-1"
+                                   >
+                                       <Star size={10} fill="currentColor" /> Main
+                                   </button>
+                                   <button 
+                                      type="button"
+                                      onClick={() => handleDeletePhoto(url, false)}
+                                      className="bg-red-500/80 hover:bg-red-500 text-white p-1.5 rounded-full"
+                                   >
+                                       <Trash2 size={12} />
+                                   </button>
+                               </div>
+                          </div>
+                      ))}
+
+                      {/* New Photos Pending Upload */}
+                      {newPhotoPreviews.map((preview, idx) => (
+                          <div key={`new-${idx}`} className="aspect-square rounded-xl overflow-hidden relative border border-emerald-500/50 bg-emerald-900/10 group">
+                               <img src={preview.url} className="w-full h-full object-cover" />
+                               <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-start justify-end p-1">
+                                    <button 
+                                        type="button"
+                                        onClick={() => handleRemoveNewPhoto(idx)}
+                                        className="bg-red-500 text-white p-1 rounded-full shadow-lg"
+                                    >
+                                        <X size={12} />
+                                    </button>
+                               </div>
+                               <div className="absolute bottom-1 right-1 bg-emerald-500 text-white text-[8px] font-bold px-1 rounded shadow-sm">NEW</div>
+                          </div>
+                      ))}
+                  </div>
+              </div>
+
+              {/* Database Photo Fetcher */}
+              {(!localCoasterImage || localCoasterImage.includes('picsum')) && (
+                 <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs text-slate-400">Missing a global coaster image?</span>
                         <button 
                             type="button"
                             onClick={handleAutoFetch}
                             disabled={isFetchingImage}
-                            className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 flex items-center justify-center gap-2 cursor-pointer hover:bg-slate-900/80 transition-colors text-pink-400 hover:text-pink-300"
+                            className="text-pink-400 hover:text-pink-300 text-xs font-bold flex items-center gap-1"
                         >
-                            {isFetchingImage ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
-                            <span className="text-xs sm:text-sm">Auto-Fetch</span>
+                            {isFetchingImage ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                            Auto-Fetch
                         </button>
-                     </div>
-                )}
-              </div>
+                    </div>
+                 </div>
+              )}
               
               <div>
                   <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5 flex items-center gap-1">

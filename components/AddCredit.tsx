@@ -1,8 +1,10 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { Coaster, CoasterType } from '../types';
-import { Search, Plus, Calendar, Sparkles, Loader2, Filter, Bookmark, BookmarkCheck, PlusCircle, ArrowLeft as BackIcon, Zap, Ruler, ArrowUp, History, Trash2, Clock, CheckCircle2, Globe, Info, X, Palmtree, ChevronRight, ListChecks, CheckSquare, Square, Check, Edit2, Copy, AlertCircle, Link, Image as ImageIcon, ArrowDownCircle } from 'lucide-react';
+import { Coaster, CoasterType, Credit } from '../types';
+import { Search, Plus, Calendar, Sparkles, Loader2, Filter, Bookmark, BookmarkCheck, PlusCircle, ArrowLeft as BackIcon, Zap, Ruler, ArrowUp, History, Trash2, Clock, CheckCircle2, Globe, Info, X, Palmtree, ChevronRight, ListChecks, CheckSquare, Square, Check, Edit2, Copy, AlertCircle, Link, Image as ImageIcon, ArrowDownCircle, Images } from 'lucide-react';
 import { cleanName } from '../constants';
+import ShareCardModal from './ShareCardModal';
 import clsx from 'clsx';
 
 const normalizeText = (text: string) => cleanName(text).toLowerCase();
@@ -10,8 +12,11 @@ const normalizeText = (text: string) => cleanName(text).toLowerCase();
 const AddCredit: React.FC = () => {
   const { coasters, addCredit, deleteCredit, addNewCoaster, editCoaster, addMultipleCoasters, searchOnlineCoaster, extractFromUrl, credits, activeUser, addToWishlist, removeFromWishlist, isInWishlist, lastSearchQuery, setLastSearchQuery, showNotification } = useAppContext();
   
+  // Search and Filter State
   const searchTerm = lastSearchQuery;
   const setSearchTerm = setLastSearchQuery;
+  const [activeParkFilter, setActiveParkFilter] = useState<string | null>(null);
+
   const [selectedCoaster, setSelectedCoaster] = useState<Coaster | null>(null);
   const [isAiSearching, setIsAiSearching] = useState(false);
   const [isAddingManually, setIsAddingManually] = useState(false);
@@ -30,6 +35,9 @@ const AddCredit: React.FC = () => {
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDate, setBulkDate] = useState<string>(new Date().toISOString().split('T')[0]);
+
+  // Share Modal State
+  const [sharingCreditData, setSharingCreditData] = useState<{ credit: Credit, coaster: Coaster } | null>(null);
   
   // Manual Add / Edit Form State
   const [manualCoasterData, setManualCoasterData] = useState({ 
@@ -49,32 +57,40 @@ const AddCredit: React.FC = () => {
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
   const [restraints, setRestraints] = useState('');
-  const [photo, setPhoto] = useState<File | undefined>(undefined);
+  // Changed to an array of files for gallery support
+  const [photos, setPhotos] = useState<File[]>([]);
   
-  // Detect if we are in a "Park Marathon" (filtering by a specific park)
-  const isMarathonMode = useMemo(() => {
-    if (!searchTerm) return false;
-    // Check if the search term exactly matches a park name in our database
-    return coasters.some(c => normalizeText(c.park) === normalizeText(searchTerm));
-  }, [searchTerm, coasters]);
-
+  // Logic to filter coasters
   const filteredCoasters = useMemo(() => {
     let result = coasters;
+
+    // 1. Filter by Park (Park Mode)
+    if (activeParkFilter) {
+        result = result.filter(c => c.park === activeParkFilter);
+    }
+
+    // 2. Filter by Search Term
     if (searchTerm) {
         const normalizedSearch = normalizeText(searchTerm);
         result = result.filter(c => normalizeText(c.name).includes(normalizedSearch) || normalizeText(c.park).includes(normalizedSearch));
     }
-    if (filterType !== 'All') result = result.filter(c => c.type === filterType);
-    if (hideRidden) result = result.filter(c => !credits.some(cr => cr.userId === activeUser.id && cr.coasterId === c.id));
-    return result.sort((a, b) => a.name.localeCompare(b.name));
-  }, [coasters, searchTerm, filterType, hideRidden, credits, activeUser.id]);
 
-  const marathonStats = useMemo(() => {
-      if (!isMarathonMode) return null;
-      const parkCoasters = coasters.filter(c => normalizeText(c.park) === normalizeText(searchTerm));
+    // 3. Filter by Type
+    if (filterType !== 'All') result = result.filter(c => c.type === filterType);
+
+    // 4. Hide Ridden
+    if (hideRidden) result = result.filter(c => !credits.some(cr => cr.userId === activeUser.id && cr.coasterId === c.id));
+
+    return result.sort((a, b) => a.name.localeCompare(b.name));
+  }, [coasters, searchTerm, filterType, hideRidden, credits, activeUser.id, activeParkFilter]);
+
+  // Park Stats for the Header
+  const parkStats = useMemo(() => {
+      if (!activeParkFilter) return null;
+      const parkCoasters = coasters.filter(c => c.park === activeParkFilter);
       const riddenCount = parkCoasters.filter(c => credits.some(cr => cr.userId === activeUser.id && cr.coasterId === c.id)).length;
       return { total: parkCoasters.length, ridden: riddenCount };
-  }, [isMarathonMode, searchTerm, coasters, credits, activeUser.id]);
+  }, [activeParkFilter, coasters, credits, activeUser.id]);
 
   // Helper to find existing match for AI results
   const findExistingCoaster = (name?: string, park?: string) => {
@@ -187,10 +203,16 @@ const AddCredit: React.FC = () => {
     showNotification("Lap logged!", "success");
   };
 
-  const handleEnterMarathon = (e: React.MouseEvent, parkName: string) => {
+  const handleEnterParkMode = (e: React.MouseEvent, parkName: string) => {
       e.stopPropagation();
-      setSearchTerm(parkName);
-      showNotification(`Entering ${parkName} Lineup`, 'info');
+      setActiveParkFilter(parkName);
+      setSearchTerm(''); // Clear search to show all rides in park
+      showNotification(`Viewing ${parkName}`, 'info');
+  };
+
+  const exitParkMode = () => {
+      setActiveParkFilter(null);
+      setSearchTerm('');
   };
 
   const toggleSelection = (id: string) => {
@@ -213,15 +235,27 @@ const AddCredit: React.FC = () => {
       setIsMultiSelectMode(false);
   };
 
-  const processLog = (filterByPark: boolean) => {
+  const processLog = async () => {
     if (selectedCoaster) {
-        addCredit(selectedCoaster.id, date, notes, restraints, photo);
-        if (filterByPark) {
-            setSearchTerm(selectedCoaster.park);
-        }
-        setNotes(''); setRestraints(''); setPhoto(undefined);
+        const newCredit = await addCredit(selectedCoaster.id, date, notes, restraints, photos);
+        
+        // Reset Form
+        setNotes(''); setRestraints(''); setPhotos([]);
+        const coasterRef = selectedCoaster;
         setSelectedCoaster(null); 
+        
+        // Trigger Share Modal
+        if (newCredit) {
+           setSharingCreditData({ credit: newCredit, coaster: coasterRef });
+        }
     }
+  };
+
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files && e.target.files.length > 0) {
+          const newFiles = Array.from(e.target.files);
+          setPhotos(prev => [...prev, ...newFiles]);
+      }
   };
 
   const handleEditSelected = () => {
@@ -338,9 +372,9 @@ const AddCredit: React.FC = () => {
                                 type="button" 
                                 onClick={() => setShowFormImportInput(false)} 
                                 className="bg-slate-700 text-slate-300 px-2 rounded-lg"
-                             >
-                                 <X size={14} />
-                             </button>
+                              >
+                                  <X size={14} />
+                              </button>
                           </div>
                       )}
                   </div>
@@ -413,7 +447,7 @@ const AddCredit: React.FC = () => {
           <div className="animate-fade-in pb-24 space-y-4">
                 <div className="sticky top-0 -mx-4 -mt-4 p-4 z-20 bg-slate-900/95 backdrop-blur-md border-b border-slate-700/50 flex gap-2">
                     <button onClick={() => setSelectedCoaster(null)} className="p-3 rounded-xl bg-slate-800 border border-slate-700 text-slate-400"><BackIcon size={20}/></button>
-                    <button onClick={() => processLog(true)} className="flex-1 bg-emerald-500/10 text-emerald-400 font-bold py-3 rounded-xl border border-emerald-500/30 flex items-center justify-center gap-2">
+                    <button onClick={() => { setActiveParkFilter(selectedCoaster.park); processLog(); }} className="flex-1 bg-emerald-500/10 text-emerald-400 font-bold py-3 rounded-xl border border-emerald-500/30 flex items-center justify-center gap-2">
                         <Palmtree size={18} /> Log & View Park
                     </button>
                 </div>
@@ -449,11 +483,40 @@ const AddCredit: React.FC = () => {
                         <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Date</label>
                         <input type="date" required value={date} onChange={e => setDate(e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white text-sm" />
                     </div>
+                    
+                    {/* Add Photo / Gallery Section */}
+                    <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 flex items-center gap-1">
+                            <Images size={12} /> Photos
+                        </label>
+                        <div className="flex gap-2">
+                             <div className="relative flex-1">
+                                <input 
+                                    type="file"
+                                    multiple
+                                    accept="image/*"
+                                    onChange={handlePhotoSelect}
+                                    className="hidden"
+                                    id="log-photos"
+                                />
+                                <label htmlFor="log-photos" className="w-full bg-slate-900 border border-slate-600 border-dashed rounded-xl p-3 flex items-center justify-center gap-2 cursor-pointer hover:bg-slate-900/80 transition-colors text-slate-400">
+                                    <PlusCircle size={18} />
+                                    <span className="text-xs sm:text-sm">Select Photos</span>
+                                </label>
+                            </div>
+                            {photos.length > 0 && (
+                                <div className="bg-primary/20 border border-primary/50 text-primary px-3 rounded-xl flex items-center justify-center font-bold text-xs">
+                                    {photos.length} Selected
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
                     <div>
                         <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Experience (Optional)</label>
                         <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="How was the ride? Seat location?" className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white text-sm h-20 outline-none" />
                     </div>
-                    <button onClick={() => processLog(false)} className="w-full bg-primary font-bold py-4 rounded-2xl shadow-xl shadow-primary/30 flex items-center justify-center gap-2 active:scale-95 transition-all"><Plus size={20}/> LOG CREDIT</button>
+                    <button onClick={() => processLog()} className="w-full bg-primary font-bold py-4 rounded-2xl shadow-xl shadow-primary/30 flex items-center justify-center gap-2 active:scale-95 transition-all"><Plus size={20}/> LOG CREDIT</button>
                 </div>
           </div>
       );
@@ -462,8 +525,8 @@ const AddCredit: React.FC = () => {
   return (
     <div className="h-full flex flex-col space-y-5 animate-fade-in relative">
         
-        {/* Marathon Mode Header */}
-        {isMarathonMode && marathonStats ? (
+        {/* Park Mode Header (Renamed from Marathon) */}
+        {activeParkFilter && parkStats ? (
             <div className="bg-gradient-to-r from-emerald-500 to-emerald-700 rounded-3xl p-5 flex items-center justify-between shadow-xl shadow-emerald-900/40 border border-white/20 animate-scale-in relative overflow-hidden group">
                 <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:scale-125 transition-transform">
                     <Palmtree size={100} />
@@ -473,12 +536,13 @@ const AddCredit: React.FC = () => {
                         <Palmtree size={24} fill="currentColor" />
                     </div>
                     <div>
-                        <h3 className="text-base font-black text-white italic leading-tight uppercase tracking-tight">PARK LINEUP</h3>
-                        <p className="text-xs text-emerald-100 font-bold uppercase tracking-widest opacity-80">{searchTerm}</p>
+                        <h3 className="text-base font-black text-white italic leading-tight uppercase tracking-tight">PARK MODE</h3>
+                        <p className="text-xs text-emerald-100 font-bold uppercase tracking-widest opacity-80">{activeParkFilter}</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2 relative z-10">
-                    <button onClick={() => setSearchTerm('')} className="bg-black/20 hover:bg-black/40 p-2.5 rounded-xl text-white transition-colors border border-white/10">
+                    <button onClick={exitParkMode} className="bg-black/20 hover:bg-black/40 p-2.5 rounded-xl text-white transition-colors border border-white/10 flex items-center gap-2">
+                        <span className="text-[10px] font-bold uppercase hidden sm:inline">Exit</span>
                         <X size={20} />
                     </button>
                 </div>
@@ -496,14 +560,14 @@ const AddCredit: React.FC = () => {
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
                   <input 
                       type="text" 
-                      placeholder="Search coaster or park name..." 
+                      placeholder={activeParkFilter ? `Search ${activeParkFilter}...` : "Search coaster or park name..."}
                       value={searchTerm} 
                       onChange={e => setSearchTerm(e.target.value)} 
                       className="w-full bg-slate-900 border border-slate-700 rounded-2xl pl-12 py-4 text-white shadow-lg focus:border-primary focus:ring-1 focus:ring-primary outline-none text-sm transition-all" 
                   />
               </div>
               
-              {/* Multi-Select Toggle - Now always available */}
+              {/* Multi-Select Toggle */}
               <button 
                   onClick={() => setIsMultiSelectMode(!isMultiSelectMode)}
                   className={clsx(
@@ -530,7 +594,7 @@ const AddCredit: React.FC = () => {
         </div>
 
         <div className="flex-1 overflow-y-auto space-y-3 no-scrollbar pb-40">
-            {/* AI Results Section - Now Visible */}
+            {/* AI Results Section */}
             {aiDiscoveryResults.length > 0 && (
                 <div className="bg-slate-800/50 border border-indigo-500/30 rounded-2xl overflow-hidden mb-4 animate-fade-in-down">
                     <div className="bg-indigo-500/10 px-4 py-2 flex items-center justify-between border-b border-indigo-500/20">
@@ -623,18 +687,19 @@ const AddCredit: React.FC = () => {
                             </h3>
                             <div className="text-[10px] text-slate-500 truncate font-bold uppercase tracking-wider mt-0.5">{c.park}</div>
                             
-                            {!isMarathonMode && !isMultiSelectMode && (
+                            {/* New "View Park" Button - Shows only when NOT in Park Mode */}
+                            {!activeParkFilter && !isMultiSelectMode && (
                                 <button 
-                                    onClick={(e) => handleEnterMarathon(e, c.park)}
+                                    onClick={(e) => handleEnterParkMode(e, c.park)}
                                     className="mt-2 flex items-center gap-1.5 text-[8px] font-black text-emerald-500 uppercase tracking-widest bg-emerald-500/10 w-fit px-2 py-1 rounded-md border border-emerald-500/20 hover:bg-emerald-500 hover:text-white transition-all"
                                 >
-                                    <Palmtree size={10} /> View Park Lineup
+                                    <Palmtree size={10} /> View Park
                                 </button>
                             )}
                         </div>
                         
                         <div className="flex items-center px-4">
-                            {isRidden && isMarathonMode && !isMultiSelectMode ? (
+                            {isRidden && activeParkFilter && !isMultiSelectMode ? (
                                 <button onClick={(e) => handleQuickLogOneTap(e, c.id)} className="bg-emerald-500 p-2.5 rounded-xl text-white shadow-lg active:scale-90 transition-all">
                                     <Plus size={18} />
                                 </button>
@@ -725,6 +790,9 @@ const AddCredit: React.FC = () => {
                 </div>
             </div>
         )}
+
+        {/* Share Modal Render */}
+        {sharingCreditData && <ShareCardModal credit={sharingCreditData.credit} coaster={sharingCreditData.coaster} onClose={() => setSharingCreditData(null)} />}
     </div>
   );
 };

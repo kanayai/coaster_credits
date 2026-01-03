@@ -14,7 +14,8 @@
     "clsx": "^2.1.1",
     "@google/genai": "^1.30.0",
     "recharts": "^3.5.0",
-    "lucide-react": "^0.554.0"
+    "lucide-react": "^0.554.0",
+    "html2canvas": "latest"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

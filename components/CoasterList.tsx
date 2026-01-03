@@ -41,6 +41,11 @@ const CoasterList: React.FC = () => {
             if (groupedMap.has(credit.coasterId)) {
                 const existing = groupedMap.get(credit.coasterId);
                 existing.totalRides = (existing.totalRides || 1) + 1;
+                
+                // If the most recent ride didn't have a photo, but this older one does, use this photo
+                if (!existing.photoUrl && credit.photoUrl) {
+                    existing.photoUrl = credit.photoUrl;
+                }
             } else {
                 groupedMap.set(credit.coasterId, {
                     ...credit,
@@ -183,10 +188,12 @@ const CoasterList: React.FC = () => {
                             if (!item.coaster) return null;
                             const isWishlist = item.type === 'WISHLIST';
                             const rideCount = (item as any).totalRides || 1;
+                            const displayImage = (item as any).photoUrl || item.coaster.imageUrl;
+
                             return (
                                 <div key={item.id} className={clsx("bg-slate-800 rounded-xl overflow-hidden shadow-sm border flex flex-col sm:flex-row transition-transform hover:scale-[1.01] active:scale-[0.99] relative", isWishlist ? "border-amber-500/20" : "border-slate-700")}>
                                     <div className="h-32 sm:w-32 sm:h-auto bg-slate-900 flex-none relative">
-                                        {item.coaster.imageUrl && <img src={item.coaster.imageUrl} alt="Coaster" className={clsx("w-full h-full object-cover", isWishlist ? "opacity-60" : "opacity-80")} />}
+                                        {displayImage && <img src={displayImage} alt="Coaster" className={clsx("w-full h-full object-cover", isWishlist ? "opacity-60" : "opacity-80")} />}
                                         <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent" />
                                     </div>
                                     <div className="p-4 flex-1 flex flex-col justify-between min-w-0">

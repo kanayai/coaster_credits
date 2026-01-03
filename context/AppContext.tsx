@@ -26,8 +26,8 @@ interface AppContextType {
   switchUser: (userId: string) => void;
   addUser: (name: string, photo?: File) => void;
   updateUser: (userId: string, newName: string, photo?: File) => void;
-  addCredit: (coasterId: string, date: string, notes: string, restraints: string, photo?: File) => void;
-  updateCredit: (creditId: string, date: string, notes: string, restraints: string, photo?: File) => void;
+  addCredit: (coasterId: string, date: string, notes: string, restraints: string, photos?: File[]) => Promise<Credit | undefined>;
+  updateCredit: (creditId: string, date: string, notes: string, restraints: string, mainPhotoUrl: string | undefined, gallery: string[], newPhotos?: File[]) => Promise<void>;
   addNewCoaster: (coaster: Omit<Coaster, 'id'>) => Promise<Coaster>;
   editCoaster: (id: string, updates: Partial<Coaster>) => void;
   addMultipleCoasters: (coasters: Omit<Coaster, 'id'>[]) => Promise<void>;
@@ -275,27 +275,29 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return wishlist.some(w => w.userId === activeUser.id && w.coasterId === coasterId);
   };
 
-  const addCredit = async (coasterId: string, date: string, notes: string, restraints: string, photo?: File) => {
+  const addCredit = async (coasterId: string, date: string, notes: string, restraints: string, photos?: File[]): Promise<Credit | undefined> => {
     if (isInWishlist(coasterId)) {
       setWishlist(prev => prev.filter(w => !(w.userId === activeUser.id && w.coasterId === coasterId)));
     }
 
     let photoUrl: string | undefined;
-    if (photo) {
+    let gallery: string[] = [];
+
+    if (photos && photos.length > 0) {
         try {
-            photoUrl = await compressImage(photo);
+            // Compress all photos
+            const compressedPhotos = await Promise.all(photos.map(p => compressImage(p)));
+            // First one is main, rest are gallery
+            photoUrl = compressedPhotos[0];
+            gallery = compressedPhotos.slice(1);
         } catch (e) {
             console.error("Image compression error", e);
-            showNotification("Failed to process photo", "error");
-            return;
+            showNotification("Failed to process photos", "error");
+            return undefined;
         }
     }
 
-    saveCredit(coasterId, date, notes, restraints, photoUrl);
-  };
-
-  const saveCredit = (coasterId: string, date: string, notes: string, restraints: string, photoUrl?: string) => {
-      const newCredit: Credit = {
+    const newCredit: Credit = {
       id: generateId('cr'),
       userId: activeUser.id,
       coasterId,
@@ -303,23 +305,37 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       rideCount: 1, 
       notes,
       restraints,
-      photoUrl
+      photoUrl,
+      gallery
     };
     setCredits(prev => [...prev, newCredit]);
-    showNotification("Ride Logged Successfully!", 'success');
+    showNotification(photos && photos.length > 1 ? "Ride & Gallery Logged!" : "Ride Logged Successfully!", 'success');
+    return newCredit;
   };
 
-  const updateCredit = async (creditId: string, date: string, notes: string, restraints: string, photo?: File) => {
-    let photoUrl: string | undefined;
+  const updateCredit = async (creditId: string, date: string, notes: string, restraints: string, mainPhotoUrl: string | undefined, gallery: string[], newPhotos?: File[]) => {
+    let newCompressedPhotos: string[] = [];
     
-    if (photo) {
+    if (newPhotos && newPhotos.length > 0) {
         try {
-            photoUrl = await compressImage(photo);
+            newCompressedPhotos = await Promise.all(newPhotos.map(p => compressImage(p)));
         } catch (e) {
              console.error("Image compression error", e);
-             showNotification("Failed to process photo", "error");
+             showNotification("Failed to process new photos", "error");
              return;
         }
+    }
+
+    // Combine existing gallery with new photos
+    const updatedGallery = [...gallery, ...newCompressedPhotos];
+    
+    // If no main photo but we have gallery images, promote the first one
+    let finalMainPhoto = mainPhotoUrl;
+    let finalGallery = updatedGallery;
+
+    if (!finalMainPhoto && finalGallery.length > 0) {
+        finalMainPhoto = finalGallery[0];
+        finalGallery = finalGallery.slice(1);
     }
 
     setCredits(prev => prev.map(c => {
@@ -329,7 +345,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           date,
           notes,
           restraints,
-          ...(photoUrl !== undefined ? { photoUrl } : {})
+          photoUrl: finalMainPhoto,
+          gallery: finalGallery
         };
       }
       return c;
