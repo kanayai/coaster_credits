@@ -29,6 +29,7 @@ interface AppContextType {
   addCredit: (coasterId: string, date: string, notes: string, restraints: string, photo?: File) => void;
   updateCredit: (creditId: string, date: string, notes: string, restraints: string, photo?: File) => void;
   addNewCoaster: (coaster: Omit<Coaster, 'id'>) => Promise<Coaster>;
+  editCoaster: (id: string, updates: Partial<Coaster>) => void;
   addMultipleCoasters: (coasters: Omit<Coaster, 'id'>[]) => Promise<void>;
   searchOnlineCoaster: (query: string) => Promise<Partial<Coaster>[] | null>;
   generateIcon: (prompt: string) => Promise<string | null>;
@@ -269,6 +270,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return newCoaster;
   };
 
+  const editCoaster = (id: string, updates: Partial<Coaster>) => {
+    setCoasters(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+    showNotification("Coaster details updated", 'success');
+  };
+
   const addMultipleCoasters = async (coasterItems: Omit<Coaster, 'id'>[]) => {
       const newCoasters: Coaster[] = [];
       for (const item of coasterItems) {
@@ -432,7 +438,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   return (
     <AppContext.Provider value={{
       activeUser, users, coasters, credits, wishlist, currentView, coasterListViewMode, notification, lastSearchQuery,
-      switchUser, addUser, updateUser, addCredit, updateCredit, addNewCoaster, addMultipleCoasters, searchOnlineCoaster, generateIcon,
+      switchUser, addUser, updateUser, addCredit, updateCredit, addNewCoaster, editCoaster, addMultipleCoasters, searchOnlineCoaster, generateIcon,
       changeView, setCoasterListViewMode, deleteCredit, addToWishlist, removeFromWishlist, isInWishlist,
       showNotification, hideNotification, setLastSearchQuery, enrichDatabaseImages, updateCoasterImage, autoFetchCoasterImage,
       importData, standardizeDatabase, updateRankings

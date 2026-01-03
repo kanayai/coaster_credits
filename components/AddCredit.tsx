@@ -2,14 +2,14 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Coaster, CoasterType } from '../types';
-import { Search, Plus, Calendar, Sparkles, Loader2, Filter, Bookmark, BookmarkCheck, PlusCircle, ArrowLeft as BackIcon, Zap, Ruler, ArrowUp, History, Trash2, Clock, CheckCircle2, Globe, Info, X, Palmtree, ChevronRight, ListChecks, CheckSquare, Square, Check } from 'lucide-react';
+import { Search, Plus, Calendar, Sparkles, Loader2, Filter, Bookmark, BookmarkCheck, PlusCircle, ArrowLeft as BackIcon, Zap, Ruler, ArrowUp, History, Trash2, Clock, CheckCircle2, Globe, Info, X, Palmtree, ChevronRight, ListChecks, CheckSquare, Square, Check, Edit2, Copy } from 'lucide-react';
 import { cleanName } from '../constants';
 import clsx from 'clsx';
 
 const normalizeText = (text: string) => cleanName(text).toLowerCase();
 
 const AddCredit: React.FC = () => {
-  const { coasters, addCredit, deleteCredit, addNewCoaster, addMultipleCoasters, searchOnlineCoaster, credits, activeUser, addToWishlist, removeFromWishlist, isInWishlist, lastSearchQuery, setLastSearchQuery, showNotification } = useAppContext();
+  const { coasters, addCredit, deleteCredit, addNewCoaster, editCoaster, addMultipleCoasters, searchOnlineCoaster, credits, activeUser, addToWishlist, removeFromWishlist, isInWishlist, lastSearchQuery, setLastSearchQuery, showNotification } = useAppContext();
   
   const searchTerm = lastSearchQuery;
   const setSearchTerm = setLastSearchQuery;
@@ -23,7 +23,10 @@ const AddCredit: React.FC = () => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDate, setBulkDate] = useState<string>(new Date().toISOString().split('T')[0]);
   
-  const [manualCoasterData, setManualCoasterData] = useState({ name: '', park: '', country: '', manufacturer: '', type: 'Steel' as CoasterType });
+  // Manual Add / Edit Form State
+  const [manualCoasterData, setManualCoasterData] = useState({ id: '', name: '', park: '', country: '', manufacturer: '', type: 'Steel' as CoasterType });
+  const [isEditingExisting, setIsEditingExisting] = useState(false);
+
   const [filterType, setFilterType] = useState<string>('All');
   const [showFilters, setShowFilters] = useState(false);
   const [hideRidden, setHideRidden] = useState(false);
@@ -38,10 +41,6 @@ const AddCredit: React.FC = () => {
     // Check if the search term exactly matches a park name in our database
     return coasters.some(c => normalizeText(c.park) === normalizeText(searchTerm));
   }, [searchTerm, coasters]);
-
-  // We no longer force reset multi-select when leaving marathon mode to allow flexible usage,
-  // but we can clear selection if the search term changes drastically if needed. 
-  // For now, keeping selection state independent gives more power to user.
 
   const filteredCoasters = useMemo(() => {
     let result = coasters;
@@ -71,10 +70,18 @@ const AddCredit: React.FC = () => {
       if (results && results.length > 0) {
           if (results.length === 1) {
               const res = results[0];
-              if (window.confirm(`Found: ${res.name} at ${res.park}. Add to database?`)) {
-                  const newC = await addNewCoaster(res as Omit<Coaster, 'id'>);
-                  setSelectedCoaster(newC);
-              }
+              // Pre-fill the manual form with AI results to allow user to edit before saving
+              setManualCoasterData({
+                  id: '',
+                  name: res.name || '',
+                  park: res.park || '',
+                  country: res.country || '',
+                  manufacturer: res.manufacturer || '',
+                  type: res.type || 'Steel'
+              });
+              setIsEditingExisting(false);
+              setIsAddingManually(true);
+              showNotification("Found it! Verify details before saving.", "success");
           } else {
               setAiDiscoveryResults(results);
           }
@@ -126,22 +133,94 @@ const AddCredit: React.FC = () => {
     }
   };
 
+  const handleEditSelected = () => {
+      if (!selectedCoaster) return;
+      setManualCoasterData({
+          id: selectedCoaster.id,
+          name: selectedCoaster.name,
+          park: selectedCoaster.park,
+          country: selectedCoaster.country,
+          manufacturer: selectedCoaster.manufacturer,
+          type: selectedCoaster.type
+      });
+      setIsEditingExisting(true);
+      setIsAddingManually(true);
+  };
+
+  const handleCloneSelected = () => {
+      if (!selectedCoaster) return;
+      setManualCoasterData({
+          id: '', // Empty ID ensures it creates new
+          name: `${selectedCoaster.name} (Clone)`,
+          park: selectedCoaster.park,
+          country: selectedCoaster.country,
+          manufacturer: selectedCoaster.manufacturer,
+          type: selectedCoaster.type
+      });
+      setIsEditingExisting(false); // We are adding new, not editing old
+      setIsAddingManually(true);
+  };
+
   if (isAddingManually) {
       return (
           <div className="animate-fade-in pb-20">
               <div className="flex items-center gap-3 mb-6">
                 <button onClick={() => setIsAddingManually(false)} className="p-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-400"><BackIcon size={20}/></button>
-                <h2 className="text-xl font-bold">Add Coaster Manually</h2>
+                <h2 className="text-xl font-bold">
+                    {isEditingExisting ? 'Edit Coaster Details' : 'Add/Verify Coaster'}
+                </h2>
               </div>
               <form onSubmit={async (e) => {
                   e.preventDefault();
-                  const newC = await addNewCoaster({ ...manualCoasterData, isCustom: true });
+                  if (isEditingExisting && manualCoasterData.id) {
+                      // Update existing
+                      editCoaster(manualCoasterData.id, {
+                          name: manualCoasterData.name,
+                          park: manualCoasterData.park,
+                          country: manualCoasterData.country,
+                          manufacturer: manualCoasterData.manufacturer,
+                          type: manualCoasterData.type
+                      });
+                      // Update the local selected view
+                      if (selectedCoaster) {
+                          setSelectedCoaster(prev => prev ? ({ ...prev, ...manualCoasterData } as Coaster) : null);
+                      }
+                  } else {
+                      // Create new
+                      const newC = await addNewCoaster({ ...manualCoasterData, isCustom: true });
+                      setSelectedCoaster(newC);
+                  }
                   setIsAddingManually(false);
-                  setSelectedCoaster(newC);
               }} className="bg-slate-800 p-6 rounded-2xl border border-slate-700 space-y-4">
-                  <input required placeholder="Coaster Name" value={manualCoasterData.name} onChange={e => setManualCoasterData({...manualCoasterData, name: e.target.value})} className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white" />
-                  <input required placeholder="Park Name" value={manualCoasterData.park} onChange={e => setManualCoasterData({...manualCoasterData, park: e.target.value})} className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white" />
-                  <div className="pt-4"><button type="submit" className="w-full bg-primary py-3.5 rounded-xl font-bold">Save & Log Ride</button></div>
+                  
+                  <div>
+                    <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-1 block">Coaster Name</label>
+                    <input required placeholder="e.g. Mr. Freeze: Reverse Blast" value={manualCoasterData.name} onChange={e => setManualCoasterData({...manualCoasterData, name: e.target.value})} className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white" />
+                  </div>
+                  
+                  <div>
+                    <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-1 block">Park</label>
+                    <input required placeholder="Park Name" value={manualCoasterData.park} onChange={e => setManualCoasterData({...manualCoasterData, park: e.target.value})} className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white" />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-1 block">Manufacturer</label>
+                        <input placeholder="Manufacturer" value={manualCoasterData.manufacturer} onChange={e => setManualCoasterData({...manualCoasterData, manufacturer: e.target.value})} className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-1 block">Type</label>
+                        <select 
+                            value={manualCoasterData.type} 
+                            onChange={e => setManualCoasterData({...manualCoasterData, type: e.target.value as CoasterType})} 
+                            className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white appearance-none"
+                        >
+                            {Object.values(CoasterType).map(t => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                      </div>
+                  </div>
+
+                  <div className="pt-4"><button type="submit" className="w-full bg-primary py-3.5 rounded-xl font-bold">{isEditingExisting ? 'Save Changes' : 'Save & Log Ride'}</button></div>
               </form>
           </div>
       );
@@ -158,15 +237,27 @@ const AddCredit: React.FC = () => {
                 </div>
                 
                 {selectedCoaster.imageUrl && (
-                    <div className="w-full h-48 rounded-2xl overflow-hidden shadow-lg border border-slate-700 relative">
+                    <div className="w-full h-48 rounded-2xl overflow-hidden shadow-lg border border-slate-700 relative group">
                         <img src={selectedCoaster.imageUrl} alt={selectedCoaster.name} className="w-full h-full object-cover" />
                         <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent" />
-                        <div className="absolute bottom-4 left-4">
-                            <h2 className="text-3xl font-black text-white leading-tight italic drop-shadow-md">{selectedCoaster.name}</h2>
-                            <div className="text-slate-300 text-sm font-bold flex items-center gap-1 uppercase tracking-wider"><Globe size={14} className="text-primary"/> {selectedCoaster.park}</div>
+                        <div className="absolute bottom-4 left-4 right-4 flex justify-between items-end">
+                            <div>
+                                <h2 className="text-3xl font-black text-white leading-tight italic drop-shadow-md">{selectedCoaster.name}</h2>
+                                <div className="text-slate-300 text-sm font-bold flex items-center gap-1 uppercase tracking-wider"><Globe size={14} className="text-primary"/> {selectedCoaster.park}</div>
+                            </div>
                         </div>
                     </div>
                 )}
+                
+                {/* Admin/Edit Tools */}
+                <div className="flex gap-2">
+                    <button onClick={handleEditSelected} className="flex-1 bg-slate-800 border border-slate-700 p-3 rounded-xl flex items-center justify-center gap-2 text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-700">
+                        <Edit2 size={14} /> Edit Info
+                    </button>
+                    <button onClick={handleCloneSelected} className="flex-1 bg-slate-800 border border-slate-700 p-3 rounded-xl flex items-center justify-center gap-2 text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-700">
+                        <Copy size={14} /> Clone Variant
+                    </button>
+                </div>
 
                 <div className="bg-slate-800 p-5 rounded-3xl border border-slate-700 space-y-4 shadow-xl">
                     <div className="flex items-center justify-between mb-2">
@@ -340,7 +431,11 @@ const AddCredit: React.FC = () => {
                         {isAiSearching ? <Loader2 className="animate-spin" size={18}/> : <Sparkles size={18}/>} 
                         {isAiSearching ? 'SCOUTING...' : 'AI MAGIC DISCOVERY'}
                     </button>
-                    <button onClick={() => setIsAddingManually(true)} className="w-full bg-slate-800/50 text-slate-400 py-4 rounded-2xl font-bold text-xs uppercase tracking-[0.2em] border border-slate-700">Add Custom Coaster</button>
+                    <button onClick={() => { 
+                        setManualCoasterData({ id: '', name: '', park: '', country: '', manufacturer: '', type: 'Steel' });
+                        setIsEditingExisting(false);
+                        setIsAddingManually(true); 
+                    }} className="w-full bg-slate-800/50 text-slate-400 py-4 rounded-2xl font-bold text-xs uppercase tracking-[0.2em] border border-slate-700">Add Custom Coaster</button>
                 </div>
             )}
         </div>

@@ -18,9 +18,14 @@ export const generateCoasterInfo = async (searchTerm: string): Promise<Partial<C
     const response = await genAI.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `Search for roller coaster data based on the query: "${searchTerm}".
-      If the query is a theme park, return a list of its top 10 most popular current operating roller coasters.
-      If the query is a specific coaster name, return that coaster's specific details.
-      Include height (in feet), speed (in mph), and track length (in feet) if known.
+      
+      Rules:
+      1. If the query is a theme park, return a list of its top 10 most popular current operating roller coasters.
+      2. If the query is a specific coaster name, return that coaster's specific details.
+      3. CRITICAL: If a coaster has distinct major variants (e.g., "Mr. Freeze" vs "Mr. Freeze: Reverse Blast", or "Space Mountain" vs "Hyperspace Mountain"), return them as SEPARATE results so the user can choose the correct version.
+      4. If a coaster has been renamed (e.g., "Goliath" is now "The Chupacabra"), return the NEW name, but you may include the old name in parentheses like "The Chupacabra (formerly Goliath)".
+      5. Include height (in feet), speed (in mph), and track length (in feet) if known.
+      
       Return an empty list if no real coasters are found.`,
       config: {
         responseMimeType: "application/json",
