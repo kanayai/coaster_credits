@@ -166,7 +166,26 @@ const Dashboard: React.FC = () => {
           </div>
       </div>
 
-      {/* 2. Main Stats Grid */}
+      {/* 2. Personal Rankings Shortcut */}
+      <button 
+          onClick={() => changeView('RANKINGS')}
+          className="w-full bg-slate-800/80 border border-yellow-500/30 p-4 rounded-[24px] flex items-center justify-between group active:scale-[0.98] transition-all shadow-lg hover:bg-slate-800"
+      >
+          <div className="flex items-center gap-4">
+              <div className="bg-gradient-to-br from-yellow-400 to-amber-600 p-3 rounded-2xl text-slate-900 shadow-lg shadow-amber-500/20">
+                  <Trophy size={22} fill="currentColor" className="text-white mix-blend-overlay" />
+              </div>
+              <div className="text-left">
+                  <h3 className="font-bold text-white text-lg leading-none italic tracking-tight">MY TOP 10</h3>
+                  <p className="text-[10px] text-yellow-500 font-black uppercase tracking-widest mt-1">Manage Rankings</p>
+              </div>
+          </div>
+          <div className="w-10 h-10 rounded-full bg-slate-900 border border-slate-700 flex items-center justify-center group-hover:border-yellow-500/50 transition-colors">
+              <ChevronRight size={18} className="text-slate-400 group-hover:text-yellow-500" />
+          </div>
+      </button>
+
+      {/* 3. Main Stats Grid */}
       <div className="grid grid-cols-2 gap-4">
         <div 
             className="bg-slate-800 rounded-2xl p-5 shadow-lg border border-slate-700 relative overflow-hidden cursor-pointer active:scale-95 transition-transform group"
@@ -193,7 +212,7 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* 3. Statistics Panel */}
+      {/* 4. Statistics Panel */}
       <div className="bg-slate-800 p-5 rounded-3xl border border-slate-700 shadow-xl">
             <div className="flex justify-between items-center mb-6">
                 <h3 className="text-lg font-bold text-white flex items-center gap-2">Insights</h3>
@@ -235,7 +254,7 @@ const Dashboard: React.FC = () => {
             )}
       </div>
 
-      {/* 4. Parks Near Me (Restored) */}
+      {/* 5. Parks Near Me (Restored) */}
       <div className="bg-slate-800 rounded-[32px] p-6 border border-slate-700 shadow-xl overflow-hidden relative">
           <div className="absolute top-0 right-0 p-8 opacity-5 text-emerald-500 pointer-events-none">
               <Globe size={120} />
@@ -295,7 +314,7 @@ const Dashboard: React.FC = () => {
           </div>
       </div>
 
-      {/* 5. Marathon Continue (Moved to Bottom) */}
+      {/* 6. Marathon Continue (Moved to Bottom) */}
       {lastParkVisited && (
         <button 
             onClick={handleContinueMarathon}

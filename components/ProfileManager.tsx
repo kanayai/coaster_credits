@@ -40,21 +40,6 @@ const ProfileManager: React.FC = () => {
       <div className="space-y-6">
         <h2 className="text-2xl font-bold">Rider Profiles</h2>
         
-        {/* Rankings Shortcut Card */}
-        <button 
-            onClick={() => changeView('RANKINGS')}
-            className="w-full bg-gradient-to-r from-yellow-600/20 to-amber-600/10 border border-yellow-500/30 p-5 rounded-2xl flex items-center justify-between group active:scale-95 transition-all shadow-xl"
-        >
-            <div className="flex items-center gap-4">
-                <div className="bg-yellow-500 p-3 rounded-xl text-slate-900 shadow-lg shadow-yellow-500/20"><Trophy size={24}/></div>
-                <div className="text-left">
-                    <h3 className="font-bold text-white text-lg leading-tight">Personal Top 10</h3>
-                    <p className="text-xs text-yellow-500/80 font-medium">Rank your ridden coasters</p>
-                </div>
-            </div>
-            <div className="bg-yellow-500/10 p-2 rounded-full text-yellow-500 group-hover:bg-yellow-500/20 transition-colors"><Trophy size={16}/></div>
-        </button>
-
         <div className="grid grid-cols-1 gap-3">
           {users.map(user => {
              const isEditing = editingUserId === user.id;
