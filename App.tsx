@@ -8,6 +8,7 @@ import CoasterList from './components/CoasterList';
 import ProfileManager from './components/ProfileManager';
 import ParkStats from './components/ParkStats';
 import Rankings from './components/Rankings';
+import Milestones from './components/Milestones';
 
 const AppContent: React.FC = () => {
   const { currentView } = useAppContext();
@@ -20,6 +21,7 @@ const AppContent: React.FC = () => {
       case 'PROFILE': return <ProfileManager />;
       case 'PARK_STATS': return <ParkStats />;
       case 'RANKINGS': return <Rankings />;
+      case 'MILESTONES': return <Milestones />;
       default: return <Dashboard />;
     }
   };

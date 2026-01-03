@@ -60,4 +60,4 @@ export interface User {
   rankings?: RankingList;
 }
 
-export type ViewState = 'DASHBOARD' | 'ADD_CREDIT' | 'COASTER_LIST' | 'PROFILE' | 'PARK_STATS' | 'RANKINGS';
+export type ViewState = 'DASHBOARD' | 'ADD_CREDIT' | 'COASTER_LIST' | 'PROFILE' | 'PARK_STATS' | 'RANKINGS' | 'MILESTONES';

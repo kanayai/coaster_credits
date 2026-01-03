@@ -2,7 +2,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
-import { Trophy, ClipboardList, Palmtree, Layers, Factory, Flag, CalendarRange, Edit2, Globe, Hash, MapPin, Navigation, ChevronRight, Zap, Star, Share2, Plus } from 'lucide-react';
+import { Trophy, ClipboardList, Palmtree, Layers, Factory, Flag, CalendarRange, Edit2, Globe, Hash, MapPin, Navigation, ChevronRight, Zap, Star, Share2, Plus, Award, Sparkles } from 'lucide-react';
 import EditCreditModal from './EditCreditModal';
 import { Credit, Coaster } from '../types';
 import { normalizeManufacturer } from '../constants';
@@ -42,8 +42,22 @@ const Dashboard: React.FC = () => {
   const totalRidesCount = userCredits.length;
 
   // Milestone Logic
-  const nextMilestone = uniqueCreditsCount < 25 ? 25 : uniqueCreditsCount < 50 ? 50 : uniqueCreditsCount < 100 ? 100 : Math.ceil((uniqueCreditsCount + 1) / 100) * 100;
-  const milestoneProgress = (uniqueCreditsCount / nextMilestone) * 100;
+  const milestoneLevels = [1, 10, 25, 50, 100, 250, 500];
+  const nextMilestone = milestoneLevels.find(m => m > uniqueCreditsCount) || (Math.ceil((uniqueCreditsCount + 1) / 100) * 100);
+  const prevMilestone = [...milestoneLevels].reverse().find(m => m <= uniqueCreditsCount) || 0;
+  
+  const progressToNext = ((uniqueCreditsCount - prevMilestone) / (nextMilestone - prevMilestone)) * 100;
+
+  const currentLevelName = useMemo(() => {
+    if (uniqueCreditsCount >= 500) return "Global Legend";
+    if (uniqueCreditsCount >= 250) return "Titan of Track";
+    if (uniqueCreditsCount >= 100) return "Centurion";
+    if (uniqueCreditsCount >= 50) return "Pro Rider";
+    if (uniqueCreditsCount >= 25) return "Expert";
+    if (uniqueCreditsCount >= 10) return "Enthusiast";
+    if (uniqueCreditsCount >= 1) return "Novice";
+    return "Newcomer";
+  }, [uniqueCreditsCount]);
 
   const chartData = useMemo(() => {
     const dist: Record<string, number> = {};
@@ -94,28 +108,47 @@ const Dashboard: React.FC = () => {
   return (
     <div className="space-y-6 animate-fade-in pb-10">
       
-      {/* 1. Milestone Progress Ring (UX Celebration) */}
-      <div className="bg-slate-800/40 border border-slate-700 p-5 rounded-3xl relative overflow-hidden">
+      {/* 1. Milestone Progress Card - Actionable & Highly Visual */}
+      <div 
+        onClick={() => changeView('MILESTONES')}
+        className="group relative bg-slate-800/60 backdrop-blur-md border border-slate-700 p-6 rounded-[32px] overflow-hidden cursor-pointer active:scale-[0.98] transition-all shadow-2xl"
+      >
+          {/* Animated Glow Background */}
+          <div className="absolute top-0 right-0 w-32 h-32 bg-primary/20 blur-[60px] group-hover:bg-primary/40 transition-all rounded-full" />
+          
           <div className="flex items-center justify-between relative z-10">
-              <div className="space-y-1">
-                  <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Next Milestone: {nextMilestone}</h3>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-4xl font-black text-white">{uniqueCreditsCount}</span>
-                    <span className="text-slate-500 font-bold">/ {nextMilestone}</span>
+              <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="bg-primary/20 text-primary px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-[0.2em] border border-primary/30">
+                        {currentLevelName}
+                    </span>
+                    <Sparkles size={14} className="text-amber-400 animate-pulse" />
                   </div>
+                  <h3 className="text-3xl font-black text-white italic tracking-tighter">
+                    {uniqueCreditsCount} <span className="text-slate-500 text-xl font-bold">/ {nextMilestone}</span>
+                  </h3>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                    Progress to Next Badge <ChevronRight size={10} className="text-primary" />
+                  </p>
               </div>
-              <div className="relative w-16 h-16">
+              
+              <div className="relative w-20 h-20">
+                  <div className="absolute inset-0 bg-primary/10 rounded-full animate-ping opacity-20" />
                   <svg className="w-full h-full transform -rotate-90">
-                      <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="6" fill="transparent" className="text-slate-700" />
-                      <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="6" fill="transparent" strokeDasharray={2 * Math.PI * 28} strokeDashoffset={2 * Math.PI * 28 * (1 - milestoneProgress / 100)} className="text-primary" strokeLinecap="round" />
+                      <circle cx="40" cy="40" r="34" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-slate-900" />
+                      <circle cx="40" cy="40" r="34" stroke="currentColor" strokeWidth="8" fill="transparent" strokeDasharray={2 * Math.PI * 34} strokeDashoffset={2 * Math.PI * 34 * (1 - progressToNext / 100)} className="text-primary transition-all duration-1000 ease-out" strokeLinecap="round" />
                   </svg>
                   <div className="absolute inset-0 flex items-center justify-center">
-                      <Star size={18} className="text-primary fill-primary/20" />
+                      <Award size={28} className="text-primary drop-shadow-[0_0_10px_rgba(14,165,233,0.5)]" />
                   </div>
               </div>
           </div>
-          <div className="mt-4 h-1.5 w-full bg-slate-700 rounded-full overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-primary to-accent transition-all duration-1000" style={{ width: `${milestoneProgress}%` }} />
+          
+          <div className="mt-6 flex items-center gap-3">
+              <div className="flex-1 h-2 bg-slate-900 rounded-full overflow-hidden">
+                  <div className="h-full bg-gradient-to-r from-primary via-primary/80 to-accent transition-all duration-1000" style={{ width: `${progressToNext}%` }} />
+              </div>
+              <span className="text-[10px] font-black text-slate-500 italic">{Math.round(progressToNext)}%</span>
           </div>
       </div>
 
@@ -230,28 +263,6 @@ const Dashboard: React.FC = () => {
                 </div>
             )}
       </div>
-
-      {/* 6. Nearby Discovery */}
-      {nearbyParks.length > 0 && (
-          <div className="space-y-3">
-              <div className="flex items-center gap-2 px-1">
-                <Navigation size={14} className="text-emerald-400" />
-                <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Parks Near You</h3>
-              </div>
-              <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
-                  {nearbyParks.map(park => (
-                      <button 
-                        key={park}
-                        onClick={() => { setLastSearchQuery(park); changeView('ADD_CREDIT'); }}
-                        className="bg-slate-800 hover:bg-slate-750 border border-slate-700 p-3.5 rounded-2xl flex items-center gap-3 shrink-0 transition-all active:scale-95"
-                      >
-                          <div className="bg-emerald-500/10 p-2 rounded-lg text-emerald-400"><Palmtree size={16}/></div>
-                          <span className="text-sm font-bold text-slate-200">{park}</span>
-                      </button>
-                  ))}
-              </div>
-          </div>
-      )}
 
       {editingCreditData && <EditCreditModal credit={editingCreditData.credit} coaster={editingCreditData.coaster} onClose={() => setEditingCreditData(null)} />}
     </div>
