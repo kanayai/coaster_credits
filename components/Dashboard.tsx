@@ -130,7 +130,7 @@ const Dashboard: React.FC = () => {
   );
 
   return (
-    <div className="animate-fade-in pb-32 space-y-6 relative">
+    <div className="animate-fade-in pb-12 space-y-6 relative">
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
@@ -327,30 +327,28 @@ const Dashboard: React.FC = () => {
           </div>
       </div>
 
-      {/* Fixed Park Mode Session Button (Very Bottom) */}
-      <div className="fixed bottom-[4.5rem] left-0 right-0 p-4 z-40 bg-gradient-to-t from-slate-950 via-slate-950/80 to-transparent pointer-events-none flex justify-center">
-          <button 
-            onClick={handleStartParkSession}
-            disabled={isLocatingSession}
-            className="pointer-events-auto w-full max-w-xl bg-gradient-to-r from-emerald-600 to-emerald-800 p-4 rounded-[24px] shadow-2xl shadow-emerald-900/50 border border-white/10 flex items-center justify-between group active:scale-[0.98] transition-all relative overflow-hidden"
-          >
-              {isLocatingSession && <div className="absolute inset-0 bg-white/20 animate-pulse" />}
-              <div className="flex items-center gap-4 relative z-10">
-                  <div className="bg-white/10 p-2.5 rounded-xl">
-                      {isLocatingSession ? <Loader2 size={24} className="text-white animate-spin" /> : <Ticket size={24} className="text-white" />}
-                  </div>
-                  <div className="text-left">
-                      <h3 className="text-lg font-black text-white italic tracking-tight uppercase">
-                          {isLocatingSession ? 'Locating...' : 'Start Park Session'}
-                      </h3>
-                      <p className="text-[10px] text-emerald-200 font-medium leading-none">
-                          {isLocatingSession ? 'Finding park...' : 'Auto-detect park & log'}
-                      </p>
-                  </div>
+      {/* Park Mode Session Button (Static at bottom) */}
+      <button 
+        onClick={handleStartParkSession}
+        disabled={isLocatingSession}
+        className="w-full bg-gradient-to-r from-emerald-600 to-emerald-800 p-5 rounded-[24px] shadow-2xl shadow-emerald-900/40 border border-white/10 flex items-center justify-between group active:scale-[0.98] transition-all relative overflow-hidden"
+      >
+          {isLocatingSession && <div className="absolute inset-0 bg-white/20 animate-pulse" />}
+          <div className="flex items-center gap-4 relative z-10">
+              <div className="bg-white/10 p-3 rounded-2xl">
+                  {isLocatingSession ? <Loader2 size={24} className="text-white animate-spin" /> : <Ticket size={24} className="text-white" />}
               </div>
-              <ChevronRight size={24} className="text-emerald-200 group-hover:translate-x-1 transition-transform relative z-10" />
-          </button>
-      </div>
+              <div className="text-left">
+                  <h3 className="text-lg font-black text-white italic tracking-tight uppercase">
+                      {isLocatingSession ? 'Locating Park...' : 'Start Park Session'}
+                  </h3>
+                  <p className="text-xs text-emerald-200 font-medium">
+                      {isLocatingSession ? 'Using GPS to find nearest park' : 'Auto-detect park & quick log'}
+                  </p>
+              </div>
+          </div>
+          <ChevronRight size={24} className="text-emerald-200 group-hover:translate-x-1 transition-transform relative z-10" />
+      </button>
       
       {/* Modals */}
       {viewingCreditData && (
