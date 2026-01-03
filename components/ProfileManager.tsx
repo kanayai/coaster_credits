@@ -1,11 +1,149 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { UserPlus, CheckCircle2, Smartphone, Share2, QrCode, Edit2, Save, X, FileSpreadsheet, Database, Download, Cloud, PaintBucket, Sparkles, Loader2, Copy, ExternalLink, Camera, ImageDown, Upload, Wrench, Share, FileJson, Trophy } from 'lucide-react';
+import { UserPlus, CheckCircle2, Smartphone, Share2, QrCode, Edit2, Save, X, FileSpreadsheet, Database, Download, Cloud, PaintBucket, Sparkles, Loader2, Copy, ExternalLink, Camera, ImageDown, Upload, Wrench, Share, FileJson, Trophy, FileText, Code2 } from 'lucide-react';
 import { User } from '../types';
 
+const DEPLOYMENT_GUIDE_CONTENT = `# CoasterCount Pro - Ultimate Deployment Guide
+
+This guide details how to take **CoasterCount Pro** from a local development project to a globally available application on the Web, Apple App Store, and Google Play Store.
+
+---
+
+## Phase 1: Preparation (Critical)
+
+Before deploying anywhere, you must address two critical areas: **Data Storage** and **API Security**.
+
+### 1. Data Persistence (The "Local Storage" Problem)
+*   **Current State:** The app uses \`localStorage\`. Data lives **only** on the user's phone browser. If they clear cache, uninstall the app, or switch phones, **their data is lost**.
+*   **Production Requirement:** To launch on App Stores, you strongly should implement a Cloud Backend.
+*   **Recommended Stack:**
+    *   **Firebase (Google):** Easiest integration. Provides Authentication (Google/Apple Sign-in) and Firestore (Database) for free.
+    *   **Supabase:** Excellent open-source alternative to Firebase.
+    *   *Why?* This allows users to "Log In" and restore their credits on any device.
+
+### 2. API Key Security
+*   **Current State:** The \`API_KEY\` is in the frontend code.
+*   **The Risk:** If you publish this to the App Store, hackers can extract your key and use your quota.
+*   **Solution:** Create a simple "Proxy Server" (using Vercel Functions or Cloudflare Workers). The app calls your server, and your server calls Gemini. This keeps the key hidden on the server.
+
+---
+
+## Phase 2: Web Deployment (Free & Immediate)
+
+This makes your app accessible via a URL (e.g., \`coastercount.com\`) and installable as a PWA (Progressive Web App).
+
+### 1. Hosting Providers
+*   **Vercel (Recommended):** Zero config for React.
+*   **Netlify:** Excellent alternative.
+
+### 2. Steps to Deploy
+1.  Push your code to **GitHub**.
+2.  Log in to Vercel/Netlify and import the repository.
+3.  **Environment Variables:** In the dashboard settings, add your \`API_KEY\`.
+4.  Click **Deploy**.
+5.  **Result:** You now have a live URL. Users can open it on Safari (iOS) or Chrome (Android) and tap "Add to Home Screen" to install it.
+
+---
+
+## Phase 3: Native Mobile App (App Store & Play Store)
+
+To get into the actual stores, you cannot simply upload a website. You need to wrap your code in a "Native Container".
+
+**Tool of Choice: Capacitor**
+We will use **CapacitorJS**. It takes your existing React build and wraps it into an Xcode project (iOS) and Android Studio project (Android).
+
+### 1. Prerequisites
+*   **Node.js** installed.
+*   **CocoaPods** (for iOS).
+*   **Xcode** (Mac required for iOS builds).
+*   **Android Studio** (PC or Mac for Android builds).
+
+### 2. Converting React to Native
+Run these commands in your project terminal:
+
+\`\`\`bash
+# 1. Install Capacitor
+npm install @capacitor/core @capacitor/cli @capacitor/ios @capacitor/android
+
+# 2. Initialize Capacitor
+npx cap init "CoasterCount Pro" com.yourname.coastercount
+
+# 3. Build your React App
+npm run build
+
+# 4. Add Mobile Platforms
+npx cap add ios
+npx cap add android
+
+# 5. Sync your code to the native projects
+npx cap sync
+\`\`\`
+
+---
+
+## Phase 4: Apple App Store (iOS)
+
+### Costs & Requirements
+*   **Apple Developer Program:** $99 / year (Recurring).
+*   **Hardware:** You MUST have a Mac to compile the final \`.ipa\` file.
+
+### Steps
+1.  **Open Xcode:** Run \`npx cap open ios\`.
+2.  **Signing:** In Xcode, go to the "Signing & Capabilities" tab and select your paid Apple Developer Team.
+3.  **Permissions:**
+    *   Update \`Info.plist\`. You must explain *why* you need permissions.
+    *   \`NSLocationWhenInUseUsageDescription\`: "We use your location to find nearby theme parks."
+    *   \`NSCameraUsageDescription\`: "Used to take photos of your ride credits."
+4.  **Assets:** Use a tool like \`@capacitor/assets\` to generate all required icon sizes automatically.
+5.  **Archive:** In Xcode, go to \`Product\` -> \`Archive\`.
+6.  **Upload:** Once archived, use the "Distribute App" button to upload to **App Store Connect**.
+7.  **Review:** Fill out the listing details (screenshots, description) in App Store Connect and submit for review.
+    *   *Review Time:* Usually 24-48 hours.
+
+---
+
+## Phase 5: Google Play Store (Android)
+
+### Costs & Requirements
+*   **Google Play Developer Account:** $25 (One-time fee).
+*   **Hardware:** PC or Mac.
+
+### Steps
+1.  **Open Android Studio:** Run \`npx cap open android\`.
+2.  **Permissions:** Ensure \`AndroidManifest.xml\` includes:
+    \`\`\`xml
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    \`\`\`
+3.  **Signing:** Generate a Keystore file (keep this safe! If you lose it, you can never update your app again).
+4.  **Build Bundle:** Go to \`Build\` -> \`Generate Signed Bundle / APK\` -> Select \`Android App Bundle (.aab)\`.
+5.  **Upload:** Create a release in the **Google Play Console** and upload the \`.aab\` file.
+6.  **Review:** Fill out the store listing.
+    *   *Review Time:* Can take 3-7 days for new accounts.
+
+---
+
+## Phase 6: Legal & Compliance (Required for Stores)
+
+Both Apple and Google **require** the following links on your store listing:
+
+1.  **Privacy Policy:** A webpage explaining what you do with user data (Location, Photos). Since you use Gemini AI and Google Maps, you must disclose this data usage.
+2.  **Terms of Service:** Standard legal disclaimer.
+3.  **Support URL:** A way for users to contact you.
+
+## Summary Checklist
+
+| Action | Cost | Difficulty | Time to Live |
+| :--- | :--- | :--- | :--- |
+| **Web / PWA** | Free | Easy | Minutes |
+| **Google Play** | $25 (One-time) | Medium | ~1 Week |
+| **Apple App Store** | $99 / Year | Hard | ~1 Week |
+`;
+
 const ProfileManager: React.FC = () => {
-  const { users, activeUser, switchUser, addUser, updateUser, credits, wishlist, coasters, generateIcon, enrichDatabaseImages, importData, standardizeDatabase, changeView } = useAppContext();
+  const { users, activeUser, switchUser, addUser, updateUser, credits, wishlist, coasters, generateIcon, enrichDatabaseImages, importData, standardizeDatabase, changeView, showNotification } = useAppContext();
   const [isAdding, setIsAdding] = useState(false);
   const [newUserName, setNewUserName] = useState('');
   const [newUserPhoto, setNewUserPhoto] = useState<File | undefined>(undefined);
@@ -33,6 +171,16 @@ const ProfileManager: React.FC = () => {
     link.href = URL.createObjectURL(blob);
     link.download = `CoasterCount_${activeUser.name.replace(/\s+/g, '_')}.csv`;
     link.click();
+    showNotification("CSV Exported", "success");
+  };
+
+  const handleDownloadDeploymentGuide = () => {
+      const blob = new Blob([DEPLOYMENT_GUIDE_CONTENT], { type: 'text/markdown' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'DEPLOYMENT.md';
+      link.click();
+      showNotification("Deployment Guide Downloaded", "success");
   };
 
   return (
@@ -70,7 +218,28 @@ const ProfileManager: React.FC = () => {
 
       <div className="border-t border-slate-800 pt-8">
         <div className="flex items-center gap-2 mb-4 text-white"><Cloud size={24} className="text-primary"/><h2 className="text-xl font-bold">Backups</h2></div>
-        <div className="grid grid-cols-2 gap-3"><button onClick={handleExportCSV} className="bg-slate-800 border border-slate-700 p-4 rounded-xl text-center"><FileSpreadsheet className="mx-auto mb-2 text-green-500" /> <span className="text-xs font-bold">CSV</span></button><button className="bg-slate-800 border border-slate-700 p-4 rounded-xl text-center"><Database className="mx-auto mb-2 text-primary" /> <span className="text-xs font-bold">JSON</span></button></div>
+        <div className="grid grid-cols-2 gap-3">
+            <button onClick={handleExportCSV} className="bg-slate-800 border border-slate-700 p-4 rounded-xl text-center hover:bg-slate-700 transition-colors">
+                <FileSpreadsheet className="mx-auto mb-2 text-green-500" /> <span className="text-xs font-bold">CSV Export</span>
+            </button>
+            <button onClick={() => showNotification("Coming soon to Cloud!", "info")} className="bg-slate-800 border border-slate-700 p-4 rounded-xl text-center hover:bg-slate-700 transition-colors opacity-50">
+                <Database className="mx-auto mb-2 text-primary" /> <span className="text-xs font-bold">JSON Backup</span>
+            </button>
+        </div>
+      </div>
+
+      <div className="border-t border-slate-800 pt-8">
+        <div className="flex items-center gap-2 mb-4 text-white"><Code2 className="text-blue-400" size={24} /><h2 className="text-xl font-bold">Developer Resources</h2></div>
+        <button onClick={handleDownloadDeploymentGuide} className="w-full bg-slate-800 border border-slate-700 p-4 rounded-xl flex items-center justify-center gap-3 hover:bg-slate-700 transition-colors group">
+            <div className="bg-blue-500/20 p-2 rounded-lg group-hover:bg-blue-500/30 transition-colors">
+                <FileText size={20} className="text-blue-400"/>
+            </div>
+            <div className="text-left">
+                <span className="block font-bold text-slate-200">Download Deployment Guide</span>
+                <span className="text-[10px] text-slate-400 uppercase tracking-wider">Instructions for App Store & Play Store</span>
+            </div>
+            <Download size={16} className="text-slate-500 ml-auto" />
+        </button>
       </div>
     </div>
   );

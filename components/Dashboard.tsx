@@ -2,7 +2,7 @@
 import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
-import { Trophy, Palmtree, Layers, Factory, Flag, CalendarRange, Globe, MapPin, Navigation, ChevronRight, Plus, Loader2, ListOrdered, Ticket } from 'lucide-react';
+import { Trophy, Palmtree, Layers, Factory, Flag, CalendarRange, MapPin, Navigation, ChevronRight, Plus, Loader2, ListOrdered, Ticket } from 'lucide-react';
 import EditCreditModal from './EditCreditModal';
 import RideDetailModal from './RideDetailModal';
 import ShareCardModal from './ShareCardModal';
@@ -130,7 +130,7 @@ const Dashboard: React.FC = () => {
   );
 
   return (
-    <div className="animate-fade-in pb-12 space-y-6 relative">
+    <div className="animate-fade-in pb-12 space-y-6 relative flex flex-col h-full">
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
@@ -192,17 +192,13 @@ const Dashboard: React.FC = () => {
           </div>
       </div>
 
-      {/* Action Buttons */}
-      <div className="grid grid-cols-2 gap-3">
-          <button onClick={() => changeView('ADD_CREDIT')} className="bg-primary hover:bg-primary-hover text-white p-4 rounded-2xl shadow-lg shadow-primary/20 flex flex-col items-center gap-2 transition-all active:scale-95 group">
-              <Plus size={24} className="group-hover:rotate-90 transition-transform"/>
-              <span className="font-bold text-sm">Log New Ride</span>
-          </button>
-          <button onClick={() => changeView('PARK_STATS')} className="bg-slate-800 hover:bg-slate-700 text-white p-4 rounded-2xl border border-slate-700 shadow-lg flex flex-col items-center gap-2 transition-all active:scale-95">
-              <Globe size={24} className="text-emerald-400"/>
-              <span className="font-bold text-sm">Park Map</span>
-          </button>
-      </div>
+      {/* Primary Action Button (Log Ride) - Full Width */}
+      <button onClick={() => changeView('ADD_CREDIT')} className="bg-primary hover:bg-primary-hover text-white p-4 rounded-2xl shadow-lg shadow-primary/20 flex items-center justify-center gap-3 transition-all active:scale-95 group w-full">
+          <div className="bg-white/20 p-2 rounded-xl group-hover:rotate-90 transition-transform">
+            <Plus size={24} />
+          </div>
+          <span className="font-bold text-lg">Log New Ride</span>
+      </button>
 
       {/* Recent Activity */}
       <div className="space-y-3">
@@ -328,27 +324,29 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Park Mode Session Button (Static at bottom) */}
-      <button 
-        onClick={handleStartParkSession}
-        disabled={isLocatingSession}
-        className="w-full bg-gradient-to-r from-emerald-600 to-emerald-800 p-5 rounded-[24px] shadow-2xl shadow-emerald-900/40 border border-white/10 flex items-center justify-between group active:scale-[0.98] transition-all relative overflow-hidden"
-      >
-          {isLocatingSession && <div className="absolute inset-0 bg-white/20 animate-pulse" />}
-          <div className="flex items-center gap-4 relative z-10">
-              <div className="bg-white/10 p-3 rounded-2xl">
-                  {isLocatingSession ? <Loader2 size={24} className="text-white animate-spin" /> : <Ticket size={24} className="text-white" />}
-              </div>
-              <div className="text-left">
-                  <h3 className="text-lg font-black text-white italic tracking-tight uppercase">
-                      {isLocatingSession ? 'Locating Park...' : 'Start Park Session'}
-                  </h3>
-                  <p className="text-xs text-emerald-200 font-medium">
-                      {isLocatingSession ? 'Using GPS to find nearest park' : 'Auto-detect park & quick log'}
-                  </p>
-              </div>
-          </div>
-          <ChevronRight size={24} className="text-emerald-200 group-hover:translate-x-1 transition-transform relative z-10" />
-      </button>
+      <div className="mt-auto">
+        <button 
+            onClick={handleStartParkSession}
+            disabled={isLocatingSession}
+            className="w-full bg-gradient-to-r from-emerald-600 to-emerald-800 p-5 rounded-[24px] shadow-2xl shadow-emerald-900/40 border border-white/10 flex items-center justify-between group active:scale-[0.98] transition-all relative overflow-hidden"
+        >
+            {isLocatingSession && <div className="absolute inset-0 bg-white/20 animate-pulse" />}
+            <div className="flex items-center gap-4 relative z-10">
+                <div className="bg-white/10 p-3 rounded-2xl">
+                    {isLocatingSession ? <Loader2 size={24} className="text-white animate-spin" /> : <Ticket size={24} className="text-white" />}
+                </div>
+                <div className="text-left">
+                    <h3 className="text-lg font-black text-white italic tracking-tight uppercase">
+                        {isLocatingSession ? 'Locating Park...' : 'Start Park Session'}
+                    </h3>
+                    <p className="text-xs text-emerald-200 font-medium">
+                        {isLocatingSession ? 'Using GPS to find nearest park' : 'Auto-detect park & quick log'}
+                    </p>
+                </div>
+            </div>
+            <ChevronRight size={24} className="text-emerald-200 group-hover:translate-x-1 transition-transform relative z-10" />
+        </button>
+      </div>
       
       {/* Modals */}
       {viewingCreditData && (
