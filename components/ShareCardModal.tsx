@@ -1,6 +1,7 @@
 
 import React from 'react';
-import { X, Download, Share2, MapPin, Zap, Star, Trophy } from 'lucide-react';
+import { useAppContext } from '../context/AppContext';
+import { X, Download, Share2, MapPin, Zap, Star, Trophy, Copy } from 'lucide-react';
 import { Credit, Coaster } from '../types';
 
 interface ShareCardModalProps {
@@ -10,6 +11,32 @@ interface ShareCardModalProps {
 }
 
 const ShareCardModal: React.FC<ShareCardModalProps> = ({ credit, coaster, onClose }) => {
+  const { showNotification } = useAppContext();
+
+  const handleShare = async () => {
+    const textToShare = `🎢 I just rode ${coaster.name} at ${coaster.park}!\n\n📅 Date: ${new Date(credit.date).toLocaleDateString()}\n⚡ Type: ${coaster.type}\n\nTracked with CoasterCount Pro`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'My Ride Log',
+          text: textToShare,
+        });
+        showNotification("Shared successfully!", "success");
+      } catch (error) {
+        // User cancelled or share failed
+        console.log("Share skipped", error);
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(textToShare);
+        showNotification("Ride details copied to clipboard!", "success");
+      } catch (error) {
+        showNotification("Could not share or copy.", "error");
+      }
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-fade-in">
       <div className="w-full max-w-sm flex flex-col gap-6">
@@ -77,14 +104,14 @@ const ShareCardModal: React.FC<ShareCardModalProps> = ({ credit, coaster, onClos
 
         {/* Actions */}
         <div className="flex flex-col gap-3">
-            <p className="text-center text-xs text-slate-400 font-medium">Screenshot the card above to share your credit!</p>
+            <p className="text-center text-xs text-slate-400 font-medium">Screenshot the card to save image, or Share to send text.</p>
             <div className="flex gap-3">
-                <button onClick={onClose} className="flex-1 bg-slate-800 py-4 rounded-2xl font-bold border border-slate-700 text-slate-300">Close</button>
+                <button onClick={onClose} className="flex-1 bg-slate-800 py-4 rounded-2xl font-bold border border-slate-700 text-slate-300 hover:bg-slate-700 transition-colors">Close</button>
                 <button 
-                  onClick={() => alert("Ready to share! Just take a screenshot of your beautiful card.")}
-                  className="flex-[2] bg-primary py-4 rounded-2xl font-bold text-white shadow-xl shadow-primary/20 flex items-center justify-center gap-2"
+                  onClick={handleShare}
+                  className="flex-[2] bg-primary hover:bg-primary-hover transition-colors py-4 rounded-2xl font-bold text-white shadow-xl shadow-primary/20 flex items-center justify-center gap-2"
                 >
-                    <Share2 size={20} /> Share Now
+                    <Share2 size={20} /> Share
                 </button>
             </div>
         </div>

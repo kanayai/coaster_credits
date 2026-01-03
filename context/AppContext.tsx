@@ -61,32 +61,98 @@ const generateId = (prefix: string) => {
   return `${prefix}_${timestamp}_${randomPart}`;
 };
 
+// Helper: Compress Image to avoid LocalStorage Quota Exceeded
+const compressImage = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 800;
+        const MAX_HEIGHT = 800;
+        let width = img.width;
+        let height = img.height;
+
+        // Calculate new dimensions
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            // Compress to JPEG with 0.7 quality
+            resolve(canvas.toDataURL('image/jpeg', 0.7));
+        } else {
+            reject(new Error("Canvas context failed"));
+        }
+      };
+      img.onerror = (e) => reject(e);
+    };
+    reader.onerror = (e) => reject(e);
+  });
+};
+
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [users, setUsers] = useState<User[]>(() => {
-    const stored = localStorage.getItem('cc_users');
-    return stored ? JSON.parse(stored) : INITIAL_USERS;
+    try {
+        const stored = localStorage.getItem('cc_users');
+        return stored ? JSON.parse(stored) : INITIAL_USERS;
+    } catch (e) {
+        console.error("Failed to load users", e);
+        return INITIAL_USERS;
+    }
   });
 
   const [activeUser, setActiveUser] = useState<User>(() => {
-    const storedId = localStorage.getItem('cc_active_user_id');
-    const storedUsers = localStorage.getItem('cc_users');
-    const parsedUsers = storedUsers ? JSON.parse(storedUsers) : INITIAL_USERS;
-    return parsedUsers.find((u: User) => u.id === storedId) || parsedUsers[0];
+    try {
+        const storedId = localStorage.getItem('cc_active_user_id');
+        const storedUsers = localStorage.getItem('cc_users');
+        const parsedUsers = storedUsers ? JSON.parse(storedUsers) : INITIAL_USERS;
+        return parsedUsers.find((u: User) => u.id === storedId) || parsedUsers[0];
+    } catch(e) {
+        return INITIAL_USERS[0];
+    }
   });
 
   const [coasters, setCoasters] = useState<Coaster[]>(() => {
-    const stored = localStorage.getItem('cc_coasters');
-    return stored ? JSON.parse(stored) : INITIAL_COASTERS;
+    try {
+        const stored = localStorage.getItem('cc_coasters');
+        return stored ? JSON.parse(stored) : INITIAL_COASTERS;
+    } catch (e) {
+        return INITIAL_COASTERS;
+    }
   });
 
   const [credits, setCredits] = useState<Credit[]>(() => {
-    const stored = localStorage.getItem('cc_credits');
-    return stored ? JSON.parse(stored) : [];
+    try {
+        const stored = localStorage.getItem('cc_credits');
+        return stored ? JSON.parse(stored) : [];
+    } catch(e) {
+        return [];
+    }
   });
 
   const [wishlist, setWishlist] = useState<WishlistEntry[]>(() => {
-    const stored = localStorage.getItem('cc_wishlist');
-    return stored ? JSON.parse(stored) : [];
+    try {
+        const stored = localStorage.getItem('cc_wishlist');
+        return stored ? JSON.parse(stored) : [];
+    } catch (e) {
+        return [];
+    }
   });
 
   const [currentView, setCurrentView] = useState<ViewState>('DASHBOARD');
@@ -94,11 +160,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [notification, setNotification] = useState<Notification | null>(null);
   const [lastSearchQuery, setLastSearchQuery] = useState('');
 
-  useEffect(() => localStorage.setItem('cc_users', JSON.stringify(users)), [users]);
-  useEffect(() => localStorage.setItem('cc_coasters', JSON.stringify(coasters)), [coasters]);
-  useEffect(() => localStorage.setItem('cc_credits', JSON.stringify(credits)), [credits]);
-  useEffect(() => localStorage.setItem('cc_wishlist', JSON.stringify(wishlist)), [wishlist]);
-  useEffect(() => localStorage.setItem('cc_active_user_id', activeUser.id), [activeUser]);
+  // Safe Storage Effects
+  useEffect(() => {
+    try { localStorage.setItem('cc_users', JSON.stringify(users)); } catch (e) { showNotification("Storage Full: Could not save Users", "error"); }
+  }, [users]);
+
+  useEffect(() => {
+    try { localStorage.setItem('cc_coasters', JSON.stringify(coasters)); } catch (e) { showNotification("Storage Full: Could not save Coasters", "error"); }
+  }, [coasters]);
+
+  useEffect(() => {
+    try { localStorage.setItem('cc_credits', JSON.stringify(credits)); } catch (e) { showNotification("Storage Full: Could not save Credits", "error"); }
+  }, [credits]);
+
+  useEffect(() => {
+    try { localStorage.setItem('cc_wishlist', JSON.stringify(wishlist)); } catch (e) { showNotification("Storage Full: Could not save Wishlist", "error"); }
+  }, [wishlist]);
+
+  useEffect(() => {
+    try { localStorage.setItem('cc_active_user_id', activeUser.id); } catch(e) {}
+  }, [activeUser]);
 
   const showNotification = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     setNotification({ id: generateId('notif'), message, type });
@@ -117,47 +198,51 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
-  const addUser = (name: string, photo?: File) => {
-    const processUser = (avatarUrl?: string) => {
-        const newUser: User = {
-          id: generateId('u'),
-          name,
-          avatarColor: ['bg-red-500', 'bg-green-500', 'bg-yellow-500', 'bg-purple-500', 'bg-pink-500', 'bg-indigo-500'][Math.floor(Math.random() * 6)],
-          avatarUrl,
-          rankings: { overall: [], steel: [], wooden: [], elements: {} }
-        };
-        setUsers(prev => [...prev, newUser]);
-        setActiveUser(newUser);
-        showNotification(`Profile "${name}" created!`, 'success');
-    };
-
+  const addUser = async (name: string, photo?: File) => {
+    let avatarUrl: string | undefined;
+    
     if (photo) {
-        const reader = new FileReader();
-        reader.onloadend = () => processUser(reader.result as string);
-        reader.readAsDataURL(photo);
-    } else {
-        processUser();
+        try {
+            avatarUrl = await compressImage(photo);
+        } catch (e) {
+            console.error("Image compression error", e);
+            showNotification("Failed to process photo", "error");
+            return;
+        }
     }
+
+    const newUser: User = {
+      id: generateId('u'),
+      name,
+      avatarColor: ['bg-red-500', 'bg-green-500', 'bg-yellow-500', 'bg-purple-500', 'bg-pink-500', 'bg-indigo-500'][Math.floor(Math.random() * 6)],
+      avatarUrl,
+      rankings: { overall: [], steel: [], wooden: [], elements: {} }
+    };
+    setUsers(prev => [...prev, newUser]);
+    setActiveUser(newUser);
+    showNotification(`Profile "${name}" created!`, 'success');
   };
 
-  const updateUser = (userId: string, newName: string, photo?: File) => {
-    const processUpdate = (avatarUrl?: string) => {
-        setUsers(prevUsers => prevUsers.map(u => 
-          u.id === userId ? { ...u, name: newName, ...(avatarUrl ? { avatarUrl } : {}) } : u
-        ));
-        if (activeUser.id === userId) {
-          setActiveUser(prev => ({ ...prev, name: newName, ...(avatarUrl ? { avatarUrl } : {}) }));
-        }
-        showNotification("Profile updated", 'success');
-    };
-
+  const updateUser = async (userId: string, newName: string, photo?: File) => {
+    let avatarUrl: string | undefined;
+    
     if (photo) {
-        const reader = new FileReader();
-        reader.onloadend = () => processUpdate(reader.result as string);
-        reader.readAsDataURL(photo);
-    } else {
-        processUpdate();
+        try {
+            avatarUrl = await compressImage(photo);
+        } catch (e) {
+             console.error("Image compression error", e);
+             showNotification("Failed to process photo", "error");
+             return;
+        }
     }
+
+    setUsers(prevUsers => prevUsers.map(u => 
+      u.id === userId ? { ...u, name: newName, ...(avatarUrl ? { avatarUrl } : {}) } : u
+    ));
+    if (activeUser.id === userId) {
+      setActiveUser(prev => ({ ...prev, name: newName, ...(avatarUrl ? { avatarUrl } : {}) }));
+    }
+    showNotification("Profile updated", 'success');
   };
 
   const updateRankings = (rankings: RankingList) => {
@@ -190,21 +275,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return wishlist.some(w => w.userId === activeUser.id && w.coasterId === coasterId);
   };
 
-  const addCredit = (coasterId: string, date: string, notes: string, restraints: string, photo?: File) => {
+  const addCredit = async (coasterId: string, date: string, notes: string, restraints: string, photo?: File) => {
     if (isInWishlist(coasterId)) {
       setWishlist(prev => prev.filter(w => !(w.userId === activeUser.id && w.coasterId === coasterId)));
     }
 
+    let photoUrl: string | undefined;
     if (photo) {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            const base64 = reader.result as string;
-            saveCredit(coasterId, date, notes, restraints, base64);
-        };
-        reader.readAsDataURL(photo);
-    } else {
-        saveCredit(coasterId, date, notes, restraints);
+        try {
+            photoUrl = await compressImage(photo);
+        } catch (e) {
+            console.error("Image compression error", e);
+            showNotification("Failed to process photo", "error");
+            return;
+        }
     }
+
+    saveCredit(coasterId, date, notes, restraints, photoUrl);
   };
 
   const saveCredit = (coasterId: string, date: string, notes: string, restraints: string, photoUrl?: string) => {
@@ -222,32 +309,32 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     showNotification("Ride Logged Successfully!", 'success');
   };
 
-  const updateCredit = (creditId: string, date: string, notes: string, restraints: string, photo?: File) => {
-    const processUpdate = (photoUrl?: string) => {
-      setCredits(prev => prev.map(c => {
-        if (c.id === creditId) {
-          return {
-            ...c,
-            date,
-            notes,
-            restraints,
-            ...(photoUrl !== undefined ? { photoUrl } : {})
-          };
-        }
-        return c;
-      }));
-      showNotification("Entry updated successfully", 'success');
-    };
-
+  const updateCredit = async (creditId: string, date: string, notes: string, restraints: string, photo?: File) => {
+    let photoUrl: string | undefined;
+    
     if (photo) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        processUpdate(reader.result as string);
-      };
-      reader.readAsDataURL(photo);
-    } else {
-      processUpdate(); 
+        try {
+            photoUrl = await compressImage(photo);
+        } catch (e) {
+             console.error("Image compression error", e);
+             showNotification("Failed to process photo", "error");
+             return;
+        }
     }
+
+    setCredits(prev => prev.map(c => {
+      if (c.id === creditId) {
+        return {
+          ...c,
+          date,
+          notes,
+          restraints,
+          ...(photoUrl !== undefined ? { photoUrl } : {})
+        };
+      }
+      return c;
+    }));
+    showNotification("Entry updated successfully", 'success');
   };
 
   const addNewCoaster = async (coasterData: Omit<Coaster, 'id'>): Promise<Coaster> => {

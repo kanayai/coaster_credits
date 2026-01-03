@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Coaster, CoasterType } from '../types';
@@ -39,7 +38,7 @@ const AddCredit: React.FC = () => {
       park: '', 
       country: '', 
       manufacturer: '', 
-      type: 'Steel' as CoasterType,
+      type: CoasterType.Steel,
       imageUrl: '' 
   });
   const [isEditingExisting, setIsEditingExisting] = useState(false);
@@ -109,7 +108,7 @@ const AddCredit: React.FC = () => {
                       park: res.park || '',
                       country: res.country || '',
                       manufacturer: res.manufacturer || '',
-                      type: res.type || 'Steel',
+                      type: res.type || CoasterType.Steel,
                       imageUrl: res.imageUrl || ''
                   });
                   setIsEditingExisting(false);
@@ -146,7 +145,7 @@ const AddCredit: React.FC = () => {
                   park: result.park || '',
                   country: result.country || '',
                   manufacturer: result.manufacturer || '',
-                  type: (result.type as CoasterType) || 'Steel',
+                  type: result.type || CoasterType.Steel,
                   imageUrl: result.imageUrl || ''
               });
               setIsEditingExisting(false);
@@ -267,7 +266,7 @@ const AddCredit: React.FC = () => {
               park: res.park || '',
               country: res.country || '',
               manufacturer: res.manufacturer || '',
-              type: res.type || 'Steel',
+              type: res.type || CoasterType.Steel,
               imageUrl: res.imageUrl || ''
           });
           setIsEditingExisting(false);
@@ -332,7 +331,7 @@ const AddCredit: React.FC = () => {
                                 onClick={handleFormUrlImport}
                                 disabled={isFormImporting}
                                 className="bg-emerald-600 text-white px-3 rounded-lg text-xs font-bold"
-                             >
+                              >
                                  {isFormImporting ? <Loader2 size={12} className="animate-spin" /> : <ArrowDownCircle size={14} />}
                              </button>
                              <button 
@@ -695,7 +694,7 @@ const AddCredit: React.FC = () => {
                     )}
 
                     <button onClick={() => { 
-                        setManualCoasterData({ id: '', name: '', park: '', country: '', manufacturer: '', type: 'Steel', imageUrl: '' });
+                        setManualCoasterData({ id: '', name: '', park: '', country: '', manufacturer: '', type: CoasterType.Steel, imageUrl: '' });
                         setIsEditingExisting(false);
                         setIsAddingManually(true); 
                     }} className="w-full text-slate-600 py-2 text-[10px] font-bold uppercase tracking-wider hover:text-slate-400">Add Completely Manually</button>

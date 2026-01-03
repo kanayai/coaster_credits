@@ -23,7 +23,7 @@ const MILESTONES: MilestoneDefinition[] = [
 ];
 
 const Milestones: React.FC = () => {
-  const { credits, activeUser, changeView, coasters } = useAppContext();
+  const { credits, activeUser, changeView, coasters, showNotification } = useAppContext();
 
   const userCredits = useMemo(() => 
     credits
@@ -50,6 +50,22 @@ const Milestones: React.FC = () => {
   }, [userCredits, coasters]);
 
   const currentUniqueCount = uniqueCount.length;
+
+  const handleShare = async (milestoneTitle: string, threshold: number) => {
+    const text = `🏆 I just unlocked the "${milestoneTitle}" achievement on CoasterCount Pro!\n\nI've ridden ${threshold} unique roller coasters. Can you beat my count?`;
+    
+    if (navigator.share) {
+        try {
+            await navigator.share({ title: 'Milestone Unlocked!', text });
+            showNotification("Shared successfully!", "success");
+        } catch (e) {
+            console.log("Share skipped");
+        }
+    } else {
+        navigator.clipboard.writeText(text);
+        showNotification("Milestone copied to clipboard!", "success");
+    }
+  };
 
   return (
     <div className="animate-fade-in pb-12 space-y-6">
@@ -120,7 +136,10 @@ const Milestones: React.FC = () => {
                                 {m.threshold} {m.title.toUpperCase()}
                             </h4>
                             {isUnlocked && (
-                                <button className="text-slate-500 hover:text-primary transition-colors">
+                                <button 
+                                    onClick={() => handleShare(m.title, m.threshold)}
+                                    className="text-slate-500 hover:text-primary transition-colors p-1"
+                                >
                                     <Share2 size={16} />
                                 </button>
                             )}

@@ -2,7 +2,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
-import { Trophy, ClipboardList, Palmtree, Layers, Factory, Flag, CalendarRange, Edit2, Globe, Hash, MapPin, Navigation, ChevronRight, Zap, Star, Share2, Plus, Award, Sparkles, ExternalLink, Loader2 } from 'lucide-react';
+import { Trophy, ClipboardList, Palmtree, Layers, Factory, Flag, CalendarRange, Edit2, Globe, Hash, MapPin, Navigation, ChevronRight, Zap, Star, Share2, Plus, Award, Sparkles, ExternalLink, Loader2, ListOrdered } from 'lucide-react';
 import EditCreditModal from './EditCreditModal';
 import { Credit, Coaster } from '../types';
 import { normalizeManufacturer } from '../constants';
@@ -108,231 +108,274 @@ const Dashboard: React.FC = () => {
   };
 
   const MetricButton = ({ mode, label, icon: Icon }: { mode: ChartMetric, label: string, icon: React.ElementType }) => (
-      <button
-        onClick={() => setChartMetric(mode)}
-        className={clsx(
-            "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-all border",
-            chartMetric === mode ? "bg-primary text-white border-primary shadow-lg shadow-primary/20" : "bg-slate-900 border-slate-700 text-slate-400 hover:text-white"
-        )}
-      >
-          <Icon size={12} />
-          {label}
-      </button>
+    <button
+      onClick={() => setChartMetric(mode)}
+      className={clsx(
+        "flex-1 flex flex-col items-center justify-center py-3 min-w-[70px] rounded-xl transition-all relative overflow-hidden",
+        chartMetric === mode ? "bg-slate-700 text-white shadow-md border border-slate-600" : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200"
+      )}
+    >
+      <Icon size={18} className={clsx("mb-1", chartMetric === mode ? "text-primary" : "opacity-70")} />
+      <span className="text-[10px] font-bold uppercase tracking-wide">{label}</span>
+      {chartMetric === mode && <div className="absolute bottom-0 w-8 h-0.5 bg-primary rounded-t-full" />}
+    </button>
   );
 
   return (
-    <div className="space-y-6 animate-fade-in pb-10">
-      
-      {/* 1. Milestone Progress Card */}
-      <div 
-        onClick={() => changeView('MILESTONES')}
-        className="group relative bg-slate-800/60 backdrop-blur-md border border-slate-700 p-6 rounded-[32px] overflow-hidden cursor-pointer active:scale-[0.98] transition-all shadow-2xl"
-      >
-          <div className="absolute top-0 right-0 w-32 h-32 bg-primary/20 blur-[60px] group-hover:bg-primary/40 transition-all rounded-full" />
-          
-          <div className="flex items-center justify-between relative z-10">
-              <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="bg-primary/20 text-primary px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-[0.2em] border border-primary/30">
-                        {currentLevelName}
-                    </span>
-                    <Sparkles size={14} className="text-amber-400 animate-pulse" />
-                  </div>
-                  <h3 className="text-3xl font-black text-white italic tracking-tighter">
-                    {uniqueCreditsCount} <span className="text-slate-500 text-xl font-bold">/ {nextMilestone}</span>
-                  </h3>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">
-                    Progress to Next Badge <ChevronRight size={10} className="text-primary" />
-                  </p>
-              </div>
-              
-              <div className="relative w-20 h-20">
-                  <div className="absolute inset-0 bg-primary/10 rounded-full animate-ping opacity-20" />
-                  <svg className="w-full h-full transform -rotate-90">
-                      <circle cx="40" cy="40" r="34" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-slate-900" />
-                      <circle cx="40" cy="40" r="34" stroke="currentColor" strokeWidth="8" fill="transparent" strokeDasharray={2 * Math.PI * 34} strokeDashoffset={2 * Math.PI * 34 * (1 - progressToNext / 100)} className="text-primary transition-all duration-1000 ease-out" strokeLinecap="round" />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                      <Award size={28} className="text-primary drop-shadow-[0_0_10px_rgba(14,165,233,0.5)]" />
-                  </div>
-              </div>
-          </div>
-          
-          <div className="mt-6 flex items-center gap-3">
-              <div className="flex-1 h-2 bg-slate-900 rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-primary via-primary/80 to-accent transition-all duration-1000" style={{ width: `${progressToNext}%` }} />
-              </div>
-              <span className="text-[10px] font-black text-slate-500 italic">{Math.round(progressToNext)}%</span>
-          </div>
-      </div>
-
-      {/* 2. Personal Rankings Shortcut */}
-      <button 
-          onClick={() => changeView('RANKINGS')}
-          className="w-full bg-slate-800/80 border border-yellow-500/30 p-4 rounded-[24px] flex items-center justify-between group active:scale-[0.98] transition-all shadow-lg hover:bg-slate-800"
-      >
-          <div className="flex items-center gap-4">
-              <div className="bg-gradient-to-br from-yellow-400 to-amber-600 p-3 rounded-2xl text-slate-900 shadow-lg shadow-amber-500/20">
-                  <Trophy size={22} fill="currentColor" className="text-white mix-blend-overlay" />
-              </div>
-              <div className="text-left">
-                  <h3 className="font-bold text-white text-lg leading-none italic tracking-tight">MY TOP 10</h3>
-                  <p className="text-[10px] text-yellow-500 font-black uppercase tracking-widest mt-1">Manage Rankings</p>
-              </div>
-          </div>
-          <div className="w-10 h-10 rounded-full bg-slate-900 border border-slate-700 flex items-center justify-center group-hover:border-yellow-500/50 transition-colors">
-              <ChevronRight size={18} className="text-slate-400 group-hover:text-yellow-500" />
-          </div>
-      </button>
-
-      {/* 3. Main Stats Grid */}
-      <div className="grid grid-cols-2 gap-4">
-        <div 
-            className="bg-slate-800 rounded-2xl p-5 shadow-lg border border-slate-700 relative overflow-hidden cursor-pointer active:scale-95 transition-transform group"
-            onClick={() => { setCoasterListViewMode('CREDITS'); changeView('COASTER_LIST'); }}
-        >
-            <div className="relative z-10">
-                <h2 className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Unique Credits</h2>
-                <div className="text-4xl font-black text-white mt-1 tracking-tighter">{uniqueCreditsCount}</div>
-                <div className="flex items-center gap-1 mt-2 text-[10px] font-bold text-primary bg-primary/10 w-fit px-2 py-1 rounded-md">
-                    <Zap size={10} /> {totalRidesCount} TOTAL
-                </div>
-            </div>
+    <div className="animate-fade-in pb-12 space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className="text-3xl font-black italic tracking-tighter text-white">RIDE<span className="text-primary">STATS</span></h1>
+          <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">{activeUser.name}'s Dashboard</p>
         </div>
-
-        <div 
-            className="bg-slate-800 rounded-2xl p-5 shadow-lg border border-slate-700 relative overflow-hidden cursor-pointer active:scale-95 transition-transform group" 
-            onClick={() => { setCoasterListViewMode('WISHLIST'); changeView('COASTER_LIST'); }}
-        >
-            <div className="relative z-10">
-                 <h2 className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Bucket List</h2>
-                 <div className="text-4xl font-black text-white mt-1 tracking-tighter">{userWishlist.length}</div>
-                 <p className="text-amber-500 mt-1 text-[10px] font-bold flex items-center gap-1">GO TO LIST <ChevronRight size={10} /></p>
-            </div>
+        <div className="flex gap-2">
+            <button 
+                onClick={() => {
+                    const randomCoaster = coasters[Math.floor(Math.random() * coasters.length)];
+                    setLastSearchQuery(randomCoaster.park);
+                    changeView('ADD_CREDIT');
+                }}
+                className="bg-slate-800 p-2.5 rounded-xl text-slate-400 hover:text-white border border-slate-700 hover:border-slate-500 transition-all"
+            >
+                <Navigation size={20} />
+            </button>
         </div>
       </div>
 
-      {/* 4. Statistics Panel */}
-      <div className="bg-slate-800 p-5 rounded-3xl border border-slate-700 shadow-xl">
-            <div className="flex justify-between items-center mb-6">
-                <h3 className="text-lg font-bold text-white flex items-center gap-2">Insights</h3>
-                <div className="flex gap-1 overflow-x-auto no-scrollbar max-w-[60%]">
-                    <MetricButton mode="PARK" label="Park" icon={Palmtree} />
-                    <MetricButton mode="TYPE" label="Type" icon={Layers} />
-                    <MetricButton mode="MANUFACTURER" label="Brand" icon={Factory} />
-                </div>
-            </div>
-
-            {uniqueCreditsCount > 0 ? (
-                <div className="flex flex-col sm:flex-row items-center gap-6">
-                    <div className="h-40 w-40 relative shrink-0">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie data={chartData} cx="50%" cy="50%" innerRadius={45} outerRadius={65} paddingAngle={4} dataKey="value" stroke="none">
-                                    {chartData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
-                                </Pie>
-                                <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: 'none', borderRadius: '12px' }} />
-                            </PieChart>
-                        </ResponsiveContainer>
-                    </div>
-                    <div className="flex-1 grid grid-cols-1 gap-2 w-full">
-                        {chartData.slice(0, 4).map((entry, index) => (
-                            <div key={entry.name} className="flex items-center justify-between text-xs bg-slate-900/40 p-2.5 rounded-xl border border-slate-700/50">
-                                <div className="flex items-center gap-3 truncate">
-                                    <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
-                                    <span className="text-slate-300 truncate font-medium">{entry.name}</span>
-                                </div>
-                                <span className="font-bold text-white">{entry.value}</span>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            ) : (
-                <div className="h-40 w-full flex flex-col items-center justify-center text-slate-500 border-2 border-dashed border-slate-700 rounded-2xl bg-slate-800/50">
-                    <p className="text-xs font-medium">No data to visualize yet</p>
-                </div>
-            )}
-      </div>
-
-      {/* 5. Parks Near Me (Restored) */}
-      <div className="bg-slate-800 rounded-[32px] p-6 border border-slate-700 shadow-xl overflow-hidden relative">
-          <div className="absolute top-0 right-0 p-8 opacity-5 text-emerald-500 pointer-events-none">
-              <Globe size={120} />
+      {/* Main Stats Card */}
+      <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-[32px] p-6 shadow-2xl border border-slate-700 relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
+              <Trophy size={140} />
           </div>
           
-          <div className="relative z-10 space-y-4">
-              <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                      <div className="bg-emerald-500/10 p-2 rounded-xl text-emerald-500">
-                          <Navigation size={20} />
-                      </div>
-                      <div>
-                          <h3 className="font-bold text-white text-lg">Parks Near Me</h3>
-                          <p className="text-[10px] text-slate-400 uppercase tracking-widest">Find local thrills</p>
-                      </div>
-                  </div>
-                  <button 
-                    onClick={handleLocateParks} 
-                    disabled={isLoadingParks}
-                    className="bg-emerald-500 hover:bg-emerald-600 text-white p-2.5 rounded-xl transition-all shadow-lg active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                      {isLoadingParks ? <Loader2 size={20} className="animate-spin" /> : <Sparkles size={20} />}
-                  </button>
-              </div>
+          <div className="relative z-10 flex flex-col items-center text-center space-y-2 py-4">
+               <div className="w-full flex justify-between items-center text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">
+                  <span>Current Level</span>
+                  <span>{Math.round(progressToNext)}% to Next</span>
+               </div>
+               
+               <div className="w-32 h-32 rounded-full border-8 border-slate-700/50 flex items-center justify-center bg-slate-800 shadow-[inset_0_2px_20px_rgba(0,0,0,0.5)] relative">
+                   <div className="absolute inset-0 rounded-full border-8 border-primary border-t-transparent rotate-45" style={{ transform: `rotate(${progressToNext * 3.6}deg)` }}></div>
+                   <div className="flex flex-col items-center">
+                       <span className="text-4xl font-black text-white italic tracking-tighter">{uniqueCreditsCount}</span>
+                       <span className="text-[9px] text-slate-400 uppercase font-bold">Credits</span>
+                   </div>
+               </div>
 
-              {nearbyParks ? (
-                  <div className="animate-fade-in-up space-y-3">
-                      <div className="text-sm text-slate-300 bg-slate-900/50 p-4 rounded-xl border border-slate-700/50 leading-relaxed whitespace-pre-wrap">
-                        {nearbyParks.text}
-                      </div>
-                      
-                      {nearbyParks.groundingChunks && nearbyParks.groundingChunks.length > 0 && (
-                          <div className="grid grid-cols-1 gap-2">
-                             {nearbyParks.groundingChunks.map((chunk, idx) => {
-                                 if (!chunk.maps) return null;
-                                 return (
-                                     <a 
-                                        key={idx}
-                                        href={chunk.maps.uri}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="flex items-center justify-between bg-slate-700/30 hover:bg-slate-700/50 p-3 rounded-xl border border-slate-600/30 transition-all group"
-                                     >
-                                         <span className="text-sm font-bold text-emerald-400 truncate">{chunk.maps.title}</span>
-                                         <ExternalLink size={14} className="text-slate-500 group-hover:text-white" />
-                                     </a>
-                                 );
-                             })}
-                          </div>
+               <div className="space-y-1 mt-2">
+                   <h2 className="text-xl font-bold text-white">{currentLevelName}</h2>
+                   <p className="text-xs text-slate-400">Ride <span className="text-primary font-bold">{nextMilestone - uniqueCreditsCount}</span> more unique coasters to level up!</p>
+               </div>
+
+               <div className="grid grid-cols-2 gap-3 w-full mt-6">
+                   <div className="bg-slate-950/30 rounded-xl p-3 border border-slate-700/50">
+                       <div className="text-[10px] text-slate-500 font-bold uppercase">Total Rides</div>
+                       <div className="text-lg font-bold text-white">{totalRidesCount}</div>
+                   </div>
+                   <div onClick={() => changeView('MILESTONES')} className="bg-slate-950/30 rounded-xl p-3 border border-slate-700/50 hover:bg-slate-950/50 cursor-pointer transition-colors group/milestone">
+                       <div className="flex items-center justify-between">
+                            <div className="text-[10px] text-slate-500 font-bold uppercase">Next Goal</div>
+                            <ChevronRight size={12} className="text-slate-600 group-hover/milestone:text-white" />
+                       </div>
+                       <div className="text-lg font-bold text-primary">{nextMilestone}</div>
+                   </div>
+               </div>
+          </div>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="grid grid-cols-2 gap-3">
+          <button onClick={() => changeView('ADD_CREDIT')} className="bg-primary hover:bg-primary-hover text-white p-4 rounded-2xl shadow-lg shadow-primary/20 flex flex-col items-center gap-2 transition-all active:scale-95 group">
+              <Plus size={24} className="group-hover:rotate-90 transition-transform"/>
+              <span className="font-bold text-sm">Log New Ride</span>
+          </button>
+          <button onClick={() => changeView('PARK_STATS')} className="bg-slate-800 hover:bg-slate-700 text-white p-4 rounded-2xl border border-slate-700 shadow-lg flex flex-col items-center gap-2 transition-all active:scale-95">
+              <Globe size={24} className="text-emerald-400"/>
+              <span className="font-bold text-sm">Park Map</span>
+          </button>
+      </div>
+
+      {/* Recent Activity */}
+      <div className="space-y-3">
+          <div className="flex items-center justify-between px-1">
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Recent Activity</h3>
+              <button onClick={() => changeView('COASTER_LIST')} className="text-[10px] font-bold text-primary hover:underline">VIEW ALL</button>
+          </div>
+          
+          {recentCredit && recentCoaster ? (
+              <div className="bg-slate-800 p-4 rounded-2xl border border-slate-700 flex gap-4 items-center shadow-md relative overflow-hidden">
+                  <div className="w-16 h-16 rounded-xl bg-slate-900 shrink-0 overflow-hidden relative border border-slate-600">
+                      {recentCoaster.imageUrl ? (
+                          <img src={recentCoaster.imageUrl} className="w-full h-full object-cover" alt={recentCoaster.name} />
+                      ) : (
+                          <div className="w-full h-full flex items-center justify-center text-slate-600"><Palmtree size={20}/></div>
                       )}
                   </div>
-              ) : (
-                  <div className="py-6 text-center border-2 border-dashed border-slate-700/50 rounded-2xl">
-                      <p className="text-xs text-slate-500 font-medium">Tap the sparkle button to scan your area.</p>
+                  <div className="flex-1 min-w-0">
+                      <h4 className="font-bold text-white truncate text-lg leading-tight">{recentCoaster.name}</h4>
+                      <div className="flex items-center gap-1.5 text-slate-400 text-xs mt-1">
+                          <MapPin size={12} className="text-primary"/>
+                          <span className="truncate">{recentCoaster.park}</span>
+                      </div>
+                      <div className="text-[10px] text-slate-500 mt-1 flex gap-2">
+                          <span className="bg-slate-900 px-1.5 py-0.5 rounded border border-slate-700">{new Date(recentCredit.date).toLocaleDateString()}</span>
+                          {recentCredit.rideCount > 1 && <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded border border-primary/20 font-bold">x{recentCredit.rideCount}</span>}
+                      </div>
                   </div>
-              )}
+                  <button onClick={() => setEditingCreditData({ credit: recentCredit, coaster: recentCoaster })} className="absolute top-2 right-2 p-2 text-slate-500 hover:text-white bg-slate-900/50 rounded-lg backdrop-blur-sm">
+                      <Edit2 size={14} />
+                  </button>
+              </div>
+          ) : (
+              <div className="bg-slate-800/50 p-6 rounded-2xl border border-dashed border-slate-700 text-center">
+                  <p className="text-slate-500 text-sm mb-2">No rides logged yet.</p>
+                  <button onClick={() => changeView('ADD_CREDIT')} className="text-primary text-xs font-bold uppercase">Start Logging</button>
+              </div>
+          )}
+
+          {/* Quick Continue Marathon */}
+          {lastParkVisited && (
+             <div onClick={handleContinueMarathon} className="bg-gradient-to-r from-emerald-900/40 to-slate-800 border border-emerald-500/20 p-3 rounded-xl flex items-center justify-between cursor-pointer hover:border-emerald-500/40 transition-colors">
+                 <div className="flex items-center gap-3">
+                     <div className="bg-emerald-500/20 p-2 rounded-lg text-emerald-500">
+                         <Palmtree size={18} />
+                     </div>
+                     <div>
+                         <div className="text-[10px] font-bold text-emerald-400 uppercase tracking-wide">Continue Marathon</div>
+                         <div className="text-sm font-bold text-white">Add more at {lastParkVisited}</div>
+                     </div>
+                 </div>
+                 <ChevronRight size={16} className="text-slate-500" />
+             </div>
+          )}
+      </div>
+
+      {/* Analytics Chart */}
+      <div className="space-y-3">
+          <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">Analytics</h3>
+          <div className="bg-slate-800 rounded-[28px] p-5 border border-slate-700 shadow-xl">
+              <div className="flex bg-slate-800 p-1 rounded-2xl border border-slate-700 overflow-x-auto no-scrollbar">
+                  <MetricButton mode="PARK" label="Park" icon={Palmtree} />
+                  <MetricButton mode="TYPE" label="Type" icon={Layers} />
+                  <MetricButton mode="MANUFACTURER" label="Manufacturer" icon={Factory} />
+                  <MetricButton mode="COUNTRY" label="Country" icon={Flag} />
+                  <MetricButton mode="YEAR" label="Year" icon={CalendarRange} />
+              </div>
+
+              <div className="h-64 mt-6 relative">
+                  {chartData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                              <Pie
+                                  data={chartData}
+                                  cx="50%"
+                                  cy="50%"
+                                  innerRadius={60}
+                                  outerRadius={80}
+                                  paddingAngle={5}
+                                  dataKey="value"
+                                  stroke="none"
+                              >
+                                  {chartData.map((entry, index) => (
+                                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                  ))}
+                              </Pie>
+                              <Tooltip 
+                                  contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', borderRadius: '12px', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
+                                  itemStyle={{ color: '#fff' }}
+                              />
+                          </PieChart>
+                      </ResponsiveContainer>
+                  ) : (
+                      <div className="absolute inset-0 flex items-center justify-center text-slate-500 text-sm font-medium">
+                          Not enough data to chart.
+                      </div>
+                  )}
+                  {/* Center Stat */}
+                  {chartData.length > 0 && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                          <span className="text-3xl font-black text-white">{chartData[0]?.value}</span>
+                          <span className="text-[10px] text-slate-400 font-bold uppercase max-w-[80px] truncate text-center">{chartData[0]?.name}</span>
+                      </div>
+                  )}
+              </div>
+
+              {/* Legend */}
+              <div className="grid grid-cols-2 gap-2 mt-4">
+                  {chartData.slice(0, 4).map((entry, idx) => (
+                      <div key={idx} className="flex items-center gap-2 text-xs">
+                          <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: COLORS[idx % COLORS.length] }} />
+                          <span className="text-slate-300 truncate flex-1">{entry.name}</span>
+                          <span className="font-bold text-white">{entry.value}</span>
+                      </div>
+                  ))}
+              </div>
           </div>
       </div>
 
-      {/* 6. Marathon Continue (Moved to Bottom) */}
-      {lastParkVisited && (
-        <button 
-            onClick={handleContinueMarathon}
-            className="w-full bg-gradient-to-r from-emerald-600/20 to-teal-600/10 border border-emerald-500/30 p-4 rounded-3xl flex items-center justify-between group active:scale-[0.98] transition-all shadow-xl"
-        >
-            <div className="flex items-center gap-4">
-                <div className="bg-emerald-500 p-2.5 rounded-2xl text-white shadow-lg shadow-emerald-500/30 rotate-3 group-hover:rotate-0 transition-transform">
-                    <Palmtree size={22} fill="currentColor" />
-                </div>
-                <div className="text-left">
-                    <h3 className="font-bold text-white text-base leading-tight">Park Lineup</h3>
-                    <p className="text-[10px] text-emerald-500 font-black uppercase tracking-widest">Quick-log at {lastParkVisited}</p>
-                </div>
-            </div>
-            <ChevronRight size={18} className="text-emerald-500/50 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" />
-        </button>
-      )}
+      {/* Rankings Teaser */}
+      <div onClick={() => changeView('RANKINGS')} className="bg-gradient-to-r from-indigo-900/50 to-purple-900/50 p-6 rounded-[28px] border border-indigo-500/30 relative overflow-hidden group cursor-pointer">
+          <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-gradient-to-l from-indigo-500/20 to-transparent" />
+          <div className="relative z-10 flex items-center justify-between">
+              <div>
+                  <div className="flex items-center gap-2 mb-2">
+                      <div className="bg-indigo-500 p-1.5 rounded-lg text-white">
+                          <ListOrdered size={16} />
+                      </div>
+                      <span className="text-[10px] font-bold text-indigo-300 uppercase tracking-widest">My Top 10</span>
+                  </div>
+                  <h3 className="text-xl font-bold text-white">Manage Rankings</h3>
+                  <p className="text-xs text-slate-300 mt-1">Organize your favorite coasters</p>
+              </div>
+              <ChevronRight size={24} className="text-indigo-300 group-hover:translate-x-1 transition-transform" />
+          </div>
+      </div>
 
+      {/* Nearby Parks Widget (Gemini Grounding) */}
+      <div className="bg-slate-800 rounded-2xl p-5 border border-slate-700 shadow-md">
+           <div className="flex items-center justify-between mb-4">
+               <div className="flex items-center gap-2">
+                   <MapPin size={16} className="text-primary" />
+                   <h3 className="text-sm font-bold text-white">Nearby Parks</h3>
+               </div>
+               <button 
+                  onClick={handleLocateParks} 
+                  disabled={isLoadingParks}
+                  className="text-[10px] bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded-lg font-bold transition-colors flex items-center gap-1"
+               >
+                   {isLoadingParks ? <Loader2 size={10} className="animate-spin" /> : <Navigation size={10} />}
+                   LOCATE
+               </button>
+           </div>
+           
+           {nearbyParks ? (
+               <div className="space-y-3">
+                   <div className="text-xs text-slate-300 whitespace-pre-line leading-relaxed">
+                       {nearbyParks.text}
+                   </div>
+                   {nearbyParks.groundingChunks && nearbyParks.groundingChunks.length > 0 && (
+                       <div className="flex flex-wrap gap-2 mt-2">
+                           {nearbyParks.groundingChunks.map((chunk, idx) => {
+                               if (chunk.web?.uri) {
+                                   return (
+                                       <a key={idx} href={chunk.web.uri} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 bg-slate-900 text-slate-400 hover:text-white px-2 py-1 rounded-md text-[10px] border border-slate-700 truncate max-w-full">
+                                           <ExternalLink size={10} /> {chunk.web.title || 'Source'}
+                                       </a>
+                                   );
+                               }
+                               return null;
+                           })}
+                       </div>
+                   )}
+               </div>
+           ) : (
+               <div className="text-center py-4 text-xs text-slate-500 italic">
+                   Tap Locate to find parks near you using AI.
+               </div>
+           )}
+      </div>
+      
       {editingCreditData && <EditCreditModal credit={editingCreditData.credit} coaster={editingCreditData.coaster} onClose={() => setEditingCreditData(null)} />}
     </div>
   );

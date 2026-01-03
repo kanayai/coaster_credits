@@ -30,6 +30,7 @@ const Rankings: React.FC = () => {
     if (!elements['Best First Drop']) elements['Best First Drop'] = [];
     if (!elements['Best Finale']) elements['Best Finale'] = [];
     if (!elements['Best Zero-G Roll']) elements['Best Zero-G Roll'] = [];
+    if (!elements["Best RMC's"]) elements["Best RMC's"] = [];
 
     return {
         ...base,
@@ -88,8 +89,8 @@ const Rankings: React.FC = () => {
               elements: { ...tempRankings.elements, [activeElementKey]: list }
           });
       } else {
-          const listKey = activeTab;
-          const list = [...tempRankings[listKey]];
+          const listKey = activeTab as 'overall' | 'steel' | 'wooden';
+          const list = [...(tempRankings[listKey] || [])];
           if (target < 0 || target >= list.length) return;
           [list[index], list[target]] = [list[target], list[index]];
           setTempRankings({ ...tempRankings, [listKey]: list });
@@ -108,7 +109,8 @@ const Rankings: React.FC = () => {
                   elements: { ...prev.elements, [key]: [...currentList, id] }
                }));
           } else {
-              setTempRankings(prev => ({ ...prev, [key]: [...currentList, id] }));
+              const listKey = key as 'overall' | 'steel' | 'wooden';
+              setTempRankings(prev => ({ ...prev, [listKey]: [...currentList, id] }));
           }
       };
 
@@ -131,7 +133,7 @@ const Rankings: React.FC = () => {
                }
            });
       } else {
-          const listKey = activeTab;
+          const listKey = activeTab as 'overall' | 'steel' | 'wooden';
           setTempRankings({ ...tempRankings, [listKey]: tempRankings[listKey].filter(itemId => itemId !== id) });
       }
   };
@@ -173,256 +175,172 @@ const Rankings: React.FC = () => {
       }
   };
 
-  const currentRankedList = useMemo(() => {
-      if (activeTab === 'elements') {
-          return tempRankings.elements?.[activeElementKey] || [];
-      }
-      return tempRankings[activeTab];
-  }, [tempRankings, activeTab, activeElementKey]);
-
   return (
-    <div className="animate-fade-in space-y-6 pb-24">
+    <div className="animate-fade-in pb-20 space-y-4">
+      {/* Header */}
       <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button onClick={() => changeView('PROFILE')} className="bg-slate-800 p-2 rounded-full border border-slate-700 text-slate-400 hover:text-white transition-colors">
-                <ArrowLeft size={20}/>
-            </button>
+        <div className="flex items-center gap-3">
+            <button onClick={() => changeView('PROFILE')} className="bg-slate-800 p-2 rounded-full border border-slate-700 text-slate-400 hover:text-white"><ArrowLeft size={20} /></button>
             <h2 className="text-2xl font-bold">Rankings</h2>
-          </div>
-
-          {/* Limit Selector */}
-          <div className="flex items-center gap-2 bg-slate-800 p-1 pl-3 rounded-xl border border-slate-700">
-              <ListOrdered size={16} className="text-slate-400" />
-              <select 
-                value={rankingLimit} 
-                onChange={(e) => setRankingLimit(Number(e.target.value))}
-                className="bg-transparent text-xs font-bold text-white focus:outline-none appearance-none pr-6 cursor-pointer"
-                style={{ backgroundImage: 'none' }}
-              >
-                  <option value={10}>Top 10</option>
-                  <option value={25}>Top 25</option>
-                  <option value={50}>Top 50</option>
-                  <option value={100}>Top 100</option>
-              </select>
-              <div className="pointer-events-none absolute right-3">
-                 <ChevronDown size={12} className="text-slate-500" />
-              </div>
-          </div>
+        </div>
+        <button onClick={handleSave} className="bg-primary text-white px-4 py-2 rounded-xl font-bold text-sm shadow-lg shadow-primary/20 flex items-center gap-2">
+            <Save size={16} /> Save
+        </button>
       </div>
 
-      {/* Tab Switcher */}
-      <div className="flex bg-slate-900/50 p-1 rounded-2xl border border-slate-700 overflow-x-auto no-scrollbar">
-          <button 
-            onClick={() => { setActiveTab('overall'); setSearchQuery(''); }} 
-            className={clsx(
-                "flex-1 min-w-[70px] py-3 rounded-xl flex flex-col items-center justify-center gap-1 transition-all relative overflow-hidden", 
-                activeTab === 'overall' ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" : "text-slate-500 hover:text-slate-300"
-            )}
-          >
-              <div className="flex items-center gap-2 font-bold uppercase text-[10px] tracking-widest relative z-10">
-                <Globe size={14}/> Overall
-              </div>
-          </button>
-          <button 
-            onClick={() => { setActiveTab('steel'); setSearchQuery(''); }} 
-            className={clsx(
-                "flex-1 min-w-[70px] py-3 rounded-xl flex flex-col items-center justify-center gap-1 transition-all relative overflow-hidden", 
-                activeTab === 'steel' ? "bg-primary text-white shadow-lg shadow-primary/20" : "text-slate-500 hover:text-slate-300"
-            )}
-          >
-              <div className="flex items-center gap-2 font-bold uppercase text-[10px] tracking-widest relative z-10">
-                <Layers size={14}/> Steel
-              </div>
-          </button>
-          <button 
-            onClick={() => { setActiveTab('wooden'); setSearchQuery(''); }} 
-            className={clsx(
-                "flex-1 min-w-[70px] py-3 rounded-xl flex flex-col items-center justify-center gap-1 transition-all relative overflow-hidden", 
-                activeTab === 'wooden' ? "bg-amber-600 text-white shadow-lg shadow-amber-600/20" : "text-slate-500 hover:text-slate-300"
-            )}
-          >
-              <div className="flex items-center gap-2 font-bold uppercase text-[10px] tracking-widest relative z-10">
-                <TreeDeciduous size={14}/> Wooden
-              </div>
-          </button>
-          <button 
-            onClick={() => { setActiveTab('elements'); setSearchQuery(''); }} 
-            className={clsx(
-                "flex-1 min-w-[70px] py-3 rounded-xl flex flex-col items-center justify-center gap-1 transition-all relative overflow-hidden", 
-                activeTab === 'elements' ? "bg-pink-600 text-white shadow-lg shadow-pink-600/20" : "text-slate-500 hover:text-slate-300"
-            )}
-          >
-              <div className="flex items-center gap-2 font-bold uppercase text-[10px] tracking-widest relative z-10">
-                <Zap size={14}/> Elements
-              </div>
-          </button>
+      {/* Tabs */}
+      <div className="flex p-1 bg-slate-800 rounded-xl border border-slate-700 overflow-x-auto no-scrollbar">
+          {(['overall', 'steel', 'wooden', 'elements'] as const).map(tab => (
+              <button 
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={clsx(
+                    "flex-1 py-2 px-4 rounded-lg text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all",
+                    activeTab === tab ? "bg-slate-700 text-white shadow-sm" : "text-slate-400 hover:text-slate-200"
+                )}
+              >
+                  {tab === 'elements' ? 'Custom Lists' : tab}
+              </button>
+          ))}
       </div>
 
       {/* Elements Sub-Nav */}
       {activeTab === 'elements' && (
-          <div className="animate-fade-in-down">
-              <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
-                  <button 
-                    onClick={() => setIsAddingCategory(true)}
-                    className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-full border border-dashed border-slate-600 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors text-xs font-bold"
-                  >
-                      <Plus size={14} /> New
+          <div className="space-y-3 bg-slate-800/50 p-4 rounded-2xl border border-slate-700/50">
+              <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                      <ListOrdered size={16} /> Lists
+                  </h3>
+                  <button onClick={() => setIsAddingCategory(true)} className="text-primary text-xs font-bold flex items-center gap-1 hover:underline">
+                      <Plus size={12} /> New List
                   </button>
-                  {tempRankings.elements && Object.keys(tempRankings.elements).map(key => (
+              </div>
+              
+              {isAddingCategory && (
+                  <form onSubmit={handleCreateCategory} className="flex gap-2 animate-fade-in">
+                      <input 
+                        autoFocus
+                        value={newCategoryName}
+                        onChange={e => setNewCategoryName(e.target.value)}
+                        placeholder="e.g. Best Airtime"
+                        className="flex-1 bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-xs text-white"
+                      />
+                      <button type="submit" className="bg-emerald-600 text-white px-3 py-2 rounded-lg"><Save size={14}/></button>
+                      <button type="button" onClick={() => setIsAddingCategory(false)} className="bg-slate-700 text-white px-3 py-2 rounded-lg"><X size={14}/></button>
+                  </form>
+              )}
+
+              <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                  {Object.keys(tempRankings.elements || {}).map(key => (
                       <button
                         key={key}
                         onClick={() => setActiveElementKey(key)}
                         className={clsx(
-                            "shrink-0 px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all border flex items-center gap-2 group",
-                            activeElementKey === key 
-                                ? "bg-pink-600 text-white border-pink-500 shadow-md" 
-                                : "bg-slate-800 text-slate-400 border-slate-700 hover:text-white"
+                            "px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap border transition-all flex items-center gap-2 group",
+                            activeElementKey === key ? "bg-primary/20 text-primary border-primary/50" : "bg-slate-900 text-slate-400 border-slate-700"
                         )}
                       >
                           {key}
                           {activeElementKey === key && (
-                              <span 
-                                onClick={(e) => { e.stopPropagation(); deleteCategory(key); }}
-                                className="bg-black/20 rounded-full p-0.5 hover:bg-black/40"
-                              >
+                              <div onClick={(e) => { e.stopPropagation(); deleteCategory(key); }} className="hover:text-red-400 p-0.5 rounded">
                                   <X size={10} />
-                              </span>
+                              </div>
                           )}
                       </button>
                   ))}
               </div>
-
-              {isAddingCategory && (
-                  <form onSubmit={handleCreateCategory} className="flex gap-2 mt-2 animate-fade-in">
-                      <input 
-                        autoFocus
-                        type="text" 
-                        placeholder="Category Name (e.g. Best Airtime)" 
-                        value={newCategoryName}
-                        onChange={e => setNewCategoryName(e.target.value)}
-                        className="flex-1 bg-slate-900 border border-slate-600 rounded-xl px-4 py-2 text-sm text-white"
-                      />
-                      <button type="submit" className="bg-emerald-600 text-white px-4 rounded-xl font-bold text-xs">Create</button>
-                      <button type="button" onClick={() => setIsAddingCategory(false)} className="bg-slate-800 text-slate-400 px-4 rounded-xl font-bold text-xs">Cancel</button>
-                  </form>
+              
+              {Object.keys(tempRankings.elements || {}).length === 0 && !isAddingCategory && (
+                  <div className="text-center text-slate-500 text-xs py-2 italic">Create a custom list to start ranking specific elements!</div>
               )}
           </div>
       )}
 
-      {/* Current Rankings List */}
-      <div className="space-y-3">
-          <div className="flex justify-between items-center px-1">
-             <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                {activeTab === 'elements' ? activeElementKey : `Your Top ${rankingLimit} ${activeTab}`}
-             </h3>
-             <span className="text-[10px] font-bold text-slate-600">{currentRankedList.length} / {rankingLimit}</span>
-          </div>
-          
-          {currentRankedList.length === 0 ? (
-              <div className="h-32 flex flex-col items-center justify-center bg-slate-800/30 border-2 border-dashed border-slate-700 rounded-2xl text-slate-500">
-                  <Trophy size={28} className="mb-2 opacity-20"/>
-                  <p className="text-xs">Your ranking is empty.</p>
-              </div>
-          ) : (
-              currentRankedList.map((id, index) => {
-                  const coaster = coasters.find(c => c.id === id);
-                  if (!coaster) return null;
-                  const rank = index + 1;
-                  return (
-                      <div key={id} className="bg-slate-800 border border-slate-700 p-3 rounded-xl flex items-center gap-4 animate-scale-in">
-                          <div className={clsx(
-                              "w-8 h-8 shrink-0 flex items-center justify-center rounded-lg font-bold text-sm shadow-inner",
-                              rank === 1 ? "bg-yellow-500 text-slate-900" : 
-                              rank === 2 ? "bg-slate-300 text-slate-900" : 
-                              rank === 3 ? "bg-amber-700 text-white" : 
-                              "bg-slate-900 text-slate-400"
-                          )}>
-                              {rank}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                              <div className="font-bold text-white text-sm truncate">{coaster.name}</div>
-                              <div className="flex items-center gap-2 text-[10px] text-slate-400">
-                                  <span className="truncate">{coaster.park}</span>
-                                  {/* Show Type Badge in Overall/Elements views */}
-                                  {(activeTab === 'overall' || activeTab === 'elements') && (
-                                     <span className={clsx("px-1.5 py-0.5 rounded text-[8px] font-black uppercase", coaster.type === CoasterType.Wooden ? "bg-amber-600/20 text-amber-500" : "bg-blue-500/20 text-blue-400")}>
-                                         {coaster.type === CoasterType.Wooden ? 'WOOD' : 'STEEL'}
-                                     </span>
-                                  )}
-                              </div>
-                          </div>
-                          <div className="flex items-center gap-1">
-                              <div className="flex flex-col">
-                                <button onClick={() => moveItem(index, 'up')} disabled={index === 0} className="p-1 text-slate-500 hover:text-white disabled:opacity-20"><ChevronUp size={14}/></button>
-                                <button onClick={() => moveItem(index, 'down')} disabled={index === currentRankedList.length - 1} className="p-1 text-slate-500 hover:text-white disabled:opacity-20"><ChevronDown size={14}/></button>
-                              </div>
-                              <button onClick={() => removeItem(id)} className="p-2 ml-1 bg-red-500/10 text-slate-500 hover:text-red-400 hover:bg-red-500/20 rounded-lg transition-colors">
-                                <Trash2 size={16}/>
-                              </button>
-                          </div>
-                      </div>
-                  );
-              })
-          )}
+      {/* Main Ranking List */}
+      <div className="space-y-2">
+           {(() => {
+               let currentList: string[] = [];
+               if (activeTab === 'elements') {
+                   currentList = (tempRankings.elements && activeElementKey) ? (tempRankings.elements[activeElementKey] || []) : [];
+               } else {
+                   // Explicit cast for safety
+                   const listKey = activeTab as 'overall' | 'steel' | 'wooden';
+                   currentList = tempRankings[listKey];
+               }
+
+               if (activeTab === 'elements' && !activeElementKey) return null;
+
+               return (
+                   <div className="space-y-2">
+                       {currentList.map((coasterId, index) => {
+                           const coaster = coasters.find(c => c.id === coasterId);
+                           if (!coaster) return null;
+                           return (
+                               <div key={coaster.id} className="bg-slate-800 p-3 rounded-xl border border-slate-700 flex items-center gap-3 animate-fade-in group">
+                                   <div className="w-8 h-8 rounded-full bg-slate-900 flex items-center justify-center font-black text-slate-500 text-sm border border-slate-700 shadow-inner">
+                                       {index + 1}
+                                   </div>
+                                   <div className="flex-1 min-w-0">
+                                       <div className="font-bold text-white truncate text-sm">{coaster.name}</div>
+                                       <div className="text-[10px] text-slate-500 truncate">{coaster.park}</div>
+                                   </div>
+                                   <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                                       <button onClick={() => moveItem(index, 'up')} disabled={index === 0} className="p-1.5 text-slate-400 hover:text-white disabled:opacity-30"><ChevronUp size={16}/></button>
+                                       <button onClick={() => moveItem(index, 'down')} disabled={index === currentList.length - 1} className="p-1.5 text-slate-400 hover:text-white disabled:opacity-30"><ChevronDown size={16}/></button>
+                                       <button onClick={() => removeItem(coaster.id)} className="p-1.5 text-slate-500 hover:text-red-400 ml-1"><Trash2 size={16}/></button>
+                                   </div>
+                               </div>
+                           );
+                       })}
+                       
+                       {currentList.length === 0 && (
+                           <div className="text-center py-8 text-slate-500 border-2 border-dashed border-slate-800 rounded-2xl">
+                               <ListOrdered size={32} className="mx-auto mb-2 opacity-50" />
+                               <p className="text-sm">List is empty.</p>
+                               <p className="text-xs">Add coasters below!</p>
+                           </div>
+                       )}
+                   </div>
+               );
+           })()}
       </div>
 
-      {/* Search & Add New Section */}
-      {currentRankedList.length < rankingLimit && (activeTab !== 'elements' || activeElementKey) && (
-          <div className="space-y-4 pt-4 border-t border-slate-800">
-              <div className="flex items-center justify-between">
-                  <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Add Ridden Coasters</h3>
-                  <div className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">{availableCoasters.length} Available</div>
-              </div>
-              
-              <div className="relative">
-                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+      {/* Add Item Section */}
+      {(activeTab !== 'elements' || activeElementKey) && (
+          <div className="pt-4 border-t border-slate-800">
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Add to Ranking</h3>
+              <div className="relative mb-3">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
                   <input 
-                    type="text" 
-                    placeholder={`Search...`} 
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 py-2.5 text-sm text-white focus:ring-1 focus:ring-primary focus:outline-none"
+                    onChange={e => setSearchQuery(e.target.value)}
+                    placeholder="Search your ridden coasters..."
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 py-3 text-sm text-white focus:ring-1 focus:ring-primary outline-none"
                   />
               </div>
-
-              <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto pr-1 no-scrollbar">
-                  {availableCoasters.map(coaster => (
-                      <button 
-                        key={coaster.id}
-                        onClick={() => addItem(coaster.id)}
-                        className="bg-slate-800/40 border border-slate-700/50 p-2.5 rounded-xl text-left hover:bg-slate-800 hover:border-slate-600 transition-all flex items-center justify-between group"
-                      >
-                          <div className="min-w-0 flex-1">
-                              <div className="text-xs font-bold text-slate-200 truncate group-hover:text-white">{coaster.name}</div>
-                              <div className="text-[10px] text-slate-500 truncate">{coaster.park}</div>
-                          </div>
-                          <div className="bg-primary/10 text-primary p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Plus size={14}/>
-                          </div>
-                      </button>
-                  ))}
-                  {availableCoasters.length === 0 && riddenCoasters.length > 0 && searchQuery && (
-                      <p className="text-center text-xs text-slate-500 py-4 italic">No matches for "{searchQuery}"</p>
-                  )}
-                  {riddenCoasters.length === 0 && (
-                      <div className="text-center py-6 bg-slate-900/30 rounded-2xl border border-dashed border-slate-800">
-                        <p className="text-xs text-slate-500 mb-3 px-4">You haven't logged any coasters yet!</p>
-                        <button onClick={() => changeView('ADD_CREDIT')} className="text-[10px] font-bold text-primary uppercase tracking-widest border border-primary/30 px-3 py-1.5 rounded-lg hover:bg-primary/10">Log Rides Now</button>
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
+                  {availableCoasters.length === 0 ? (
+                      <div className="text-center py-4 text-xs text-slate-500">
+                          {searchQuery ? "No matching ridden coasters found." : "All eligible coasters ranked!"}
                       </div>
+                  ) : (
+                      availableCoasters.slice(0, 20).map(coaster => (
+                          <button 
+                            key={coaster.id}
+                            onClick={() => addItem(coaster.id)}
+                            className="w-full bg-slate-800/50 hover:bg-slate-800 p-3 rounded-xl border border-slate-700/50 flex items-center justify-between text-left transition-colors group"
+                          >
+                              <div className="min-w-0">
+                                  <div className="font-bold text-slate-300 group-hover:text-white text-xs truncate">{coaster.name}</div>
+                                  <div className="text-[10px] text-slate-500 truncate">{coaster.park}</div>
+                              </div>
+                              <Plus size={16} className="text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </button>
+                      ))
                   )}
               </div>
           </div>
       )}
-
-      {/* Global Save Button */}
-      <div className="fixed bottom-20 left-4 right-4 z-50">
-           <button 
-            onClick={handleSave}
-            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-2xl shadow-xl shadow-emerald-900/30 flex items-center justify-center gap-2 transition-all transform active:scale-95"
-           >
-               <Save size={20}/> Save All Rankings
-           </button>
-      </div>
     </div>
   );
 };
