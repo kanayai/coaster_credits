@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User, Coaster, Credit, ViewState, WishlistEntry } from '../types';
+import { User, Coaster, Credit, ViewState, WishlistEntry, RankingList } from '../types';
 import { INITIAL_COASTERS, INITIAL_USERS, normalizeManufacturer, cleanName } from '../constants';
 import { generateCoasterInfo, generateAppIcon } from '../services/geminiService';
 import { fetchCoasterImageFromWiki } from '../services/wikipediaService';
@@ -34,32 +34,24 @@ interface AppContextType {
   changeView: (view: ViewState) => void;
   setCoasterListViewMode: (mode: 'CREDITS' | 'WISHLIST') => void;
   deleteCredit: (creditId: string) => void;
-  
-  // Search State Action
   setLastSearchQuery: (query: string) => void;
-
-  // Wishlist Actions
   addToWishlist: (coasterId: string) => void;
   removeFromWishlist: (coasterId: string) => void;
   isInWishlist: (coasterId: string) => boolean;
-  
-  // Notification
   showNotification: (message: string, type?: 'success' | 'error' | 'info') => void;
   hideNotification: () => void;
-
-  // Image Actions
   enrichDatabaseImages: () => Promise<void>;
   updateCoasterImage: (coasterId: string, imageUrl: string) => void;
   autoFetchCoasterImage: (coasterId: string) => Promise<string | null>;
-
-  // Data Management
   importData: (jsonData: any) => void;
   standardizeDatabase: () => void;
+  
+  // Ranking Actions
+  updateRankings: (rankings: RankingList) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-// Robust ID generation
 const generateId = (prefix: string) => {
   const timestamp = Date.now().toString(36);
   const randomPart = Math.random().toString(36).substr(2, 9);
@@ -67,7 +59,6 @@ const generateId = (prefix: string) => {
 };
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  // Load initial state from local storage or defaults
   const [users, setUsers] = useState<User[]>(() => {
     const stored = localStorage.getItem('cc_users');
     return stored ? JSON.parse(stored) : INITIAL_USERS;
@@ -100,7 +91,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [notification, setNotification] = useState<Notification | null>(null);
   const [lastSearchQuery, setLastSearchQuery] = useState('');
 
-  // Persistence Effects
   useEffect(() => localStorage.setItem('cc_users', JSON.stringify(users)), [users]);
   useEffect(() => localStorage.setItem('cc_coasters', JSON.stringify(coasters)), [coasters]);
   useEffect(() => localStorage.setItem('cc_credits', JSON.stringify(credits)), [credits]);
@@ -109,10 +99,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const showNotification = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     setNotification({ id: generateId('notif'), message, type });
-    // Auto-hide after 3 seconds
     setTimeout(() => {
         setNotification(prev => (prev && prev.message === message ? null : prev));
-    }, 3000);
+    }, 4000);
   };
 
   const hideNotification = () => setNotification(null);
@@ -131,7 +120,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           id: generateId('u'),
           name,
           avatarColor: ['bg-red-500', 'bg-green-500', 'bg-yellow-500', 'bg-purple-500', 'bg-pink-500', 'bg-indigo-500'][Math.floor(Math.random() * 6)],
-          avatarUrl
+          avatarUrl,
+          rankings: { steel: [], wooden: [] }
         };
         setUsers([...users, newUser]);
         setActiveUser(newUser);
@@ -167,6 +157,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  const updateRankings = (rankings: RankingList) => {
+    setUsers(prev => prev.map(u => u.id === activeUser.id ? { ...u, rankings } : u));
+    setActiveUser(prev => ({ ...prev, rankings }));
+    showNotification("Rankings updated!", 'success');
+  };
+
   const addToWishlist = (coasterId: string) => {
     if (isInWishlist(coasterId)) {
         showNotification("Already in bucket list", 'info');
@@ -192,7 +188,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const addCredit = (coasterId: string, date: string, notes: string, restraints: string, photo?: File) => {
-    // If it's in the wishlist, remove it (Bucket list achieved!)
     if (isInWishlist(coasterId)) {
       setWishlist(prev => prev.filter(w => !(w.userId === activeUser.id && w.coasterId === coasterId)));
     }
@@ -233,8 +228,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             date,
             notes,
             restraints,
-            // Only update photoUrl if a new one is processed (photoUrl is passed as string)
-            // If it is undefined, we keep the existing one (spread c first)
             ...(photoUrl !== undefined ? { photoUrl } : {})
           };
         }
@@ -250,35 +243,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       };
       reader.readAsDataURL(photo);
     } else {
-      processUpdate(); // Update text fields only
+      processUpdate(); 
     }
   };
 
   const addNewCoaster = async (coasterData: Omit<Coaster, 'id'>): Promise<Coaster> => {
     const newId = generateId('c');
-    
-    // Attempt to get a real image immediately upon creation if one wasn't provided or is a placeholder
     let finalImageUrl = coasterData.imageUrl;
     if (!finalImageUrl || finalImageUrl.includes('picsum')) {
        const wikiImage = await fetchCoasterImageFromWiki(coasterData.name, coasterData.park);
        if (wikiImage) finalImageUrl = wikiImage;
     }
 
-    // Normalize manufacturer & Clean Names (Remove accents from Park/Country)
-    const normalizedManufacturer = normalizeManufacturer(coasterData.manufacturer);
-    const cleanedPark = cleanName(coasterData.park);
-    const cleanedCountry = cleanName(coasterData.country);
-
     const newCoaster: Coaster = { 
         ...coasterData, 
-        park: cleanedPark,
-        country: cleanedCountry,
-        manufacturer: normalizedManufacturer,
+        park: cleanName(coasterData.park),
+        country: cleanName(coasterData.country),
+        manufacturer: normalizeManufacturer(coasterData.manufacturer),
         id: newId, 
         imageUrl: finalImageUrl 
     };
     setCoasters([...coasters, newCoaster]);
-    showNotification("New Coaster Added to Database", 'success');
+    showNotification("Added to Database", 'success');
     return newCoaster;
   };
 
@@ -304,7 +290,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const autoFetchCoasterImage = async (coasterId: string): Promise<string | null> => {
       const coaster = coasters.find(c => c.id === coasterId);
       if (!coaster) return null;
-      
       const imageUrl = await fetchCoasterImageFromWiki(coaster.name, coaster.park);
       if (imageUrl) {
           updateCoasterImage(coasterId, imageUrl);
@@ -315,27 +300,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const enrichDatabaseImages = async () => {
       showNotification("Searching Wikipedia for photos...", 'info');
-      
-      // Filter coasters that have picsum placeholders or no image
       const targets = coasters.filter(c => !c.imageUrl || c.imageUrl.includes('picsum'));
       let updatedCount = 0;
-      
-      console.log(`Starting enrichment for ${targets.length} coasters`);
-
-      // Batch process to be polite but faster
       const BATCH_SIZE = 5;
-      
       for (let i = 0; i < targets.length; i += BATCH_SIZE) {
           const batch = targets.slice(i, i + BATCH_SIZE);
-          
           const results = await Promise.all(
               batch.map(async (coaster) => {
                   const url = await fetchCoasterImageFromWiki(coaster.name, coaster.park);
                   return { id: coaster.id, url };
               })
           );
-
-          // Apply batch updates
           setCoasters(prev => {
               let nextState = [...prev];
               results.forEach(res => {
@@ -349,11 +324,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               });
               return nextState;
           });
-          
-          // Small delay between batches to be nice to API
           await new Promise(r => setTimeout(r, 100));
       }
-
       if (updatedCount > 0) {
           showNotification(`Updated ${updatedCount} coasters with real photos!`, 'success');
       } else {
@@ -363,121 +335,87 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const importData = (jsonData: any) => {
       try {
+          const idTranslationTable: Record<string, string> = {}; 
           let mergedCoasterCount = 0;
-          let mergedCreditCount = 0;
+          let addedCoasterCount = 0;
+          let addedCreditCount = 0;
 
-          // 1. Import Coasters (preserve custom ones)
           if (jsonData.coasters && Array.isArray(jsonData.coasters)) {
               setCoasters(prev => {
-                  const existingIds = new Set(prev.map(c => c.id));
-                  const newCoasters = jsonData.coasters.filter((c: Coaster) => !existingIds.has(c.id));
-                  mergedCoasterCount = newCoasters.length;
-                  return [...prev, ...newCoasters];
+                  const nextCoasters = [...prev];
+                  jsonData.coasters.forEach((newC: Coaster) => {
+                      const normName = cleanName(newC.name).toLowerCase();
+                      const normPark = cleanName(newC.park).toLowerCase();
+                      const existing = nextCoasters.find(c => 
+                        c.id === newC.id || (cleanName(c.name).toLowerCase() === normName && cleanName(c.park).toLowerCase() === normPark)
+                      );
+                      if (existing) {
+                        idTranslationTable[newC.id] = existing.id;
+                        mergedCoasterCount++;
+                      } else {
+                        const newId = generateId('c');
+                        idTranslationTable[newC.id] = newId;
+                        nextCoasters.push({ ...newC, id: newId });
+                        addedCoasterCount++;
+                      }
+                  });
+                  return nextCoasters;
               });
           }
 
-          // 2. Import Credits
-          // We import credits and assign them to the CURRENT ACTIVE USER to make it useful for moving data
           if (jsonData.credits && Array.isArray(jsonData.credits)) {
               setCredits(prev => {
                   const existingIds = new Set(prev.map(c => c.id));
                   const toAdd = jsonData.credits
                     .filter((c: Credit) => !existingIds.has(c.id))
-                    .map((c: Credit) => ({...c, userId: activeUser.id})); // Remap to current user
-                  
-                  mergedCreditCount = toAdd.length;
+                    .map((c: Credit) => ({ ...c, userId: activeUser.id, coasterId: idTranslationTable[c.coasterId] || c.coasterId }));
+                  addedCreditCount = toAdd.length;
                   return [...prev, ...toAdd];
               });
           }
-
-          // 3. Import Wishlist
-          if (jsonData.wishlist && Array.isArray(jsonData.wishlist)) {
-              setWishlist(prev => {
-                  const existingIds = new Set(prev.map(w => w.id));
-                  const toAdd = jsonData.wishlist
-                    .filter((w: WishlistEntry) => !existingIds.has(w.id))
-                    .map((w: WishlistEntry) => ({...w, userId: activeUser.id})); // Remap to current user
-
-                  return [...prev, ...toAdd];
-              });
-          }
-          
-          if (jsonData.type === 'COASTER_DB_ONLY') {
-              showNotification(`Database merged! Added ${mergedCoasterCount} new coasters.`, 'success');
-          } else {
-              showNotification(`Import success! Added ${mergedCreditCount} rides and ${mergedCoasterCount} coasters.`, 'success');
-          }
+          showNotification(`Import success! Added ${addedCreditCount} rides.`, 'success');
       } catch (e) {
-          console.error(e);
-          showNotification("Failed to import data. Invalid format.", 'error');
+          showNotification("Failed to import.", 'error');
       }
   };
 
   const standardizeDatabase = () => {
-    let changedCount = 0;
-    
-    setCoasters(prev => prev.map(c => {
-      const normalizedMfg = normalizeManufacturer(c.manufacturer);
-      // Clean and remove accents from Park and Country to ensure grouping works
-      const cleanedPark = cleanName(c.park);
-      const cleanedCountry = cleanName(c.country);
-      
-      if (
-        normalizedMfg !== c.manufacturer || 
-        cleanedPark !== c.park || 
-        cleanedCountry !== c.country
-      ) {
-        changedCount++;
-        return {
-          ...c,
-          manufacturer: normalizedMfg,
-          park: cleanedPark,
-          country: cleanedCountry
-        };
-      }
-      return c;
+    const normalizedCoasters = coasters.map(c => ({
+        ...c,
+        name: cleanName(c.name),
+        park: cleanName(c.park),
+        manufacturer: normalizeManufacturer(c.manufacturer)
     }));
+    const uniqueMap = new Map<string, string>();
+    const idTranslationTable: Record<string, string> = {};
+    const deduplicatedCoasters: Coaster[] = [];
+    let mergedCount = 0;
 
-    if (changedCount > 0) {
-      showNotification(`Standardized ${changedCount} entries (Merged accented names, etc).`, 'success');
-    } else {
-      showNotification("Database is already standardized.", 'info');
+    normalizedCoasters.forEach(c => {
+        const key = `${c.name.toLowerCase()}|${c.park.toLowerCase()}`;
+        if (uniqueMap.has(key)) {
+            idTranslationTable[c.id] = uniqueMap.get(key)!;
+            mergedCount++;
+        } else {
+            uniqueMap.set(key, c.id);
+            deduplicatedCoasters.push(c);
+        }
+    });
+
+    if (mergedCount > 0) {
+        setCredits(prev => prev.map(cr => idTranslationTable[cr.coasterId] ? { ...cr, coasterId: idTranslationTable[cr.coasterId] } : cr));
+        setCoasters(deduplicatedCoasters);
+        showNotification(`Merged ${mergedCount} duplicates.`, 'success');
     }
   };
 
   return (
     <AppContext.Provider value={{
-      activeUser,
-      users,
-      coasters,
-      credits,
-      wishlist,
-      currentView,
-      coasterListViewMode,
-      notification,
-      lastSearchQuery,
-      switchUser,
-      addUser,
-      updateUser,
-      addCredit,
-      updateCredit,
-      addNewCoaster,
-      searchOnlineCoaster,
-      generateIcon,
-      changeView,
-      setCoasterListViewMode,
-      deleteCredit,
-      addToWishlist,
-      removeFromWishlist,
-      isInWishlist,
-      showNotification,
-      hideNotification,
-      setLastSearchQuery,
-      enrichDatabaseImages,
-      updateCoasterImage,
-      autoFetchCoasterImage,
-      importData,
-      standardizeDatabase
+      activeUser, users, coasters, credits, wishlist, currentView, coasterListViewMode, notification, lastSearchQuery,
+      switchUser, addUser, updateUser, addCredit, updateCredit, addNewCoaster, searchOnlineCoaster, generateIcon,
+      changeView, setCoasterListViewMode, deleteCredit, addToWishlist, removeFromWishlist, isInWishlist,
+      showNotification, hideNotification, setLastSearchQuery, enrichDatabaseImages, updateCoasterImage, autoFetchCoasterImage,
+      importData, standardizeDatabase, updateRankings
     }}>
       {children}
     </AppContext.Provider>

@@ -9,6 +9,13 @@ export enum CoasterType {
   Bobsled = 'Bobsled'
 }
 
+export interface CoasterSpecs {
+  height?: string;
+  speed?: string;
+  length?: string;
+  inversions?: number;
+}
+
 export interface Coaster {
   id: string;
   name: string;
@@ -17,7 +24,8 @@ export interface Coaster {
   type: CoasterType;
   manufacturer: string;
   imageUrl?: string;
-  isCustom?: boolean; // If added by user/AI and not in base DB
+  isCustom?: boolean;
+  specs?: CoasterSpecs;
 }
 
 export interface Credit {
@@ -26,7 +34,7 @@ export interface Credit {
   coasterId: string;
   date: string;
   rideCount: number;
-  photoUrl?: string; // User uploaded selfie/pic
+  photoUrl?: string;
   notes?: string;
   restraints?: string;
 }
@@ -39,11 +47,17 @@ export interface WishlistEntry {
   notes?: string;
 }
 
+export interface RankingList {
+  steel: string[]; // Coaster IDs in order
+  wooden: string[]; // Coaster IDs in order
+}
+
 export interface User {
   id: string;
   name: string;
   avatarColor: string;
-  avatarUrl?: string; // Custom profile picture
+  avatarUrl?: string;
+  rankings?: RankingList;
 }
 
-export type ViewState = 'DASHBOARD' | 'ADD_CREDIT' | 'COASTER_LIST' | 'PROFILE' | 'PARK_STATS';
+export type ViewState = 'DASHBOARD' | 'ADD_CREDIT' | 'COASTER_LIST' | 'PROFILE' | 'PARK_STATS' | 'RANKINGS';
