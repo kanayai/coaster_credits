@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User, Coaster, Credit, ViewState, WishlistEntry, RankingList } from '../types';
 import { INITIAL_COASTERS, INITIAL_USERS, normalizeManufacturer, cleanName } from '../constants';
-import { generateCoasterInfo, generateAppIcon } from '../services/geminiService';
+import { generateCoasterInfo, generateAppIcon, extractCoasterFromUrl } from '../services/geminiService';
 import { fetchCoasterImageFromWiki } from '../services/wikipediaService';
 
 export interface Notification {
@@ -32,6 +32,7 @@ interface AppContextType {
   editCoaster: (id: string, updates: Partial<Coaster>) => void;
   addMultipleCoasters: (coasters: Omit<Coaster, 'id'>[]) => Promise<void>;
   searchOnlineCoaster: (query: string) => Promise<Partial<Coaster>[] | null>;
+  extractFromUrl: (url: string) => Promise<Partial<Coaster> | null>;
   generateIcon: (prompt: string) => Promise<string | null>;
   changeView: (view: ViewState) => void;
   setCoasterListViewMode: (mode: 'CREDITS' | 'WISHLIST') => void;
@@ -298,6 +299,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return await generateCoasterInfo(query);
   };
 
+  const extractFromUrl = async (url: string) => {
+      return await extractCoasterFromUrl(url);
+  };
+
   const generateIcon = async (prompt: string) => {
     return await generateAppIcon(prompt);
   };
@@ -406,12 +411,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const standardizeDatabase = () => {
-    const normalizedCoasters = coasters.map(c => ({
-        ...c,
-        name: cleanName(c.name),
-        park: cleanName(c.park),
-        manufacturer: normalizeManufacturer(c.manufacturer)
-    }));
+    let changesCount = 0;
+    const normalizedCoasters = coasters.map(c => {
+        const newName = cleanName(c.name);
+        const newPark = cleanName(c.park);
+        const newMan = normalizeManufacturer(c.manufacturer);
+        
+        if (newName !== c.name || newPark !== c.park || newMan !== c.manufacturer) {
+            changesCount++;
+        }
+
+        return {
+            ...c,
+            name: newName,
+            park: newPark,
+            manufacturer: newMan
+        };
+    });
+
     const uniqueMap = new Map<string, string>();
     const idTranslationTable: Record<string, string> = {};
     const deduplicatedCoasters: Coaster[] = [];
@@ -428,17 +445,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
     });
 
-    if (mergedCount > 0) {
-        setCredits(prev => prev.map(cr => idTranslationTable[cr.coasterId] ? { ...cr, coasterId: idTranslationTable[cr.coasterId] } : cr));
+    if (mergedCount > 0 || changesCount > 0) {
+        if (mergedCount > 0) {
+             setCredits(prev => prev.map(cr => idTranslationTable[cr.coasterId] ? { ...cr, coasterId: idTranslationTable[cr.coasterId] } : cr));
+             setWishlist(prev => prev.map(w => idTranslationTable[w.coasterId] ? { ...w, coasterId: idTranslationTable[w.coasterId] } : w));
+        }
+        
         setCoasters(deduplicatedCoasters);
-        showNotification(`Merged ${mergedCount} duplicates.`, 'success');
+        
+        if (mergedCount > 0) {
+            showNotification(`Standardized: Merged ${mergedCount} duplicates.`, 'success');
+        } else {
+            showNotification(`Standardized ${changesCount} coaster details.`, 'success');
+        }
+    } else {
+        showNotification("Database is already clean.", 'info');
     }
   };
 
   return (
     <AppContext.Provider value={{
       activeUser, users, coasters, credits, wishlist, currentView, coasterListViewMode, notification, lastSearchQuery,
-      switchUser, addUser, updateUser, addCredit, updateCredit, addNewCoaster, editCoaster, addMultipleCoasters, searchOnlineCoaster, generateIcon,
+      switchUser, addUser, updateUser, addCredit, updateCredit, addNewCoaster, editCoaster, addMultipleCoasters, searchOnlineCoaster, extractFromUrl, generateIcon,
       changeView, setCoasterListViewMode, deleteCredit, addToWishlist, removeFromWishlist, isInWishlist,
       showNotification, hideNotification, setLastSearchQuery, enrichDatabaseImages, updateCoasterImage, autoFetchCoasterImage,
       importData, standardizeDatabase, updateRankings

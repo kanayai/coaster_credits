@@ -94,6 +94,67 @@ export const generateCoasterInfo = async (searchTerm: string): Promise<Partial<C
   }
 };
 
+export const extractCoasterFromUrl = async (url: string): Promise<Partial<Coaster> | null> => {
+  if (!genAI) return null;
+  
+  try {
+    const response = await genAI.models.generateContent({
+      model: 'gemini-3-flash-preview', 
+      contents: `Analyze the content associated with this specific URL: ${url}. 
+      Extract details for the primary roller coaster described on that page.
+      If the page describes a park, extract the details for their newest or most major roller coaster.
+      
+      Map the manufacturer to one of: Intamin, B&M, RMC, Mack, Vekoma, GCI, Arrow, Premier Rides, S&S, Zierer, Gerstlauer, PTC, CCI, or Unknown.
+      Map the type to one of: Steel, Wooden, Hybrid, Alpine, Family, Powered, Bobsled.
+
+      Also try to find a representative image URL for this coaster (must be a direct image link if possible, e.g. jpg/png/webp).`,
+      config: {
+        tools: [{ googleSearch: {} }], 
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+             found: { type: Type.BOOLEAN },
+             name: { type: Type.STRING },
+             park: { type: Type.STRING },
+             country: { type: Type.STRING },
+             manufacturer: { type: Type.STRING },
+             type: { type: Type.STRING },
+             imageUrl: { type: Type.STRING, description: "Direct URL to an image of the coaster" },
+          },
+          required: ['found']
+        }
+      }
+    });
+
+    const text = response.text;
+    if (!text) return null;
+    const data = JSON.parse(text);
+    
+    if (data.found && data.name) {
+       let mappedType = CoasterType.Steel;
+        if (Object.values(CoasterType).includes(data.type as CoasterType)) {
+            mappedType = data.type as CoasterType;
+        }
+
+       return {
+          name: data.name,
+          park: data.park || 'Unknown Park',
+          country: data.country || 'Unknown',
+          manufacturer: data.manufacturer || 'Unknown',
+          type: mappedType,
+          isCustom: true,
+          imageUrl: data.imageUrl || undefined
+       };
+    }
+    return null;
+
+  } catch (error) {
+    console.error("URL Extraction Error:", error);
+    return null;
+  }
+};
+
 export const generateAppIcon = async (prompt: string): Promise<string | null> => {
   if (!genAI) return null;
   try {

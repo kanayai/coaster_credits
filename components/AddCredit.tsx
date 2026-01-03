@@ -2,14 +2,14 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Coaster, CoasterType } from '../types';
-import { Search, Plus, Calendar, Sparkles, Loader2, Filter, Bookmark, BookmarkCheck, PlusCircle, ArrowLeft as BackIcon, Zap, Ruler, ArrowUp, History, Trash2, Clock, CheckCircle2, Globe, Info, X, Palmtree, ChevronRight, ListChecks, CheckSquare, Square, Check, Edit2, Copy } from 'lucide-react';
+import { Search, Plus, Calendar, Sparkles, Loader2, Filter, Bookmark, BookmarkCheck, PlusCircle, ArrowLeft as BackIcon, Zap, Ruler, ArrowUp, History, Trash2, Clock, CheckCircle2, Globe, Info, X, Palmtree, ChevronRight, ListChecks, CheckSquare, Square, Check, Edit2, Copy, AlertCircle, Link, Image as ImageIcon } from 'lucide-react';
 import { cleanName } from '../constants';
 import clsx from 'clsx';
 
 const normalizeText = (text: string) => cleanName(text).toLowerCase();
 
 const AddCredit: React.FC = () => {
-  const { coasters, addCredit, deleteCredit, addNewCoaster, editCoaster, addMultipleCoasters, searchOnlineCoaster, credits, activeUser, addToWishlist, removeFromWishlist, isInWishlist, lastSearchQuery, setLastSearchQuery, showNotification } = useAppContext();
+  const { coasters, addCredit, deleteCredit, addNewCoaster, editCoaster, addMultipleCoasters, searchOnlineCoaster, extractFromUrl, credits, activeUser, addToWishlist, removeFromWishlist, isInWishlist, lastSearchQuery, setLastSearchQuery, showNotification } = useAppContext();
   
   const searchTerm = lastSearchQuery;
   const setSearchTerm = setLastSearchQuery;
@@ -18,13 +18,25 @@ const AddCredit: React.FC = () => {
   const [isAddingManually, setIsAddingManually] = useState(false);
   const [aiDiscoveryResults, setAiDiscoveryResults] = useState<Partial<Coaster>[]>([]);
   
+  // URL Import State
+  const [showUrlImport, setShowUrlImport] = useState(false);
+  const [importUrl, setImportUrl] = useState('');
+
   // Multi-Select State
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDate, setBulkDate] = useState<string>(new Date().toISOString().split('T')[0]);
   
   // Manual Add / Edit Form State
-  const [manualCoasterData, setManualCoasterData] = useState({ id: '', name: '', park: '', country: '', manufacturer: '', type: 'Steel' as CoasterType });
+  const [manualCoasterData, setManualCoasterData] = useState({ 
+      id: '', 
+      name: '', 
+      park: '', 
+      country: '', 
+      manufacturer: '', 
+      type: 'Steel' as CoasterType,
+      imageUrl: '' 
+  });
   const [isEditingExisting, setIsEditingExisting] = useState(false);
 
   const [filterType, setFilterType] = useState<string>('All');
@@ -60,6 +72,15 @@ const AddCredit: React.FC = () => {
       return { total: parkCoasters.length, ridden: riddenCount };
   }, [isMarathonMode, searchTerm, coasters, credits, activeUser.id]);
 
+  // Helper to find existing match for AI results
+  const findExistingCoaster = (name?: string, park?: string) => {
+      if (!name || !park) return null;
+      return coasters.find(c => 
+          normalizeText(c.name) === normalizeText(name) && 
+          normalizeText(c.park) === normalizeText(park)
+      );
+  };
+
   const handleMagicSearch = async () => {
       if (!searchTerm) return;
       setIsAiSearching(true);
@@ -70,23 +91,65 @@ const AddCredit: React.FC = () => {
       if (results && results.length > 0) {
           if (results.length === 1) {
               const res = results[0];
-              // Pre-fill the manual form with AI results to allow user to edit before saving
-              setManualCoasterData({
-                  id: '',
-                  name: res.name || '',
-                  park: res.park || '',
-                  country: res.country || '',
-                  manufacturer: res.manufacturer || '',
-                  type: res.type || 'Steel'
-              });
-              setIsEditingExisting(false);
-              setIsAddingManually(true);
-              showNotification("Found it! Verify details before saving.", "success");
+              const existing = findExistingCoaster(res.name, res.park);
+              
+              if (existing) {
+                  setSelectedCoaster(existing);
+                  showNotification("Found existing coaster in database!", "info");
+              } else {
+                  // Pre-fill the manual form with AI results to allow user to edit before saving
+                  setManualCoasterData({
+                      id: '',
+                      name: res.name || '',
+                      park: res.park || '',
+                      country: res.country || '',
+                      manufacturer: res.manufacturer || '',
+                      type: res.type || 'Steel',
+                      imageUrl: res.imageUrl || ''
+                  });
+                  setIsEditingExisting(false);
+                  setIsAddingManually(true);
+                  showNotification("Found it! Verify details before saving.", "success");
+              }
           } else {
               setAiDiscoveryResults(results);
           }
       } else {
           showNotification("No coasters found.", "info");
+      }
+  };
+
+  const handleUrlImport = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!importUrl) return;
+      
+      setIsAiSearching(true);
+      const result = await extractFromUrl(importUrl);
+      setIsAiSearching(false);
+      setShowUrlImport(false);
+      setImportUrl('');
+
+      if (result) {
+          const existing = findExistingCoaster(result.name, result.park);
+          if (existing) {
+              setSelectedCoaster(existing);
+              showNotification("Found matching ride in database!", 'success');
+          } else {
+              setManualCoasterData({
+                  id: '',
+                  name: result.name || '',
+                  park: result.park || '',
+                  country: result.country || '',
+                  manufacturer: result.manufacturer || '',
+                  type: (result.type as CoasterType) || 'Steel',
+                  imageUrl: result.imageUrl || ''
+              });
+              setIsEditingExisting(false);
+              setIsAddingManually(true);
+              showNotification("Data extracted! Please verify.", 'success');
+          }
+      } else {
+          showNotification("Could not extract coaster data from URL.", 'error');
       }
   };
 
@@ -141,7 +204,8 @@ const AddCredit: React.FC = () => {
           park: selectedCoaster.park,
           country: selectedCoaster.country,
           manufacturer: selectedCoaster.manufacturer,
-          type: selectedCoaster.type
+          type: selectedCoaster.type,
+          imageUrl: selectedCoaster.imageUrl || ''
       });
       setIsEditingExisting(true);
       setIsAddingManually(true);
@@ -155,10 +219,32 @@ const AddCredit: React.FC = () => {
           park: selectedCoaster.park,
           country: selectedCoaster.country,
           manufacturer: selectedCoaster.manufacturer,
-          type: selectedCoaster.type
+          type: selectedCoaster.type,
+          imageUrl: selectedCoaster.imageUrl || ''
       });
       setIsEditingExisting(false); // We are adding new, not editing old
       setIsAddingManually(true);
+  };
+
+  const handleSelectAiResult = (res: Partial<Coaster>) => {
+      const existing = findExistingCoaster(res.name, res.park);
+      if (existing) {
+          setSelectedCoaster(existing);
+          setAiDiscoveryResults([]);
+      } else {
+          setManualCoasterData({
+              id: '',
+              name: res.name || '',
+              park: res.park || '',
+              country: res.country || '',
+              manufacturer: res.manufacturer || '',
+              type: res.type || 'Steel',
+              imageUrl: res.imageUrl || ''
+          });
+          setIsEditingExisting(false);
+          setIsAddingManually(true);
+          setAiDiscoveryResults([]);
+      }
   };
 
   if (isAddingManually) {
@@ -179,7 +265,8 @@ const AddCredit: React.FC = () => {
                           park: manualCoasterData.park,
                           country: manualCoasterData.country,
                           manufacturer: manualCoasterData.manufacturer,
-                          type: manualCoasterData.type
+                          type: manualCoasterData.type,
+                          imageUrl: manualCoasterData.imageUrl
                       });
                       // Update the local selected view
                       if (selectedCoaster) {
@@ -193,6 +280,21 @@ const AddCredit: React.FC = () => {
                   setIsAddingManually(false);
               }} className="bg-slate-800 p-6 rounded-2xl border border-slate-700 space-y-4">
                   
+                  {manualCoasterData.imageUrl && (
+                      <div className="w-full h-40 rounded-xl overflow-hidden mb-2 border border-slate-600 relative group">
+                          <img src={manualCoasterData.imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                              <button 
+                                type="button" 
+                                onClick={() => setManualCoasterData({...manualCoasterData, imageUrl: ''})}
+                                className="bg-red-500/80 text-white p-2 rounded-full backdrop-blur-sm"
+                              >
+                                  <X size={20} />
+                              </button>
+                          </div>
+                      </div>
+                  )}
+
                   <div>
                     <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-1 block">Coaster Name</label>
                     <input required placeholder="e.g. Mr. Freeze: Reverse Blast" value={manualCoasterData.name} onChange={e => setManualCoasterData({...manualCoasterData, name: e.target.value})} className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white" />
@@ -219,6 +321,21 @@ const AddCredit: React.FC = () => {
                         </select>
                       </div>
                   </div>
+                  
+                  {!manualCoasterData.imageUrl && (
+                      <div className="pt-2">
+                          <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-1 block">Photo URL (Optional)</label>
+                          <div className="relative">
+                            <ImageIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                            <input 
+                                placeholder="https://..." 
+                                value={manualCoasterData.imageUrl} 
+                                onChange={e => setManualCoasterData({...manualCoasterData, imageUrl: e.target.value})} 
+                                className="w-full bg-slate-900 border border-slate-600 rounded-xl pl-10 p-3 text-white text-xs" 
+                            />
+                          </div>
+                      </div>
+                  )}
 
                   <div className="pt-4"><button type="submit" className="w-full bg-primary py-3.5 rounded-xl font-bold">{isEditingExisting ? 'Save Changes' : 'Save & Log Ride'}</button></div>
               </form>
@@ -348,6 +465,51 @@ const AddCredit: React.FC = () => {
         </div>
 
         <div className="flex-1 overflow-y-auto space-y-3 no-scrollbar pb-40">
+            {/* AI Results Section - Now Visible */}
+            {aiDiscoveryResults.length > 0 && (
+                <div className="bg-slate-800/50 border border-indigo-500/30 rounded-2xl overflow-hidden mb-4 animate-fade-in-down">
+                    <div className="bg-indigo-500/10 px-4 py-2 flex items-center justify-between border-b border-indigo-500/20">
+                         <div className="flex items-center gap-2 text-indigo-400">
+                             <Sparkles size={14} />
+                             <span className="text-[10px] font-black uppercase tracking-widest">AI Discovery</span>
+                         </div>
+                         <button onClick={() => setAiDiscoveryResults([])} className="text-xs text-slate-500 hover:text-white"><X size={14}/></button>
+                    </div>
+                    <div className="divide-y divide-slate-700/50">
+                        {aiDiscoveryResults.map((res, idx) => {
+                            const existing = findExistingCoaster(res.name, res.park);
+                            const isLogged = existing ? credits.some(cr => cr.userId === activeUser.id && cr.coasterId === existing.id) : false;
+                            
+                            return (
+                                <button 
+                                    key={idx} 
+                                    onClick={() => handleSelectAiResult(res)}
+                                    className="w-full text-left p-3 hover:bg-slate-800 transition-colors flex items-center justify-between group"
+                                >
+                                    <div>
+                                        <div className="text-sm font-bold text-white group-hover:text-primary transition-colors">{res.name}</div>
+                                        <div className="text-[10px] text-slate-400">{res.park}</div>
+                                    </div>
+                                    {isLogged ? (
+                                        <div className="flex items-center gap-1.5 text-[8px] font-black bg-emerald-500/10 text-emerald-500 px-2 py-1 rounded border border-emerald-500/20">
+                                            <CheckCircle2 size={10} /> ALREADY LOGGED
+                                        </div>
+                                    ) : existing ? (
+                                        <div className="flex items-center gap-1.5 text-[8px] font-black bg-slate-700 text-slate-300 px-2 py-1 rounded border border-slate-600">
+                                            <BookmarkCheck size={10} /> IN DATABASE
+                                        </div>
+                                    ) : (
+                                        <div className="bg-indigo-500 text-white p-1.5 rounded-lg shadow-lg shadow-indigo-500/20 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <Plus size={16} />
+                                        </div>
+                                    )}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
             {filteredCoasters.map(c => {
                 const isRidden = credits.some(cr => cr.userId === activeUser.id && cr.coasterId === c.id);
                 const isSelected = selectedIds.has(c.id);
@@ -388,7 +550,12 @@ const AddCredit: React.FC = () => {
                             )}
                         </div>
                         <div className="flex-1 px-4 py-2 flex flex-col justify-center min-w-0">
-                            <h3 className={clsx("font-bold text-base truncate leading-tight italic", isRidden ? "text-emerald-400" : isSelected ? "text-primary" : "text-slate-100")}>{c.name}</h3>
+                            <h3 className={clsx("font-bold text-base truncate leading-tight italic flex items-center gap-2", isRidden ? "text-emerald-400" : isSelected ? "text-primary" : "text-slate-100")}>
+                                {c.name}
+                                {isRidden && (
+                                    <span className="text-[8px] bg-emerald-500 text-white px-1.5 py-0.5 rounded uppercase font-black tracking-wider">Logged</span>
+                                )}
+                            </h3>
                             <div className="text-[10px] text-slate-500 truncate font-bold uppercase tracking-wider mt-0.5">{c.park}</div>
                             
                             {!isMarathonMode && !isMultiSelectMode && (
@@ -418,8 +585,8 @@ const AddCredit: React.FC = () => {
                 );
             })}
             
-            {(searchTerm || filteredCoasters.length === 0) && (
-                <div className="text-center py-8 space-y-6">
+            {(searchTerm || filteredCoasters.length === 0) && aiDiscoveryResults.length === 0 && (
+                <div className="text-center py-8 space-y-4">
                     <button 
                         onClick={handleMagicSearch} 
                         disabled={isAiSearching || !searchTerm} 
@@ -431,11 +598,41 @@ const AddCredit: React.FC = () => {
                         {isAiSearching ? <Loader2 className="animate-spin" size={18}/> : <Sparkles size={18}/>} 
                         {isAiSearching ? 'SCOUTING...' : 'AI MAGIC DISCOVERY'}
                     </button>
+                    
+                    {!showUrlImport ? (
+                         <button 
+                            onClick={() => setShowUrlImport(true)} 
+                            className="w-full bg-slate-800/50 text-slate-400 py-4 rounded-2xl font-bold text-xs uppercase tracking-[0.2em] border border-slate-700 flex items-center justify-center gap-2"
+                         >
+                             <Link size={14} /> Import from Website URL
+                         </button>
+                    ) : (
+                        <form onSubmit={handleUrlImport} className="animate-fade-in space-y-2">
+                             <div className="relative">
+                                 <Link size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                                 <input 
+                                    type="url" 
+                                    required
+                                    placeholder="Paste URL (RCDB, Park Page...)" 
+                                    value={importUrl}
+                                    onChange={(e) => setImportUrl(e.target.value)}
+                                    className="w-full bg-slate-900 border border-primary/50 rounded-xl pl-10 py-3 text-white text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                                 />
+                             </div>
+                             <div className="flex gap-2">
+                                <button type="button" onClick={() => setShowUrlImport(false)} className="flex-1 bg-slate-800 text-slate-400 py-3 rounded-xl text-xs font-bold border border-slate-700">Cancel</button>
+                                <button type="submit" disabled={isAiSearching} className="flex-1 bg-emerald-600 text-white py-3 rounded-xl text-xs font-bold shadow-lg shadow-emerald-500/20">
+                                    {isAiSearching ? <Loader2 size={14} className="animate-spin mx-auto"/> : 'Extract Data'}
+                                </button>
+                             </div>
+                        </form>
+                    )}
+
                     <button onClick={() => { 
-                        setManualCoasterData({ id: '', name: '', park: '', country: '', manufacturer: '', type: 'Steel' });
+                        setManualCoasterData({ id: '', name: '', park: '', country: '', manufacturer: '', type: 'Steel', imageUrl: '' });
                         setIsEditingExisting(false);
                         setIsAddingManually(true); 
-                    }} className="w-full bg-slate-800/50 text-slate-400 py-4 rounded-2xl font-bold text-xs uppercase tracking-[0.2em] border border-slate-700">Add Custom Coaster</button>
+                    }} className="w-full text-slate-600 py-2 text-[10px] font-bold uppercase tracking-wider hover:text-slate-400">Add Completely Manually</button>
                 </div>
             )}
         </div>
