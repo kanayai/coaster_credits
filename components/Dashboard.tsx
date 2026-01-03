@@ -2,7 +2,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
-import { Trophy, ClipboardList, Palmtree, Layers, Factory, Flag, CalendarRange, Edit2, Globe, Hash, MapPin, Navigation, ChevronRight } from 'lucide-react';
+import { Trophy, ClipboardList, Palmtree, Layers, Factory, Flag, CalendarRange, Edit2, Globe, Hash, MapPin, Navigation, ChevronRight, Zap, Star, Share2, Plus } from 'lucide-react';
 import EditCreditModal from './EditCreditModal';
 import { Credit, Coaster } from '../types';
 import { normalizeManufacturer } from '../constants';
@@ -11,7 +11,7 @@ import clsx from 'clsx';
 type ChartMetric = 'PARK' | 'TYPE' | 'MANUFACTURER' | 'COUNTRY' | 'YEAR';
 
 const Dashboard: React.FC = () => {
-  const { credits, wishlist, coasters, activeUser, changeView, setCoasterListViewMode, setLastSearchQuery } = useAppContext();
+  const { credits, wishlist, coasters, activeUser, changeView, setCoasterListViewMode, setLastSearchQuery, addCredit } = useAppContext();
 
   const [editingCreditData, setEditingCreditData] = useState<{ credit: Credit, coaster: Coaster } | null>(null);
   const [chartMetric, setChartMetric] = useState<ChartMetric>('PARK');
@@ -41,6 +41,10 @@ const Dashboard: React.FC = () => {
   const uniqueCreditsCount = useMemo(() => new Set(userCredits.map(c => c.coasterId)).size, [userCredits]);
   const totalRidesCount = userCredits.length;
 
+  // Milestone Logic
+  const nextMilestone = uniqueCreditsCount < 25 ? 25 : uniqueCreditsCount < 50 ? 50 : uniqueCreditsCount < 100 ? 100 : Math.ceil((uniqueCreditsCount + 1) / 100) * 100;
+  const milestoneProgress = (uniqueCreditsCount / nextMilestone) * 100;
+
   const chartData = useMemo(() => {
     const dist: Record<string, number> = {};
     const processedCoasters = new Set<string>();
@@ -67,9 +71,11 @@ const Dashboard: React.FC = () => {
   const recentCredit = userCredits.length > 0 ? userCredits[0] : null;
   const recentCoaster = recentCredit ? coasters.find(c => c.id === recentCredit.coasterId) : null;
 
-  const handleLastRiddenClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (recentCredit && recentCoaster) setEditingCreditData({ credit: recentCredit, coaster: recentCoaster });
+  const handleQuickLog = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (recentCoaster) {
+          addCredit(recentCoaster.id, new Date().toISOString().split('T')[0], 'Marathon ride!', '');
+      }
   };
 
   const MetricButton = ({ mode, label, icon: Icon }: { mode: ChartMetric, label: string, icon: React.ElementType }) => (
@@ -88,13 +94,38 @@ const Dashboard: React.FC = () => {
   return (
     <div className="space-y-6 animate-fade-in pb-10">
       
-      {/* 1. Rankings Shortcut (New Top Placement) */}
+      {/* 1. Milestone Progress Ring (UX Celebration) */}
+      <div className="bg-slate-800/40 border border-slate-700 p-5 rounded-3xl relative overflow-hidden">
+          <div className="flex items-center justify-between relative z-10">
+              <div className="space-y-1">
+                  <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Next Milestone: {nextMilestone}</h3>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-4xl font-black text-white">{uniqueCreditsCount}</span>
+                    <span className="text-slate-500 font-bold">/ {nextMilestone}</span>
+                  </div>
+              </div>
+              <div className="relative w-16 h-16">
+                  <svg className="w-full h-full transform -rotate-90">
+                      <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="6" fill="transparent" className="text-slate-700" />
+                      <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="6" fill="transparent" strokeDasharray={2 * Math.PI * 28} strokeDashoffset={2 * Math.PI * 28 * (1 - milestoneProgress / 100)} className="text-primary" strokeLinecap="round" />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                      <Star size={18} className="text-primary fill-primary/20" />
+                  </div>
+              </div>
+          </div>
+          <div className="mt-4 h-1.5 w-full bg-slate-700 rounded-full overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-primary to-accent transition-all duration-1000" style={{ width: `${milestoneProgress}%` }} />
+          </div>
+      </div>
+
+      {/* 2. Rankings Quick-Access */}
       <button 
           onClick={() => changeView('RANKINGS')}
-          className="w-full bg-gradient-to-br from-amber-500/20 via-yellow-600/10 to-transparent border border-amber-500/30 p-4 rounded-2xl flex items-center justify-between group active:scale-[0.98] transition-all shadow-xl shadow-amber-950/20"
+          className="w-full bg-gradient-to-br from-amber-500/20 via-yellow-600/10 to-transparent border border-amber-500/30 p-4 rounded-2xl flex items-center justify-between group active:scale-[0.98] transition-all shadow-xl"
       >
           <div className="flex items-center gap-4">
-              <div className="bg-gradient-to-br from-amber-400 to-yellow-600 p-2.5 rounded-xl text-slate-900 shadow-lg shadow-amber-500/30">
+              <div className="bg-gradient-to-br from-amber-400 to-yellow-600 p-2.5 rounded-xl text-slate-900 shadow-lg">
                   <Trophy size={22} fill="currentColor" />
               </div>
               <div className="text-left">
@@ -105,18 +136,17 @@ const Dashboard: React.FC = () => {
           <ChevronRight size={18} className="text-amber-500/50 group-hover:text-amber-500 group-hover:translate-x-1 transition-all" />
       </button>
 
-      {/* 2. Top Stats Row */}
+      {/* 3. Main Stats Grid */}
       <div className="grid grid-cols-2 gap-4">
         <div 
             className="bg-slate-800 rounded-2xl p-5 shadow-lg border border-slate-700 relative overflow-hidden cursor-pointer active:scale-95 transition-transform group"
             onClick={() => { setCoasterListViewMode('CREDITS'); changeView('COASTER_LIST'); }}
         >
-            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Trophy size={80} /></div>
             <div className="relative z-10">
-                <h2 className="text-slate-400 text-xs font-bold uppercase tracking-wider">Total Credits</h2>
-                <div className="text-4xl font-bold text-white mt-1 tracking-tighter">{uniqueCreditsCount}</div>
-                <div className="flex items-center gap-1 mt-2 text-xs font-medium text-slate-500 bg-slate-900/50 w-fit px-2 py-1 rounded-md">
-                    <Hash size={10} /> {totalRidesCount} Total Rides
+                <h2 className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Unique Credits</h2>
+                <div className="text-4xl font-black text-white mt-1 tracking-tighter">{uniqueCreditsCount}</div>
+                <div className="flex items-center gap-1 mt-2 text-[10px] font-bold text-primary bg-primary/10 w-fit px-2 py-1 rounded-md">
+                    <Zap size={10} /> {totalRidesCount} TOTAL RIDES
                 </div>
             </div>
         </div>
@@ -125,109 +155,98 @@ const Dashboard: React.FC = () => {
             className="bg-slate-800 rounded-2xl p-5 shadow-lg border border-slate-700 relative overflow-hidden cursor-pointer active:scale-95 transition-transform group" 
             onClick={() => { setCoasterListViewMode('WISHLIST'); changeView('COASTER_LIST'); }}
         >
-            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><ClipboardList size={80} className="text-amber-500" /></div>
             <div className="relative z-10">
-                 <h2 className="text-slate-400 text-xs font-bold uppercase tracking-wider">Bucket List</h2>
-                 <div className="text-4xl font-bold text-white mt-1 tracking-tighter">{userWishlist.length}</div>
-                 <p className="text-amber-500 mt-1 text-xs font-bold flex items-center gap-1">View List <ClipboardList size={10} /></p>
+                 <h2 className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Bucket List</h2>
+                 <div className="text-4xl font-black text-white mt-1 tracking-tighter">{userWishlist.length}</div>
+                 <p className="text-amber-500 mt-1 text-[10px] font-bold flex items-center gap-1">GO TO LIST <ChevronRight size={10} /></p>
             </div>
         </div>
       </div>
 
-      {/* 3. Statistics Panel */}
-      <div className="bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-xl">
-            <div className="mb-4">
-                <div className="flex justify-between items-start mb-3">
-                    <h3 className="text-lg font-bold text-white flex items-center gap-2">Statistics</h3>
-                    <button 
-                        onClick={() => changeView('PARK_STATS')}
-                        className="bg-slate-700 hover:bg-slate-600 text-white p-2 rounded-lg transition-colors border border-slate-600 flex items-center gap-2"
-                    >
-                        <Globe size={18} />
-                        <span className="text-xs font-bold hidden sm:inline">Map</span>
-                    </button>
+      {/* 4. Quick Log / Last Ridden (UX SPEED) */}
+      {recentCoaster && (
+        <div className="relative group">
+            <div 
+                onClick={() => { setEditingCreditData({ credit: recentCredit!, coaster: recentCoaster }); }}
+                className="bg-slate-800 p-4 rounded-2xl border border-slate-700 flex gap-4 items-center cursor-pointer hover:bg-slate-750 transition-all active:scale-[0.99]"
+            >
+                <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0 shadow-lg border border-slate-600">
+                    <img src={recentCoaster.imageUrl} alt={recentCoaster.name} className="w-full h-full object-cover" />
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex-1 min-w-0">
+                    <div className="text-[10px] text-primary uppercase font-bold tracking-widest mb-0.5">Last Logged</div>
+                    <div className="font-bold text-lg text-white truncate leading-tight">{recentCoaster.name}</div>
+                    <div className="text-xs text-slate-500 truncate">{recentCoaster.park}</div>
+                </div>
+                <button 
+                    onClick={handleQuickLog}
+                    className="bg-primary/10 hover:bg-primary text-primary hover:text-white p-3 rounded-xl transition-all border border-primary/20 flex flex-col items-center gap-1 shrink-0"
+                >
+                    <Plus size={20} />
+                    <span className="text-[8px] font-bold uppercase">Log Again</span>
+                </button>
+            </div>
+        </div>
+      )}
+
+      {/* 5. Statistics Panel */}
+      <div className="bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-xl">
+            <div className="flex justify-between items-center mb-6">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">Insights</h3>
+                <div className="flex gap-1 overflow-x-auto no-scrollbar max-w-[60%]">
                     <MetricButton mode="PARK" label="Park" icon={Palmtree} />
                     <MetricButton mode="TYPE" label="Type" icon={Layers} />
-                    <MetricButton mode="MANUFACTURER" label="Manufacturer" icon={Factory} />
-                    <MetricButton mode="COUNTRY" label="Country" icon={Flag} />
-                    <MetricButton mode="YEAR" label="Year" icon={CalendarRange} />
+                    <MetricButton mode="MANUFACTURER" label="Brand" icon={Factory} />
                 </div>
             </div>
 
             {uniqueCreditsCount > 0 ? (
-                <>
-                    <div className="h-56 w-full relative">
+                <div className="flex flex-col sm:flex-row items-center gap-6">
+                    <div className="h-40 w-40 relative shrink-0">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
-                                <Pie data={chartData} cx="50%" cy="50%" innerRadius={60} outerRadius={85} paddingAngle={4} dataKey="value" stroke="none">
+                                <Pie data={chartData} cx="50%" cy="50%" innerRadius={45} outerRadius={65} paddingAngle={4} dataKey="value" stroke="none">
                                     {chartData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                                 </Pie>
-                                <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px', fontSize: '12px' }} itemStyle={{ color: '#fff', fontWeight: 'bold' }} />
+                                <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: 'none', borderRadius: '12px' }} />
                             </PieChart>
                         </ResponsiveContainer>
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                            <div className="text-center">
-                                <div className="text-2xl font-bold text-white">{chartData.length}</div>
-                                <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Groups</div>
-                            </div>
-                        </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 mt-2">
-                        {chartData.map((entry, index) => (
-                            <div key={entry.name} className="flex items-center justify-between text-xs bg-slate-900/50 p-2 rounded-lg border border-slate-700/50">
-                                <div className="flex items-center gap-2 truncate pr-2">
-                                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
+                    <div className="flex-1 grid grid-cols-1 gap-2 w-full">
+                        {chartData.slice(0, 4).map((entry, index) => (
+                            <div key={entry.name} className="flex items-center justify-between text-xs bg-slate-900/40 p-2.5 rounded-xl border border-slate-700/50">
+                                <div className="flex items-center gap-3 truncate">
+                                    <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
                                     <span className="text-slate-300 truncate font-medium">{entry.name}</span>
                                 </div>
                                 <span className="font-bold text-white">{entry.value}</span>
                             </div>
                         ))}
                     </div>
-                </>
+                </div>
             ) : (
-                <div className="h-56 w-full flex flex-col items-center justify-center text-slate-500 border-2 border-dashed border-slate-700 rounded-xl bg-slate-800/50 mt-2">
-                    <button onClick={() => changeView('ADD_CREDIT')} className="bg-primary hover:bg-primary-hover text-white px-5 py-2 rounded-lg font-bold text-xs transition-colors shadow-lg shadow-primary/20">Add First Credit</button>
+                <div className="h-40 w-full flex flex-col items-center justify-center text-slate-500 border-2 border-dashed border-slate-700 rounded-2xl bg-slate-800/50">
+                    <p className="text-xs font-medium">No data to visualize yet</p>
                 </div>
             )}
       </div>
 
-      {recentCoaster && (
-        <div onClick={handleLastRiddenClick} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex gap-4 items-center cursor-pointer hover:bg-slate-750 hover:border-slate-500 transition-colors group relative overflow-hidden">
-            <div className="absolute right-0 bottom-0 opacity-5 transform translate-x-4 translate-y-4"><Trophy size={100} /></div>
-            {recentCoaster.imageUrl ? (
-                <div className="w-16 h-16 rounded-lg overflow-hidden shrink-0 shadow-md"><img src={recentCoaster.imageUrl} alt={recentCoaster.name} className="w-full h-full object-cover" /></div>
-            ) : (
-                <div className="w-16 h-16 rounded-lg bg-slate-700 flex items-center justify-center shrink-0"><Trophy size={24} className="text-slate-500" /></div>
-            )}
-            <div className="relative z-10 min-0 flex-1">
-                <div className="text-[10px] text-primary uppercase font-bold tracking-wide mb-0.5 flex items-center gap-1">Last Ridden <Edit2 size={8}/></div>
-                <div className="font-bold text-lg text-white truncate">{recentCoaster.name}</div>
-                <div className="text-xs text-slate-400 truncate">{recentCoaster.park}</div>
-            </div>
-        </div>
-      )}
-
-      {/* 4. Nearby Parks Widget (Moved to bottom) */}
+      {/* 6. Nearby Discovery */}
       {nearbyParks.length > 0 && (
-          <div className="bg-gradient-to-r from-emerald-600/20 to-teal-600/10 p-5 rounded-2xl border border-emerald-500/30 shadow-xl">
-              <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <Navigation size={18} className="text-emerald-400" />
-                    <h3 className="font-bold text-white">Parks Near You</h3>
-                  </div>
-                  <span className="text-[10px] font-bold text-emerald-400/80 bg-emerald-400/10 px-2 py-0.5 rounded-full uppercase">GPS Active</span>
+          <div className="space-y-3">
+              <div className="flex items-center gap-2 px-1">
+                <Navigation size={14} className="text-emerald-400" />
+                <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Parks Near You</h3>
               </div>
-              <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
+              <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
                   {nearbyParks.map(park => (
                       <button 
                         key={park}
                         onClick={() => { setLastSearchQuery(park); changeView('ADD_CREDIT'); }}
-                        className="bg-slate-900/60 hover:bg-slate-900 border border-slate-700/50 p-3 rounded-xl flex items-center gap-2 shrink-0 transition-colors"
+                        className="bg-slate-800 hover:bg-slate-750 border border-slate-700 p-3.5 rounded-2xl flex items-center gap-3 shrink-0 transition-all active:scale-95"
                       >
-                          <div className="bg-emerald-500/10 p-1.5 rounded-lg text-emerald-400"><Palmtree size={14}/></div>
-                          <span className="text-xs font-bold text-slate-200">{park}</span>
+                          <div className="bg-emerald-500/10 p-2 rounded-lg text-emerald-400"><Palmtree size={16}/></div>
+                          <span className="text-sm font-bold text-slate-200">{park}</span>
                       </button>
                   ))}
               </div>
