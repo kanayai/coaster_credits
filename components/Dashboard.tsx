@@ -130,9 +130,9 @@ const Dashboard: React.FC = () => {
   );
 
   return (
-    <div className="animate-fade-in pb-12 space-y-6 relative flex flex-col h-full">
+    <div className="animate-fade-in pb-12 space-y-6 relative flex flex-col">
       {/* Header */}
-      <div className="flex justify-between items-start">
+      <div className="flex justify-between items-start shrink-0">
         <div>
           <h1 className="text-3xl font-black italic tracking-tighter text-white">RIDE<span className="text-primary">STATS</span></h1>
           <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">{activeUser.name}'s Dashboard</p>
@@ -152,7 +152,7 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Main Stats Card */}
-      <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-[32px] p-6 shadow-2xl border border-slate-700 relative overflow-hidden group">
+      <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-[32px] p-6 shadow-2xl border border-slate-700 relative overflow-hidden group shrink-0">
           <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
               <Trophy size={140} />
           </div>
@@ -193,7 +193,7 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Primary Action Button (Log Ride) - Full Width */}
-      <button onClick={() => changeView('ADD_CREDIT')} className="bg-primary hover:bg-primary-hover text-white p-4 rounded-2xl shadow-lg shadow-primary/20 flex items-center justify-center gap-3 transition-all active:scale-95 group w-full">
+      <button onClick={() => changeView('ADD_CREDIT')} className="bg-primary hover:bg-primary-hover text-white p-4 rounded-2xl shadow-lg shadow-primary/20 flex items-center justify-center gap-3 transition-all active:scale-95 group w-full shrink-0">
           <div className="bg-white/20 p-2 rounded-xl group-hover:rotate-90 transition-transform">
             <Plus size={24} />
           </div>
@@ -201,7 +201,7 @@ const Dashboard: React.FC = () => {
       </button>
 
       {/* Recent Activity */}
-      <div className="space-y-3">
+      <div className="space-y-3 shrink-0">
           <div className="flex items-center justify-between px-1">
               <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Recent Activity</h3>
               <button onClick={() => changeView('COASTER_LIST')} className="text-[10px] font-bold text-primary hover:underline">VIEW ALL</button>
@@ -243,7 +243,7 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Analytics Chart */}
-      <div className="space-y-3">
+      <div className="space-y-3 shrink-0">
           <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">Analytics</h3>
           <div className="bg-slate-800 rounded-[28px] p-5 border border-slate-700 shadow-xl">
               <div className="flex bg-slate-800 p-1 rounded-2xl border border-slate-700 overflow-x-auto no-scrollbar">
@@ -306,7 +306,7 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Rankings Teaser */}
-      <div onClick={() => changeView('RANKINGS')} className="bg-gradient-to-r from-indigo-900/50 to-purple-900/50 p-6 rounded-[28px] border border-indigo-500/30 relative overflow-hidden group cursor-pointer mb-2">
+      <div onClick={() => changeView('RANKINGS')} className="bg-gradient-to-r from-indigo-900/50 to-purple-900/50 p-6 rounded-[28px] border border-indigo-500/30 relative overflow-hidden group cursor-pointer mb-2 shrink-0">
           <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-gradient-to-l from-indigo-500/20 to-transparent" />
           <div className="relative z-10 flex items-center justify-between">
               <div>
@@ -324,7 +324,7 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Park Mode Session Button (Static at bottom) */}
-      <div className="mt-auto">
+      <div className="mt-auto shrink-0">
         <button 
             onClick={handleStartParkSession}
             disabled={isLocatingSession}
