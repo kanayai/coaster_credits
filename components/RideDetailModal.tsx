@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
-import { X, Calendar, MapPin, Tag, Edit2, Share2, Ruler, Zap, Activity, Repeat, Music, ExternalLink, Palmtree } from 'lucide-react';
+import { useAppContext } from '../context/AppContext';
+import { X, Calendar, MapPin, Tag, Edit2, Share2, Ruler, Zap, Activity, Repeat, Music, ExternalLink, Palmtree, PlusCircle, CheckCircle2 } from 'lucide-react';
 import { Credit, Coaster } from '../types';
 import clsx from 'clsx';
 
@@ -13,12 +14,23 @@ interface RideDetailModalProps {
 }
 
 const RideDetailModal: React.FC<RideDetailModalProps> = ({ credit, coaster, onClose, onEdit, onShare }) => {
+  const { editCoaster, showNotification } = useAppContext();
   const [activeTab, setActiveTab] = useState<'DETAILS' | 'STATS' | 'AUDIO'>('DETAILS');
+  
+  // State for adding audio if missing
+  const [isAddingAudio, setIsAddingAudio] = useState(false);
+  const [newAudioUrl, setNewAudioUrl] = useState('');
 
   const hasAudio = !!coaster.audioUrl;
   
   // Helper to determine if the URL is a SoundCloud URL
   const isSoundCloud = (url: string) => url.includes('soundcloud.com');
+
+  const handleSaveAudio = () => {
+    if (!newAudioUrl.trim()) return;
+    editCoaster(coaster.id, { audioUrl: newAudioUrl });
+    setIsAddingAudio(false);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-fade-in">
@@ -80,17 +92,15 @@ const RideDetailModal: React.FC<RideDetailModalProps> = ({ credit, coaster, onCl
             >
                 Stats
             </button>
-            {hasAudio && (
-                <button 
-                onClick={() => setActiveTab('AUDIO')}
-                className={clsx(
-                    "flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors border-b-2 flex items-center justify-center gap-1",
-                    activeTab === 'AUDIO' ? "text-white border-primary" : "text-slate-500 border-transparent hover:text-slate-300"
-                )}
-                >
-                    <Music size={12} /> Audio
-                </button>
+            <button 
+            onClick={() => setActiveTab('AUDIO')}
+            className={clsx(
+                "flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors border-b-2 flex items-center justify-center gap-1",
+                activeTab === 'AUDIO' ? "text-white border-primary" : "text-slate-500 border-transparent hover:text-slate-300"
             )}
+            >
+                <Music size={12} className={hasAudio ? "text-primary" : "text-slate-500"} /> Audio
+            </button>
         </div>
 
         {/* Content Area */}
@@ -204,7 +214,7 @@ const RideDetailModal: React.FC<RideDetailModalProps> = ({ credit, coaster, onCl
                 </div>
             )}
 
-            {activeTab === 'AUDIO' && coaster.audioUrl && (
+            {activeTab === 'AUDIO' && (
                 <div className="space-y-6 animate-fade-in">
                     <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-700/50 text-center space-y-4">
                         <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-red-500 rounded-full mx-auto flex items-center justify-center shadow-lg shadow-orange-500/20">
@@ -215,27 +225,53 @@ const RideDetailModal: React.FC<RideDetailModalProps> = ({ credit, coaster, onCl
                              <p className="text-xs text-slate-400">Experience the sounds of {coaster.name}</p>
                         </div>
                         
-                        {isSoundCloud(coaster.audioUrl) ? (
-                            <div className="w-full overflow-hidden rounded-xl border border-slate-700">
-                                <iframe 
-                                    width="100%" 
-                                    height="166" 
-                                    scrolling="no" 
-                                    frameBorder="no" 
-                                    allow="autoplay" 
-                                    src={`https://w.soundcloud.com/player/?url=${encodeURIComponent(coaster.audioUrl)}&color=%230ea5e9&auto_play=false&hide_related=false&show_comments=true&show_user=true&show_reposts=false&show_teaser=true`}
-                                ></iframe>
-                            </div>
+                        {coaster.audioUrl ? (
+                            isSoundCloud(coaster.audioUrl) ? (
+                                <div className="w-full overflow-hidden rounded-xl border border-slate-700">
+                                    <iframe 
+                                        width="100%" 
+                                        height="166" 
+                                        scrolling="no" 
+                                        frameBorder="no" 
+                                        allow="autoplay" 
+                                        src={`https://w.soundcloud.com/player/?url=${encodeURIComponent(coaster.audioUrl)}&color=%230ea5e9&auto_play=false&hide_related=false&show_comments=true&show_user=true&show_reposts=false&show_teaser=true`}
+                                    ></iframe>
+                                </div>
+                            ) : (
+                                <a 
+                                    href={coaster.audioUrl} 
+                                    target="_blank" 
+                                    rel="noreferrer"
+                                    className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 border border-slate-600 transition-colors"
+                                >
+                                    <ExternalLink size={18} />
+                                    Listen on External Site
+                                </a>
+                            )
                         ) : (
-                            <a 
-                                href={coaster.audioUrl} 
-                                target="_blank" 
-                                rel="noreferrer"
-                                className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 border border-slate-600 transition-colors"
-                            >
-                                <ExternalLink size={18} />
-                                Listen on External Site
-                            </a>
+                            !isAddingAudio ? (
+                                <button 
+                                    onClick={() => setIsAddingAudio(true)}
+                                    className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3 rounded-xl border border-slate-600 flex items-center justify-center gap-2 transition-colors border-dashed"
+                                >
+                                    <PlusCircle size={18} />
+                                    Add Audio Track Link
+                                </button>
+                            ) : (
+                                <div className="space-y-2 animate-fade-in">
+                                    <input 
+                                        autoFocus
+                                        placeholder="Paste SoundCloud URL..."
+                                        value={newAudioUrl}
+                                        onChange={e => setNewAudioUrl(e.target.value)}
+                                        className="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white text-sm"
+                                    />
+                                    <div className="flex gap-2">
+                                        <button onClick={() => setIsAddingAudio(false)} className="flex-1 bg-slate-800 text-slate-400 py-2 rounded-lg text-xs font-bold">Cancel</button>
+                                        <button onClick={handleSaveAudio} className="flex-1 bg-primary text-white py-2 rounded-lg text-xs font-bold">Save Link</button>
+                                    </div>
+                                </div>
+                            )
                         )}
                     </div>
                 </div>

@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { Trash2, Calendar, MapPin, Tag, Palmtree, Flag, Layers, Factory, CalendarRange, CheckCircle2, Bookmark, ArrowRightCircle, Edit2, ArrowLeft, ChevronRight, FolderOpen, Lock, Repeat, ListFilter, History, Share2, PlusCircle } from 'lucide-react';
+import { Trash2, Calendar, MapPin, Tag, Palmtree, Flag, Layers, Factory, CalendarRange, CheckCircle2, Bookmark, ArrowRightCircle, Edit2, ArrowLeft, ChevronRight, FolderOpen, Lock, Repeat, ListFilter, History, Share2, PlusCircle, Music } from 'lucide-react';
 import clsx from 'clsx';
 import { Credit, Coaster } from '../types';
 import EditCreditModal from './EditCreditModal';
@@ -222,7 +222,14 @@ const CoasterList: React.FC = () => {
                                                         {item.coaster.name}
                                                         {!showAllLogs && rideCount > 1 && <span className="bg-primary/20 text-primary px-1.5 py-0.5 rounded text-[10px] font-bold border border-primary/30 flex items-center gap-0.5"><Repeat size={8} /> {rideCount}</span>}
                                                     </h3>
-                                                    <div className="flex items-center text-sm text-slate-400 mt-1"><MapPin size={12} className="mr-1 shrink-0" /><span className="truncate text-xs">{item.coaster.park}</span></div>
+                                                    <div className="flex items-center text-sm text-slate-400 mt-1">
+                                                        <MapPin size={12} className="mr-1 shrink-0" /><span className="truncate text-xs">{item.coaster.park}</span>
+                                                        {item.coaster.audioUrl && (
+                                                            <div className="ml-2 bg-pink-500/10 border border-pink-500/20 rounded-md p-0.5" title="Has Audio">
+                                                                <Music size={10} className="text-pink-500" />
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                     
                                                     {variant && (
                                                         <div className="inline-block mt-1 bg-accent/20 text-accent text-[10px] font-bold px-2 py-0.5 rounded border border-accent/30 uppercase tracking-wide">

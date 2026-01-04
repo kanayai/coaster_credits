@@ -161,4 +161,17 @@ export const INITIAL_COASTERS: Coaster[] = [
   // --- AUSTRALIA ---
   { id: 'au1', name: 'DC Rivals HyperCoaster', park: 'Warner Bros. Movie World', country: 'Australia', type: CoasterType.Steel, manufacturer: 'Mack', imageUrl: 'https://picsum.photos/800/600?random=46' },
   { id: 'au2', name: 'Leviathan', park: 'Sea World', country: 'Australia', type: CoasterType.Wooden, manufacturer: 'Martin & Vleminckx', imageUrl: 'https://picsum.photos/800/600?random=47' },
+
+  // --- BELGIUM: PLOPSALAND ---
+  { 
+    id: 'plop1', 
+    name: 'The Ride to Happiness', 
+    park: 'Plopsaland De Panne', 
+    country: 'Belgium', 
+    type: CoasterType.Steel, 
+    manufacturer: 'Mack', 
+    imageUrl: 'https://picsum.photos/800/600?random=48', 
+    specs: { height: '108 ft', speed: '56 mph', length: '3,005 ft', inversions: 5 },
+    audioUrl: 'https://soundcloud.com/tomorrowland_official/tomorrowland-music-hans-zimmer-the-ride-to-happiness-by-tomorrowland' 
+  },
 ];
