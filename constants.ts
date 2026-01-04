@@ -64,6 +64,77 @@ export const normalizeManufacturer = (rawName: string): string => {
   return rawName.trim(); // Return cleaned original if no match
 };
 
+// Helper to standardize Park Names
+export const normalizeParkName = (rawName: string): string => {
+  if (!rawName) return 'Unknown Park';
+  
+  let name = rawName.trim();
+  const upper = name.toUpperCase();
+  
+  // Universal
+  if (upper.includes('ISLANDS OF ADVENTURE')) return 'Islands of Adventure';
+  if (upper.includes('UNIVERSAL STUDIOS FLORIDA')) return 'Universal Studios Florida';
+  if (upper.includes('UNIVERSAL STUDIOS HOLLYWOOD')) return 'Universal Studios Hollywood';
+  if (upper.includes('UNIVERSAL STUDIOS JAPAN')) return 'Universal Studios Japan';
+  if (upper.includes('EPIC UNIVERSE')) return 'Universal Epic Universe';
+  if (upper === 'IOA') return 'Islands of Adventure';
+  if (upper === 'USF') return 'Universal Studios Florida';
+
+  // SeaWorld / Busch
+  if (upper.includes('BUSCH GARDENS TAMPA')) return 'Busch Gardens Tampa';
+  if (upper === 'BGT') return 'Busch Gardens Tampa';
+  if (upper.includes('BUSCH GARDENS WILLIAMSBURG')) return 'Busch Gardens Williamsburg';
+  if (upper === 'BGW') return 'Busch Gardens Williamsburg';
+  if (upper.includes('SEAWORLD ORLANDO')) return 'SeaWorld Orlando';
+  if (upper.includes('SEAWORLD SAN ANTONIO')) return 'SeaWorld San Antonio';
+  if (upper.includes('SEAWORLD SAN DIEGO')) return 'SeaWorld San Diego';
+
+  // Six Flags
+  if (upper.includes('MAGIC MOUNTAIN')) return 'Six Flags Magic Mountain';
+  if (upper === 'SFMM') return 'Six Flags Magic Mountain';
+  if (upper.includes('GREAT ADVENTURE')) return 'Six Flags Great Adventure';
+  if (upper === 'SFGADV') return 'Six Flags Great Adventure';
+  if (upper.includes('GREAT AMERICA') && upper.includes('SIX FLAGS')) return 'Six Flags Great America';
+  if (upper === 'SFGAM') return 'Six Flags Great America';
+  if (upper.includes('OVER GEORGIA')) return 'Six Flags Over Georgia';
+  if (upper === 'SFOG') return 'Six Flags Over Georgia';
+  if (upper.includes('OVER TEXAS')) return 'Six Flags Over Texas';
+  if (upper === 'SFOT') return 'Six Flags Over Texas';
+  if (upper.includes('FIESTA TEXAS')) return 'Six Flags Fiesta Texas';
+  if (upper === 'SFFT') return 'Six Flags Fiesta Texas';
+  if (upper.includes('DISCOVERY KINGDOM')) return 'Six Flags Discovery Kingdom';
+  if (upper.includes('NEW ENGLAND') && upper.includes('SIX FLAGS')) return 'Six Flags New England';
+
+  // Cedar Fair / Legacy
+  if (upper.includes('CEDAR POINT')) return 'Cedar Point';
+  if (upper === 'CP') return 'Cedar Point';
+  if (upper.includes('KINGS ISLAND')) return 'Kings Island';
+  if (upper === 'KI') return 'Kings Island';
+  if (upper.includes('KINGS DOMINION')) return 'Kings Dominion';
+  if (upper === 'KD') return 'Kings Dominion';
+  if (upper.includes('CAROWINDS')) return 'Carowinds';
+  if (upper.includes('CANADA\'S WONDERLAND') || upper.includes('CANADAS WONDERLAND')) return "Canada's Wonderland";
+  if (upper.includes('KNOTT\'S BERRY FARM') || upper.includes('KNOTTS BERRY FARM')) return "Knott's Berry Farm";
+  if (upper.includes('HERSHEYPARK') || upper.includes('HERSHEY PARK')) return 'Hersheypark';
+  if (upper.includes('DOLLEYWOOD') || upper.includes('DOLLYWOOD')) return 'Dollywood';
+  if (upper.includes('SILVER DOLLAR CITY')) return 'Silver Dollar City';
+
+  // International
+  if (upper.includes('EUROPA PARK') || upper.includes('EUROPA-PARK')) return 'Europa Park';
+  if (upper.includes('PHANTASIALAND')) return 'Phantasialand';
+  if (upper.includes('ENERGYLANDIA')) return 'Energylandia';
+  if (upper.includes('ALTON TOWERS')) return 'Alton Towers';
+  if (upper.includes('THORPE PARK')) return 'Thorpe Park';
+  if (upper.includes('PORTAVENTURA') || upper.includes('PORT AVENTURA')) return 'PortAventura Park';
+  if (upper.includes('EFTELING')) return 'Efteling';
+  if (upper.includes('LISEBERG')) return 'Liseberg';
+  if (upper.includes('TIVOLI GARDENS')) return 'Tivoli Gardens';
+  if (upper.includes('NAGASHIMA SPA LAND')) return 'Nagashima Spa Land';
+  if (upper.includes('FUJI-Q')) return 'Fuji-Q Highland';
+  
+  return cleanName(name);
+};
+
 export const INITIAL_USERS: User[] = [
   { id: 'u1', name: 'Main Rider', avatarColor: 'bg-blue-500' }
 ];

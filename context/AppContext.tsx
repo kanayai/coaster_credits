@@ -1,9 +1,11 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User, Coaster, Credit, ViewState, WishlistEntry, RankingList } from '../types';
-import { INITIAL_COASTERS, INITIAL_USERS, normalizeManufacturer, cleanName } from '../constants';
+import { INITIAL_COASTERS, INITIAL_USERS, normalizeManufacturer, cleanName, normalizeParkName } from '../constants';
 import { generateCoasterInfo, generateAppIcon, extractCoasterFromUrl } from '../services/geminiService';
 import { fetchCoasterImageFromWiki } from '../services/wikipediaService';
+import { storage } from '../services/storage';
+import { Loader2 } from 'lucide-react';
 
 export interface Notification {
   id: string;
@@ -57,6 +59,9 @@ interface AppContextType {
   
   // Ranking Actions
   updateRankings: (rankings: RankingList) => void;
+  
+  // Storage Actions
+  clearStoragePhotos: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -68,6 +73,7 @@ const generateId = (prefix: string) => {
 };
 
 // Helper: Compress Image to avoid LocalStorage Quota Exceeded
+// Updated: Even more aggressive compression for better storage management
 const compressImage = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -77,8 +83,8 @@ const compressImage = (file: File): Promise<string> => {
       img.src = event.target?.result as string;
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 800;
-        const MAX_HEIGHT = 800;
+        const MAX_WIDTH = 600; // Reduced from 800
+        const MAX_HEIGHT = 600; // Reduced from 800
         let width = img.width;
         let height = img.height;
 
@@ -100,8 +106,8 @@ const compressImage = (file: File): Promise<string> => {
         const ctx = canvas.getContext('2d');
         if (ctx) {
             ctx.drawImage(img, 0, 0, width, height);
-            // Compress to JPEG with 0.7 quality
-            resolve(canvas.toDataURL('image/jpeg', 0.7));
+            // Compress to JPEG with 0.6 quality (Reduced from 0.7)
+            resolve(canvas.toDataURL('image/jpeg', 0.6));
         } else {
             reject(new Error("Canvas context failed"));
         }
@@ -113,53 +119,14 @@ const compressImage = (file: File): Promise<string> => {
 };
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [users, setUsers] = useState<User[]>(() => {
-    try {
-        const stored = localStorage.getItem('cc_users');
-        return stored ? JSON.parse(stored) : INITIAL_USERS;
-    } catch (e) {
-        console.error("Failed to load users", e);
-        return INITIAL_USERS;
-    }
-  });
-
-  const [activeUser, setActiveUser] = useState<User>(() => {
-    try {
-        const storedId = localStorage.getItem('cc_active_user_id');
-        const storedUsers = localStorage.getItem('cc_users');
-        const parsedUsers = storedUsers ? JSON.parse(storedUsers) : INITIAL_USERS;
-        return parsedUsers.find((u: User) => u.id === storedId) || parsedUsers[0];
-    } catch(e) {
-        return INITIAL_USERS[0];
-    }
-  });
-
-  const [coasters, setCoasters] = useState<Coaster[]>(() => {
-    try {
-        const stored = localStorage.getItem('cc_coasters');
-        return stored ? JSON.parse(stored) : INITIAL_COASTERS;
-    } catch (e) {
-        return INITIAL_COASTERS;
-    }
-  });
-
-  const [credits, setCredits] = useState<Credit[]>(() => {
-    try {
-        const stored = localStorage.getItem('cc_credits');
-        return stored ? JSON.parse(stored) : [];
-    } catch(e) {
-        return [];
-    }
-  });
-
-  const [wishlist, setWishlist] = useState<WishlistEntry[]>(() => {
-    try {
-        const stored = localStorage.getItem('cc_wishlist');
-        return stored ? JSON.parse(stored) : [];
-    } catch (e) {
-        return [];
-    }
-  });
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Initialize with defaults, will be populated by useEffect
+  const [users, setUsers] = useState<User[]>(INITIAL_USERS);
+  const [activeUser, setActiveUser] = useState<User>(INITIAL_USERS[0]);
+  const [coasters, setCoasters] = useState<Coaster[]>(INITIAL_COASTERS);
+  const [credits, setCredits] = useState<Credit[]>([]);
+  const [wishlist, setWishlist] = useState<WishlistEntry[]>([]);
 
   const [currentView, setCurrentView] = useState<ViewState>('DASHBOARD');
   const [coasterListViewMode, setCoasterListViewMode] = useState<'CREDITS' | 'WISHLIST'>('CREDITS');
@@ -169,26 +136,62 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [showConfetti, setShowConfetti] = useState(false);
   const [showFireworks, setShowFireworks] = useState(false);
 
-  // Safe Storage Effects
+  // Load data from IndexedDB on mount
   useEffect(() => {
-    try { localStorage.setItem('cc_users', JSON.stringify(users)); } catch (e) { showNotification("Storage Full: Could not save Users", "error"); }
-  }, [users]);
+    const initializeApp = async () => {
+        try {
+            // Attempt migration first
+            await storage.migrateFromLocalStorage();
+
+            // Load data
+            const [storedUsers, storedCoasters, storedCredits, storedWishlist, storedActiveUserId] = await Promise.all([
+                storage.get<User[]>('cc_users'),
+                storage.get<Coaster[]>('cc_coasters'),
+                storage.get<Credit[]>('cc_credits'),
+                storage.get<WishlistEntry[]>('cc_wishlist'),
+                storage.get<string>('cc_active_user_id')
+            ]);
+
+            if (storedUsers) setUsers(storedUsers);
+            if (storedCoasters) setCoasters(storedCoasters);
+            if (storedCredits) setCredits(storedCredits);
+            if (storedWishlist) setWishlist(storedWishlist);
+
+            if (storedUsers && storedActiveUserId) {
+                const foundUser = storedUsers.find(u => u.id === storedActiveUserId);
+                if (foundUser) setActiveUser(foundUser);
+            }
+        } catch (e) {
+            console.error("Initialization failed", e);
+            showNotification("Failed to load data.", "error");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+    initializeApp();
+  }, []);
+
+  // Save Effects - persist to IndexedDB whenever state changes
+  useEffect(() => {
+    if (!isLoading) storage.set('cc_users', users).catch(() => showNotification("Save Failed: Storage Full?", "error"));
+  }, [users, isLoading]);
 
   useEffect(() => {
-    try { localStorage.setItem('cc_coasters', JSON.stringify(coasters)); } catch (e) { showNotification("Storage Full: Could not save Coasters", "error"); }
-  }, [coasters]);
+    if (!isLoading) storage.set('cc_coasters', coasters).catch(() => showNotification("Save Failed: Storage Full?", "error"));
+  }, [coasters, isLoading]);
 
   useEffect(() => {
-    try { localStorage.setItem('cc_credits', JSON.stringify(credits)); } catch (e) { showNotification("Storage Full: Could not save Credits", "error"); }
-  }, [credits]);
+    if (!isLoading) storage.set('cc_credits', credits).catch(() => showNotification("Save Failed: Storage Full?", "error"));
+  }, [credits, isLoading]);
 
   useEffect(() => {
-    try { localStorage.setItem('cc_wishlist', JSON.stringify(wishlist)); } catch (e) { showNotification("Storage Full: Could not save Wishlist", "error"); }
-  }, [wishlist]);
+    if (!isLoading) storage.set('cc_wishlist', wishlist).catch(() => showNotification("Save Failed: Storage Full?", "error"));
+  }, [wishlist, isLoading]);
 
   useEffect(() => {
-    try { localStorage.setItem('cc_active_user_id', activeUser.id); } catch(e) {}
-  }, [activeUser]);
+    if (!isLoading) storage.set('cc_active_user_id', activeUser.id);
+  }, [activeUser, isLoading]);
+
 
   const showNotification = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     setNotification({ id: generateId('notif'), message, type });
@@ -385,7 +388,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const newCoaster: Coaster = { 
         ...coasterData, 
-        park: cleanName(coasterData.park),
+        park: normalizeParkName(coasterData.park),
         country: cleanName(coasterData.country),
         manufacturer: normalizeManufacturer(coasterData.manufacturer),
         id: newId, 
@@ -397,7 +400,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const editCoaster = (id: string, updates: Partial<Coaster>) => {
-    setCoasters(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+    const cleanedUpdates: Partial<Coaster> = { ...updates };
+    
+    // Apply normalization if these fields are present in updates
+    if (updates.park) cleanedUpdates.park = normalizeParkName(updates.park);
+    if (updates.country) cleanedUpdates.country = cleanName(updates.country);
+    if (updates.manufacturer) cleanedUpdates.manufacturer = normalizeManufacturer(updates.manufacturer);
+    if (updates.name) cleanedUpdates.name = cleanName(updates.name);
+
+    setCoasters(prev => prev.map(c => c.id === id ? { ...c, ...cleanedUpdates } : c));
     showNotification("Coaster details updated", 'success');
   };
 
@@ -409,7 +420,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           const newCoaster: Coaster = {
               ...item,
               id: newId,
-              park: cleanName(item.park),
+              park: normalizeParkName(item.park),
               country: cleanName(item.country || 'Unknown'),
               manufacturer: normalizeManufacturer(item.manufacturer || 'Unknown'),
           };
@@ -501,9 +512,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                   const nextCoasters = [...prev];
                   jsonData.coasters.forEach((newC: Coaster) => {
                       const normName = cleanName(newC.name).toLowerCase();
-                      const normPark = cleanName(newC.park).toLowerCase();
+                      const normPark = normalizeParkName(newC.park).toLowerCase();
                       const existing = nextCoasters.find(c => 
-                        c.id === newC.id || (cleanName(c.name).toLowerCase() === normName && cleanName(c.park).toLowerCase() === normPark)
+                        c.id === newC.id || (cleanName(c.name).toLowerCase() === normName && normalizeParkName(c.park).toLowerCase() === normPark)
                       );
                       if (existing) {
                         idTranslationTable[newC.id] = existing.id;
@@ -539,7 +550,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     let changesCount = 0;
     const normalizedCoasters = coasters.map(c => {
         const newName = cleanName(c.name);
-        const newPark = cleanName(c.park);
+        const newPark = normalizeParkName(c.park);
         const newMan = normalizeManufacturer(c.manufacturer);
         
         if (newName !== c.name || newPark !== c.park || newMan !== c.manufacturer) {
@@ -574,6 +585,42 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (mergedCount > 0) {
              setCredits(prev => prev.map(cr => idTranslationTable[cr.coasterId] ? { ...cr, coasterId: idTranslationTable[cr.coasterId] } : cr));
              setWishlist(prev => prev.map(w => idTranslationTable[w.coasterId] ? { ...w, coasterId: idTranslationTable[w.coasterId] } : w));
+             // Also need to update rankings
+             setUsers(prev => prev.map(u => {
+                 if (!u.rankings) return u;
+                 const updateList = (list: string[]) => {
+                     // Replace IDs, remove duplicates if merged into existing rank
+                     const newIds = list.map(id => idTranslationTable[id] || id);
+                     return [...new Set(newIds)];
+                 };
+                 const newRankings: RankingList = {
+                     ...u.rankings,
+                     overall: updateList(u.rankings.overall || []),
+                     steel: updateList(u.rankings.steel || []),
+                     wooden: updateList(u.rankings.wooden || []),
+                     elements: u.rankings.elements ? Object.fromEntries(
+                         Object.entries(u.rankings.elements).map(([k, v]) => [k, updateList(v as string[])])
+                     ) : undefined
+                 };
+                 return { ...u, rankings: newRankings };
+             }));
+             // Update active user state
+             if (activeUser.rankings) {
+                 const u = users.find(u => u.id === activeUser.id);
+                 if (u && u.rankings) {
+                    const updateList = (list: string[]) => [...new Set(list.map(id => idTranslationTable[id] || id))];
+                    const newRankings = {
+                         ...activeUser.rankings,
+                         overall: updateList(activeUser.rankings.overall || []),
+                         steel: updateList(activeUser.rankings.steel || []),
+                         wooden: updateList(activeUser.rankings.wooden || []),
+                         elements: activeUser.rankings.elements ? Object.fromEntries(
+                             Object.entries(activeUser.rankings.elements).map(([k, v]) => [k, updateList(v as string[])])
+                         ) : undefined
+                    };
+                    setActiveUser(prev => ({ ...prev, rankings: newRankings }));
+                 }
+             }
         }
         
         setCoasters(deduplicatedCoasters);
@@ -587,6 +634,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         showNotification("Database is already clean.", 'info');
     }
   };
+  
+  const clearStoragePhotos = async () => {
+      // Emergency feature to clear photos from Credits without deleting the credit
+      if (!window.confirm("WARNING: This will delete ALL ride photos to free up space. Text logs will remain. Continue?")) return;
+      
+      setCredits(prev => prev.map(c => ({ ...c, photoUrl: undefined, gallery: [] })));
+      setUsers(prev => prev.map(u => ({ ...u, avatarUrl: undefined })));
+      setActiveUser(prev => ({ ...prev, avatarUrl: undefined }));
+      
+      showNotification("All photos wiped. Space reclaimed.", 'success');
+  };
 
   return (
     <AppContext.Provider value={{
@@ -594,7 +652,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       switchUser, addUser, updateUser, addCredit, updateCredit, addNewCoaster, editCoaster, addMultipleCoasters, searchOnlineCoaster, extractFromUrl, generateIcon,
       changeView, setCoasterListViewMode, deleteCredit, addToWishlist, removeFromWishlist, isInWishlist, triggerConfetti, triggerFireworks,
       showNotification, hideNotification, setLastSearchQuery, setCoasterToLog, enrichDatabaseImages, updateCoasterImage, autoFetchCoasterImage,
-      importData, standardizeDatabase, updateRankings
+      importData, standardizeDatabase, updateRankings, clearStoragePhotos
     }}>
       {children}
     </AppContext.Provider>

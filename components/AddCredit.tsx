@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Coaster, CoasterType, Credit } from '../types';
 import { Search, Plus, Calendar, Sparkles, Loader2, Filter, Bookmark, BookmarkCheck, PlusCircle, ArrowLeft as BackIcon, Zap, Ruler, ArrowUp, History, Trash2, Clock, CheckCircle2, Globe, Info, X, Palmtree, ChevronRight, ListChecks, CheckSquare, Square, Check, Edit2, Copy, AlertCircle, Link, Image as ImageIcon, ArrowDownCircle, Images, BookmarkPlus, BookmarkMinus, Split, Camera, MessageSquare, Lock } from 'lucide-react';
-import { cleanName } from '../constants';
+import { cleanName, normalizeParkName } from '../constants';
 import ShareCardModal from './ShareCardModal';
 import clsx from 'clsx';
 
@@ -90,8 +90,15 @@ const AddCredit: React.FC = () => {
   // Effect: Auto-Enable Park Mode if search matches a park name exactly (from Dashboard auto-locate)
   useEffect(() => {
     if (searchTerm && !activeParkFilter) {
-        // Check if the search term matches any park name in database
-        const match = coasters.find(c => normalizeText(c.park) === normalizeText(searchTerm));
+        // Try exact match first
+        let match = coasters.find(c => normalizeText(c.park) === normalizeText(searchTerm));
+        
+        // If no exact match, try normalized match (handles "Universal Islands" -> "Islands of Adventure")
+        if (!match) {
+            const normalizedSearch = normalizeParkName(searchTerm);
+            match = coasters.find(c => normalizeText(c.park) === normalizeText(normalizedSearch));
+        }
+
         if (match) {
             setActiveParkFilter(match.park);
             setSearchTerm(''); // Clear search to show all rides
@@ -149,9 +156,10 @@ const AddCredit: React.FC = () => {
   // Helper to find existing match for AI results
   const findExistingCoaster = (name?: string, park?: string) => {
       if (!name || !park) return null;
+      const normPark = normalizeParkName(park);
       return coasters.find(c => 
           normalizeText(c.name) === normalizeText(name) && 
-          normalizeText(c.park) === normalizeText(park)
+          normalizeText(c.park) === normalizeText(normPark)
       );
   };
 
@@ -175,7 +183,7 @@ const AddCredit: React.FC = () => {
                   setManualCoasterData({
                       id: '',
                       name: res.name || '',
-                      park: res.park || '',
+                      park: res.park ? normalizeParkName(res.park) : '',
                       country: res.country || '',
                       manufacturer: res.manufacturer || '',
                       type: res.type || CoasterType.Steel,
@@ -214,7 +222,7 @@ const AddCredit: React.FC = () => {
               setManualCoasterData({
                   id: '',
                   name: result.name || '',
-                  park: result.park || '',
+                  park: result.park ? normalizeParkName(result.park) : '',
                   country: result.country || '',
                   manufacturer: result.manufacturer || '',
                   type: result.type || CoasterType.Steel,
@@ -241,7 +249,7 @@ const AddCredit: React.FC = () => {
           setManualCoasterData(prev => ({
               ...prev,
               name: data.name || prev.name,
-              park: data.park || prev.park,
+              park: data.park ? normalizeParkName(data.park) : prev.park,
               country: data.country || prev.country,
               manufacturer: data.manufacturer || prev.manufacturer,
               type: (data.type as CoasterType) || prev.type,
@@ -394,7 +402,7 @@ const AddCredit: React.FC = () => {
           setManualCoasterData({
               id: '',
               name: res.name || '',
-              park: res.park || '',
+              park: res.park ? normalizeParkName(res.park) : '',
               country: res.country || '',
               manufacturer: res.manufacturer || '',
               type: res.type || CoasterType.Steel,
