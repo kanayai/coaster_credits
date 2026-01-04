@@ -32,7 +32,17 @@ const Dashboard: React.FC = () => {
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
   [credits, activeUser.id]);
   
-  const uniqueCreditsCount = useMemo(() => new Set(userCredits.map(c => c.coasterId)).size, [userCredits]);
+  // Updated Unique Count Logic to support Variants
+  const uniqueCreditsCount = useMemo(() => {
+    const uniqueKeys = new Set<string>();
+    userCredits.forEach(c => {
+        // Key is combination of ID and Variant. e.g. "123_Forward" vs "123_Reverse"
+        const key = `${c.coasterId}|${c.variant || 'default'}`;
+        uniqueKeys.add(key);
+    });
+    return uniqueKeys.size;
+  }, [userCredits]);
+  
   const totalRidesCount = userCredits.length;
 
   // Milestone Logic
@@ -57,8 +67,12 @@ const Dashboard: React.FC = () => {
     const dist: Record<string, number> = {};
     const processedCoasters = new Set<string>();
     userCredits.forEach(credit => {
-      if (processedCoasters.has(credit.coasterId)) return;
-      processedCoasters.add(credit.coasterId);
+      // Logic for Charts: Still count by unique coaster ID to avoid double counting country/park stats visually
+      // Or should we count rides? Usually enthusiasts chart unique credits.
+      const uniqueKey = `${credit.coasterId}|${credit.variant || 'default'}`;
+      if (processedCoasters.has(uniqueKey)) return;
+      processedCoasters.add(uniqueKey);
+
       const coaster = coasters.find(c => c.id === credit.coasterId);
       if (coaster) {
         let key = 'Unknown';
@@ -231,6 +245,7 @@ const Dashboard: React.FC = () => {
                       <div className="text-[10px] text-slate-500 mt-1 flex gap-2">
                           <span className="bg-slate-900 px-1.5 py-0.5 rounded border border-slate-700">{new Date(recentCredit.date).toLocaleDateString()}</span>
                           {recentCredit.rideCount > 1 && <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded border border-primary/20 font-bold">x{recentCredit.rideCount}</span>}
+                          {recentCredit.variant && <span className="bg-accent/10 text-accent px-1.5 py-0.5 rounded border border-accent/20 font-bold truncate max-w-[80px]">{recentCredit.variant}</span>}
                       </div>
                   </div>
                   <div className="p-2 text-slate-500">

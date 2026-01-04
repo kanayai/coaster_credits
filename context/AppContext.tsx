@@ -26,8 +26,8 @@ interface AppContextType {
   switchUser: (userId: string) => void;
   addUser: (name: string, photo?: File) => void;
   updateUser: (userId: string, newName: string, photo?: File) => void;
-  addCredit: (coasterId: string, date: string, notes: string, restraints: string, photos?: File[]) => Promise<Credit | undefined>;
-  updateCredit: (creditId: string, date: string, notes: string, restraints: string, mainPhotoUrl: string | undefined, gallery: string[], newPhotos?: File[]) => Promise<void>;
+  addCredit: (coasterId: string, date: string, notes: string, restraints: string, photos?: File[], variant?: string) => Promise<Credit | undefined>;
+  updateCredit: (creditId: string, date: string, notes: string, restraints: string, mainPhotoUrl: string | undefined, gallery: string[], newPhotos?: File[], variant?: string) => Promise<void>;
   addNewCoaster: (coaster: Omit<Coaster, 'id'>) => Promise<Coaster>;
   editCoaster: (id: string, updates: Partial<Coaster>) => void;
   addMultipleCoasters: (coasters: Omit<Coaster, 'id'>[]) => Promise<void>;
@@ -275,7 +275,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return wishlist.some(w => w.userId === activeUser.id && w.coasterId === coasterId);
   };
 
-  const addCredit = async (coasterId: string, date: string, notes: string, restraints: string, photos?: File[]): Promise<Credit | undefined> => {
+  const addCredit = async (coasterId: string, date: string, notes: string, restraints: string, photos?: File[], variant?: string): Promise<Credit | undefined> => {
     if (isInWishlist(coasterId)) {
       setWishlist(prev => prev.filter(w => !(w.userId === activeUser.id && w.coasterId === coasterId)));
     }
@@ -306,14 +306,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       notes,
       restraints,
       photoUrl,
-      gallery
+      gallery,
+      variant
     };
     setCredits(prev => [...prev, newCredit]);
     showNotification(photos && photos.length > 1 ? "Ride & Gallery Logged!" : "Ride Logged Successfully!", 'success');
     return newCredit;
   };
 
-  const updateCredit = async (creditId: string, date: string, notes: string, restraints: string, mainPhotoUrl: string | undefined, gallery: string[], newPhotos?: File[]) => {
+  const updateCredit = async (creditId: string, date: string, notes: string, restraints: string, mainPhotoUrl: string | undefined, gallery: string[], newPhotos?: File[], variant?: string) => {
     let newCompressedPhotos: string[] = [];
     
     if (newPhotos && newPhotos.length > 0) {
@@ -346,7 +347,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           notes,
           restraints,
           photoUrl: finalMainPhoto,
-          gallery: finalGallery
+          gallery: finalGallery,
+          variant
         };
       }
       return c;

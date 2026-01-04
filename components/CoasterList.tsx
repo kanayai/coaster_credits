@@ -40,8 +40,12 @@ const CoasterList: React.FC = () => {
         rawCredits.forEach(credit => {
             const coaster = coasters.find(c => c.id === credit.coasterId);
             if (!coaster) return;
-            if (groupedMap.has(credit.coasterId)) {
-                const existing = groupedMap.get(credit.coasterId);
+            
+            // Unique key includes variant
+            const key = `${credit.coasterId}|${credit.variant || 'default'}`;
+
+            if (groupedMap.has(key)) {
+                const existing = groupedMap.get(key);
                 existing.totalRides = (existing.totalRides || 1) + 1;
                 
                 // If the most recent ride didn't have a photo, but this older one does, use this photo
@@ -49,7 +53,7 @@ const CoasterList: React.FC = () => {
                     existing.photoUrl = credit.photoUrl;
                 }
             } else {
-                groupedMap.set(credit.coasterId, {
+                groupedMap.set(key, {
                     ...credit,
                     coaster,
                     type: 'CREDIT',
@@ -191,6 +195,7 @@ const CoasterList: React.FC = () => {
                             const isWishlist = item.type === 'WISHLIST';
                             const rideCount = (item as any).totalRides || 1;
                             const displayImage = (item as any).photoUrl || item.coaster.imageUrl;
+                            const variant = (item as any).variant;
 
                             return (
                                 <div 
@@ -218,6 +223,12 @@ const CoasterList: React.FC = () => {
                                                         {!showAllLogs && rideCount > 1 && <span className="bg-primary/20 text-primary px-1.5 py-0.5 rounded text-[10px] font-bold border border-primary/30 flex items-center gap-0.5"><Repeat size={8} /> {rideCount}</span>}
                                                     </h3>
                                                     <div className="flex items-center text-sm text-slate-400 mt-1"><MapPin size={12} className="mr-1 shrink-0" /><span className="truncate text-xs">{item.coaster.park}</span></div>
+                                                    
+                                                    {variant && (
+                                                        <div className="inline-block mt-1 bg-accent/20 text-accent text-[10px] font-bold px-2 py-0.5 rounded border border-accent/30 uppercase tracking-wide">
+                                                            {variant}
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
                                                     {!isWishlist && <button onClick={() => setSharingCreditData({ credit: item as unknown as Credit, coaster: item.coaster! })} className="text-primary p-2 rounded-full hover:bg-primary/10 transition-colors"><Share2 size={18} /></button>}

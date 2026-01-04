@@ -1,5 +1,4 @@
 
-
 export enum CoasterType {
   Steel = 'Steel',
   Wooden = 'Wooden',
@@ -27,6 +26,7 @@ export interface Coaster {
   imageUrl?: string;
   isCustom?: boolean;
   specs?: CoasterSpecs;
+  variants?: string[]; // e.g. ["Forward", "Reverse"] or ["Green Side", "Red Side"]
 }
 
 export interface Credit {
@@ -39,6 +39,7 @@ export interface Credit {
   gallery?: string[]; // These are additional photos
   notes?: string;
   restraints?: string;
+  variant?: string; // The specific variant ridden
 }
 
 export interface WishlistEntry {

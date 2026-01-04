@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Coaster, CoasterType, Credit } from '../types';
-import { Search, Plus, Calendar, Sparkles, Loader2, Filter, Bookmark, BookmarkCheck, PlusCircle, ArrowLeft as BackIcon, Zap, Ruler, ArrowUp, History, Trash2, Clock, CheckCircle2, Globe, Info, X, Palmtree, ChevronRight, ListChecks, CheckSquare, Square, Check, Edit2, Copy, AlertCircle, Link, Image as ImageIcon, ArrowDownCircle, Images, BookmarkPlus, BookmarkMinus } from 'lucide-react';
+import { Search, Plus, Calendar, Sparkles, Loader2, Filter, Bookmark, BookmarkCheck, PlusCircle, ArrowLeft as BackIcon, Zap, Ruler, ArrowUp, History, Trash2, Clock, CheckCircle2, Globe, Info, X, Palmtree, ChevronRight, ListChecks, CheckSquare, Square, Check, Edit2, Copy, AlertCircle, Link, Image as ImageIcon, ArrowDownCircle, Images, BookmarkPlus, BookmarkMinus, Split } from 'lucide-react';
 import { cleanName } from '../constants';
 import ShareCardModal from './ShareCardModal';
 import clsx from 'clsx';
@@ -40,24 +40,38 @@ const AddCredit: React.FC = () => {
   const [sharingCreditData, setSharingCreditData] = useState<{ credit: Credit, coaster: Coaster } | null>(null);
   
   // Manual Add / Edit Form State
-  const [manualCoasterData, setManualCoasterData] = useState({ 
+  const [manualCoasterData, setManualCoasterData] = useState<{
+      id: string; 
+      name: string; 
+      park: string; 
+      country: string; 
+      manufacturer: string; 
+      type: CoasterType;
+      imageUrl: string;
+      variants: string[];
+  }>({ 
       id: '', 
       name: '', 
       park: '', 
       country: '', 
       manufacturer: '', 
       type: CoasterType.Steel,
-      imageUrl: '' 
+      imageUrl: '',
+      variants: []
   });
+  const [variantsInput, setVariantsInput] = useState('');
+
   const [isEditingExisting, setIsEditingExisting] = useState(false);
 
   const [filterType, setFilterType] = useState<string>('All');
   const [showFilters, setShowFilters] = useState(false);
   const [hideRidden, setHideRidden] = useState(false);
+  
+  // Log Ride State
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
   const [restraints, setRestraints] = useState('');
-  // Changed to an array of files for gallery support
+  const [selectedVariant, setSelectedVariant] = useState<string>('');
   const [photos, setPhotos] = useState<File[]>([]);
 
   // Effect: Auto-Enable Park Mode if search matches a park name exactly (from Dashboard auto-locate)
@@ -104,6 +118,17 @@ const AddCredit: React.FC = () => {
       return { total: parkCoasters.length, ridden: riddenCount };
   }, [activeParkFilter, coasters, credits, activeUser.id]);
 
+  // Reset log state when selecting a coaster
+  useEffect(() => {
+      if (selectedCoaster) {
+          setDate(new Date().toISOString().split('T')[0]);
+          setNotes('');
+          setRestraints('');
+          setPhotos([]);
+          setSelectedVariant(selectedCoaster.variants && selectedCoaster.variants.length > 0 ? selectedCoaster.variants[0] : '');
+      }
+  }, [selectedCoaster]);
+
   // Helper to find existing match for AI results
   const findExistingCoaster = (name?: string, park?: string) => {
       if (!name || !park) return null;
@@ -137,8 +162,10 @@ const AddCredit: React.FC = () => {
                       country: res.country || '',
                       manufacturer: res.manufacturer || '',
                       type: res.type || CoasterType.Steel,
-                      imageUrl: res.imageUrl || ''
+                      imageUrl: res.imageUrl || '',
+                      variants: res.variants || []
                   });
+                  setVariantsInput((res.variants || []).join(', '));
                   setIsEditingExisting(false);
                   setIsAddingManually(true);
                   showNotification("Found it! Verify details before saving.", "success");
@@ -174,8 +201,10 @@ const AddCredit: React.FC = () => {
                   country: result.country || '',
                   manufacturer: result.manufacturer || '',
                   type: result.type || CoasterType.Steel,
-                  imageUrl: result.imageUrl || ''
+                  imageUrl: result.imageUrl || '',
+                  variants: result.variants || []
               });
+              setVariantsInput((result.variants || []).join(', '));
               setIsEditingExisting(false);
               setIsAddingManually(true);
               showNotification("Data extracted! Please verify.", 'success');
@@ -199,8 +228,10 @@ const AddCredit: React.FC = () => {
               country: data.country || prev.country,
               manufacturer: data.manufacturer || prev.manufacturer,
               type: (data.type as CoasterType) || prev.type,
-              imageUrl: data.imageUrl || prev.imageUrl
+              imageUrl: data.imageUrl || prev.imageUrl,
+              variants: data.variants || prev.variants
           }));
+          if (data.variants) setVariantsInput(data.variants.join(', '));
           showNotification("Form updated from URL!", "success");
           setShowFormImportInput(false);
           setFormImportUrl('');
@@ -258,10 +289,14 @@ const AddCredit: React.FC = () => {
 
   const processLog = async () => {
     if (selectedCoaster) {
-        const newCredit = await addCredit(selectedCoaster.id, date, notes, restraints, photos);
+        // If coaster has variants, require one to be selected
+        if (selectedCoaster.variants && selectedCoaster.variants.length > 0 && !selectedVariant) {
+            showNotification("Please select a ride variant (e.g. Forward/Reverse)", "error");
+            return;
+        }
+
+        const newCredit = await addCredit(selectedCoaster.id, date, notes, restraints, photos, selectedVariant);
         
-        // Reset Form
-        setNotes(''); setRestraints(''); setPhotos([]);
         const coasterRef = selectedCoaster;
         setSelectedCoaster(null); 
         
@@ -288,8 +323,10 @@ const AddCredit: React.FC = () => {
           country: selectedCoaster.country,
           manufacturer: selectedCoaster.manufacturer,
           type: selectedCoaster.type,
-          imageUrl: selectedCoaster.imageUrl || ''
+          imageUrl: selectedCoaster.imageUrl || '',
+          variants: selectedCoaster.variants || []
       });
+      setVariantsInput((selectedCoaster.variants || []).join(', '));
       setIsEditingExisting(true);
       setIsAddingManually(true);
   };
@@ -303,8 +340,10 @@ const AddCredit: React.FC = () => {
           country: selectedCoaster.country,
           manufacturer: selectedCoaster.manufacturer,
           type: selectedCoaster.type,
-          imageUrl: selectedCoaster.imageUrl || ''
+          imageUrl: selectedCoaster.imageUrl || '',
+          variants: selectedCoaster.variants || []
       });
+      setVariantsInput((selectedCoaster.variants || []).join(', '));
       setIsEditingExisting(false); // We are adding new, not editing old
       setIsAddingManually(true);
   };
@@ -322,8 +361,10 @@ const AddCredit: React.FC = () => {
               country: res.country || '',
               manufacturer: res.manufacturer || '',
               type: res.type || CoasterType.Steel,
-              imageUrl: res.imageUrl || ''
+              imageUrl: res.imageUrl || '',
+              variants: res.variants || []
           });
+          setVariantsInput((res.variants || []).join(', '));
           setIsEditingExisting(false);
           setIsAddingManually(true);
           setAiDiscoveryResults([]);
@@ -341,23 +382,33 @@ const AddCredit: React.FC = () => {
               </div>
               <form onSubmit={async (e) => {
                   e.preventDefault();
+                  
+                  // Process variants
+                  const processedVariants = variantsInput.split(',').map(s => s.trim()).filter(s => s.length > 0);
+                  
+                  const finalData = {
+                      ...manualCoasterData,
+                      variants: processedVariants
+                  };
+
                   if (isEditingExisting && manualCoasterData.id) {
                       // Update existing
                       editCoaster(manualCoasterData.id, {
-                          name: manualCoasterData.name,
-                          park: manualCoasterData.park,
-                          country: manualCoasterData.country,
-                          manufacturer: manualCoasterData.manufacturer,
-                          type: manualCoasterData.type,
-                          imageUrl: manualCoasterData.imageUrl
+                          name: finalData.name,
+                          park: finalData.park,
+                          country: finalData.country,
+                          manufacturer: finalData.manufacturer,
+                          type: finalData.type,
+                          imageUrl: finalData.imageUrl,
+                          variants: finalData.variants
                       });
                       // Update the local selected view
                       if (selectedCoaster) {
-                          setSelectedCoaster(prev => prev ? ({ ...prev, ...manualCoasterData } as Coaster) : null);
+                          setSelectedCoaster(prev => prev ? ({ ...prev, ...finalData } as Coaster) : null);
                       }
                   } else {
                       // Create new
-                      const newC = await addNewCoaster({ ...manualCoasterData, isCustom: true });
+                      const newC = await addNewCoaster({ ...finalData, isCustom: true });
                       setSelectedCoaster(newC);
                   }
                   setIsAddingManually(false);
@@ -441,6 +492,20 @@ const AddCredit: React.FC = () => {
                         </select>
                       </div>
                   </div>
+
+                  {/* Variants Field */}
+                  <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
+                       <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-1 flex items-center gap-1">
+                           <Split size={12} /> Ride Variants / Modes (Optional)
+                       </label>
+                       <input 
+                          placeholder="Comma separated (e.g. Forward, Reverse)" 
+                          value={variantsInput}
+                          onChange={e => setVariantsInput(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white text-xs"
+                       />
+                       <p className="text-[10px] text-slate-500 mt-1 italic">Use this for distinct credits like dual tracks or forward/backward modes.</p>
+                  </div>
                   
                   {!manualCoasterData.imageUrl && (
                       <div className="pt-2">
@@ -519,6 +584,31 @@ const AddCredit: React.FC = () => {
                         <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Date</label>
                         <input type="date" required value={date} onChange={e => setDate(e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white text-sm" />
                     </div>
+
+                    {/* Variant Selection (Dynamic) */}
+                    {selectedCoaster.variants && selectedCoaster.variants.length > 0 && (
+                        <div className="animate-fade-in">
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 flex items-center gap-1">
+                                <Split size={12} className="text-accent" /> Select Variant
+                            </label>
+                            <div className="grid grid-cols-2 gap-2">
+                                {selectedCoaster.variants.map((variant) => (
+                                    <button
+                                        key={variant}
+                                        onClick={() => setSelectedVariant(variant)}
+                                        className={clsx(
+                                            "p-3 rounded-xl text-xs font-bold transition-all border",
+                                            selectedVariant === variant
+                                                ? "bg-accent text-white border-accent shadow-lg shadow-accent/20"
+                                                : "bg-slate-900 text-slate-400 border-slate-600 hover:bg-slate-800"
+                                        )}
+                                    >
+                                        {variant}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                     
                     {/* Add Photo / Gallery Section */}
                     <div>
@@ -794,7 +884,8 @@ const AddCredit: React.FC = () => {
                     )}
 
                     <button onClick={() => { 
-                        setManualCoasterData({ id: '', name: '', park: '', country: '', manufacturer: '', type: CoasterType.Steel, imageUrl: '' });
+                        setManualCoasterData({ id: '', name: '', park: '', country: '', manufacturer: '', type: CoasterType.Steel, imageUrl: '', variants: [] });
+                        setVariantsInput('');
                         setIsEditingExisting(false);
                         setIsAddingManually(true); 
                     }} className="w-full text-slate-600 py-2 text-[10px] font-bold uppercase tracking-wider hover:text-slate-400">Add Completely Manually</button>

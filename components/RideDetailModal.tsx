@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { X, Calendar, MapPin, Zap, Ruler, Activity, MessageSquare, Edit2, Share2, Camera, ArrowRight, Clock } from 'lucide-react';
+import { X, Calendar, MapPin, Zap, Ruler, Activity, MessageSquare, Edit2, Share2, Camera, ArrowRight, Clock, Split } from 'lucide-react';
 import { Credit, Coaster } from '../types';
 import clsx from 'clsx';
 
@@ -65,6 +65,19 @@ const RideDetailModal: React.FC<RideDetailModalProps> = ({ credit, coaster, onCl
             </div>
 
             <div className="p-6 space-y-6">
+                {/* Variant Banner if exists */}
+                {credit.variant && (
+                    <div className="bg-accent/10 border border-accent/20 p-3 rounded-2xl flex items-center gap-3">
+                        <div className="bg-accent/20 p-2 rounded-xl text-accent">
+                            <Split size={20} />
+                        </div>
+                        <div>
+                            <div className="text-[10px] text-accent font-bold uppercase tracking-widest">Variant Ridden</div>
+                            <div className="text-white font-bold text-lg">{credit.variant}</div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Quick Stats Grid */}
                 <div className="grid grid-cols-2 gap-3">
                     <div className="bg-slate-800/50 p-3 rounded-2xl border border-slate-700/50">
