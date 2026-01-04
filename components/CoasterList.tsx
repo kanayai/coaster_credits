@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Trash2, Calendar, MapPin, Tag, Palmtree, Flag, Layers, Factory, CalendarRange, CheckCircle2, Bookmark, ArrowRightCircle, Edit2, ArrowLeft, ChevronRight, FolderOpen, Lock, Repeat, ListFilter, History, Share2, PlusCircle, Music, ArrowUp, Trophy } from 'lucide-react';
@@ -22,7 +21,7 @@ const CoasterList: React.FC = () => {
 
   // Modal States
   const [editingCreditData, setEditingCreditData] = useState<{ credit: Credit, coaster: Coaster } | null>(null);
-  const [viewingCreditData, setViewingCreditData] = useState<{ credit: Credit, coaster: Coaster } | null>(null);
+  const [viewingCreditData, setViewingCreditData] = useState<{ credit?: Credit, coaster: Coaster } | null>(null);
   const [sharingCreditData, setSharingCreditData] = useState<{ credit: Credit, coaster: Coaster } | null>(null);
 
   // Scroll To Top State
@@ -296,9 +295,10 @@ const CoasterList: React.FC = () => {
                                 <div 
                                     key={item.id} 
                                     onClick={() => {
-                                        if (!isWishlist) {
-                                            setViewingCreditData({ credit: item as unknown as Credit, coaster: item.coaster! });
-                                        }
+                                        setViewingCreditData({ 
+                                            credit: !isWishlist ? (item as unknown as Credit) : undefined, 
+                                            coaster: item.coaster! 
+                                        });
                                     }}
                                     className={clsx(
                                         "bg-slate-800 rounded-xl overflow-hidden shadow-sm border flex flex-col sm:flex-row transition-transform hover:scale-[1.01] active:scale-[0.99] relative cursor-pointer", 
@@ -392,14 +392,14 @@ const CoasterList: React.FC = () => {
             credit={viewingCreditData.credit} 
             coaster={viewingCreditData.coaster} 
             onClose={() => setViewingCreditData(null)}
-            onEdit={() => {
-                setEditingCreditData(viewingCreditData);
+            onEdit={viewingCreditData.credit ? () => {
+                setEditingCreditData({ credit: viewingCreditData.credit!, coaster: viewingCreditData.coaster });
                 setViewingCreditData(null);
-            }}
-            onShare={() => {
-                setSharingCreditData(viewingCreditData);
+            } : undefined}
+            onShare={viewingCreditData.credit ? () => {
+                setSharingCreditData({ credit: viewingCreditData.credit!, coaster: viewingCreditData.coaster });
                 // Can keep details open or close it
-            }}
+            } : undefined}
           />
       )}
 
