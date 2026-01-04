@@ -14,7 +14,7 @@ import clsx from 'clsx';
 type ChartMetric = 'PARK' | 'TYPE' | 'MANUFACTURER' | 'COUNTRY' | 'YEAR';
 
 const Dashboard: React.FC = () => {
-  const { credits, coasters, activeUser, changeView, setLastSearchQuery, showNotification } = useAppContext();
+  const { credits, coasters, activeUser, changeView, setLastSearchQuery, showNotification, setAnalyticsFilter } = useAppContext();
 
   // Modal States
   const [editingCreditData, setEditingCreditData] = useState<{ credit: Credit, coaster: Coaster } | null>(null);
@@ -130,6 +130,12 @@ const Dashboard: React.FC = () => {
           setIsLocatingSession(false);
           changeView('ADD_CREDIT');
       });
+  };
+
+  const handleChartClick = (entry: any) => {
+      if (!entry || !entry.name) return;
+      setAnalyticsFilter({ mode: chartMetric, value: entry.name });
+      changeView('COASTER_LIST');
   };
 
   const MetricButton = ({ mode, label, icon: Icon }: { mode: ChartMetric, label: string, icon: React.ElementType }) => (
@@ -285,6 +291,8 @@ const Dashboard: React.FC = () => {
                                   paddingAngle={5}
                                   dataKey="value"
                                   stroke="none"
+                                  onClick={handleChartClick}
+                                  cursor="pointer"
                               >
                                   {chartData.map((entry, index) => (
                                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -313,7 +321,11 @@ const Dashboard: React.FC = () => {
               {/* Legend */}
               <div className="grid grid-cols-2 gap-2 mt-4">
                   {chartData.slice(0, 4).map((entry, idx) => (
-                      <div key={idx} className="flex items-center gap-2 text-xs">
+                      <div 
+                        key={idx} 
+                        className="flex items-center gap-2 text-xs p-1.5 rounded-lg hover:bg-slate-700/50 cursor-pointer transition-colors"
+                        onClick={() => handleChartClick(entry)}
+                      >
                           <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: COLORS[idx % COLORS.length] }} />
                           <span className="text-slate-300 truncate flex-1">{entry.name}</span>
                           <span className="font-bold text-white">{entry.value}</span>

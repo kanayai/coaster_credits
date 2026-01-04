@@ -27,6 +27,10 @@ interface AppContextType {
   showConfetti: boolean;
   showFireworks: boolean;
   
+  // Analytics Deep Linking
+  analyticsFilter: { mode: string, value: string } | null;
+  setAnalyticsFilter: (filter: { mode: string, value: string } | null) => void;
+  
   // Actions
   switchUser: (userId: string) => void;
   addUser: (name: string, photo?: File) => void;
@@ -135,6 +139,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [coasterToLog, setCoasterToLog] = useState<Coaster | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const [showFireworks, setShowFireworks] = useState(false);
+  
+  const [analyticsFilter, setAnalyticsFilter] = useState<{ mode: string, value: string } | null>(null);
 
   // Load data from IndexedDB on mount
   useEffect(() => {
@@ -649,6 +655,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   return (
     <AppContext.Provider value={{
       activeUser, users, coasters, credits, wishlist, currentView, coasterListViewMode, notification, lastSearchQuery, coasterToLog, showConfetti, showFireworks,
+      analyticsFilter, setAnalyticsFilter,
       switchUser, addUser, updateUser, addCredit, updateCredit, addNewCoaster, editCoaster, addMultipleCoasters, searchOnlineCoaster, extractFromUrl, generateIcon,
       changeView, setCoasterListViewMode, deleteCredit, addToWishlist, removeFromWishlist, isInWishlist, triggerConfetti, triggerFireworks,
       showNotification, hideNotification, setLastSearchQuery, setCoasterToLog, enrichDatabaseImages, updateCoasterImage, autoFetchCoasterImage,

@@ -11,7 +11,7 @@ import RideDetailModal from './RideDetailModal';
 type GroupMode = 'PARK' | 'COUNTRY' | 'TYPE' | 'MANUFACTURER' | 'YEAR';
 
 const CoasterList: React.FC = () => {
-  const { credits, wishlist, coasters, activeUser, deleteCredit, removeFromWishlist, changeView, coasterListViewMode, setCoasterListViewMode, setCoasterToLog } = useAppContext();
+  const { credits, wishlist, coasters, activeUser, deleteCredit, removeFromWishlist, changeView, coasterListViewMode, setCoasterListViewMode, setCoasterToLog, analyticsFilter, setAnalyticsFilter } = useAppContext();
   
   const [groupMode, setGroupMode] = useState<GroupMode>('PARK');
   const [showAllLogs, setShowAllLogs] = useState(false);
@@ -25,6 +25,17 @@ const CoasterList: React.FC = () => {
   // Scroll To Top State
   const [showScrollTop, setShowScrollTop] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
+
+  // Handle Analytics Filter from Dashboard
+  useEffect(() => {
+    if (analyticsFilter) {
+        setGroupMode(analyticsFilter.mode as GroupMode);
+        setSelectedGroupTitle(analyticsFilter.value);
+        setCoasterListViewMode('CREDITS'); // Ensure we are looking at logged rides
+        // Clear filter so it doesn't persist if we navigate away manually later
+        setAnalyticsFilter(null);
+    }
+  }, [analyticsFilter, setAnalyticsFilter, setCoasterListViewMode]);
 
   useEffect(() => {
     // Find the main scroll container from layout
