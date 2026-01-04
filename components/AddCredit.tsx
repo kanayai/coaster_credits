@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Coaster, CoasterType, Credit } from '../types';
-import { Search, Plus, Calendar, Sparkles, Loader2, Filter, Bookmark, BookmarkCheck, PlusCircle, ArrowLeft as BackIcon, Zap, Ruler, ArrowUp, History, Trash2, Clock, CheckCircle2, Globe, Info, X, Palmtree, ChevronRight, ListChecks, CheckSquare, Square, Check, Edit2, Copy, AlertCircle, Link, Image as ImageIcon, ArrowDownCircle, Images, BookmarkPlus, BookmarkMinus, Split } from 'lucide-react';
+import { Search, Plus, Calendar, Sparkles, Loader2, Filter, Bookmark, BookmarkCheck, PlusCircle, ArrowLeft as BackIcon, Zap, Ruler, ArrowUp, History, Trash2, Clock, CheckCircle2, Globe, Info, X, Palmtree, ChevronRight, ListChecks, CheckSquare, Square, Check, Edit2, Copy, AlertCircle, Link, Image as ImageIcon, ArrowDownCircle, Images, BookmarkPlus, BookmarkMinus, Split, Camera, MessageSquare, Lock } from 'lucide-react';
 import { cleanName } from '../constants';
 import ShareCardModal from './ShareCardModal';
 import clsx from 'clsx';
@@ -547,6 +547,158 @@ const AddCredit: React.FC = () => {
       );
   }
 
+  // LOGGING VIEW (When a coaster is selected)
+  if (selectedCoaster && !isAddingManually) {
+      return (
+          <div className="animate-fade-in pb-20 flex flex-col h-full">
+              {/* Header */}
+              <div className="flex items-center gap-3 mb-4 shrink-0">
+                  <button 
+                      onClick={() => setSelectedCoaster(null)} 
+                      className="p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-all active:scale-95"
+                  >
+                      <BackIcon size={20}/>
+                  </button>
+                  <div>
+                      <h2 className="text-xl font-bold text-white">Log Ride</h2>
+                      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Add a new credit</p>
+                  </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto no-scrollbar space-y-6">
+                  {/* Coaster Summary Card */}
+                  <div className="bg-slate-800 rounded-2xl border border-slate-700 p-4 flex gap-4 items-center relative overflow-hidden group">
+                      <div className="w-20 h-20 bg-slate-900 rounded-xl overflow-hidden border border-slate-600 shrink-0">
+                          {selectedCoaster.imageUrl ? (
+                              <img src={selectedCoaster.imageUrl} className="w-full h-full object-cover" />
+                          ) : (
+                              <div className="w-full h-full flex items-center justify-center text-slate-600"><Palmtree size={24}/></div>
+                          )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                          <h3 className="font-bold text-lg text-white truncate">{selectedCoaster.name}</h3>
+                          <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-2">
+                              <Palmtree size={12} className="text-primary"/>
+                              <span className="truncate">{selectedCoaster.park}</span>
+                          </div>
+                          <div className="flex gap-2">
+                               <button onClick={handleEditSelected} className="text-[10px] font-bold uppercase bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded text-white flex items-center gap-1 transition-colors">
+                                   <Edit2 size={10} /> Edit Info
+                               </button>
+                               <button onClick={handleCloneSelected} className="text-[10px] font-bold uppercase bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded text-white flex items-center gap-1 transition-colors">
+                                   <Copy size={10} /> Clone
+                               </button>
+                          </div>
+                      </div>
+                  </div>
+
+                  {/* Form */}
+                  <div className="space-y-5">
+                       {/* Date Input */}
+                       <div className="space-y-1.5">
+                           <label className="text-xs font-bold uppercase text-slate-500 flex items-center gap-1.5 ml-1">
+                               <Calendar size={14} /> Date Ridden
+                           </label>
+                           <input 
+                               type="date"
+                               required
+                               value={date}
+                               onChange={(e) => setDate(e.target.value)}
+                               className="w-full bg-slate-800 border border-slate-700 rounded-xl p-4 text-white font-medium focus:ring-1 focus:ring-primary outline-none transition-all"
+                           />
+                       </div>
+
+                       {/* Variant Selector (Conditional) */}
+                       {selectedCoaster.variants && selectedCoaster.variants.length > 0 && (
+                           <div className="space-y-1.5 animate-fade-in">
+                               <label className="text-xs font-bold uppercase text-slate-500 flex items-center gap-1.5 ml-1">
+                                   <Split size={14} /> Ride Variant <span className="text-red-500">*</span>
+                               </label>
+                               <div className="grid grid-cols-2 gap-2">
+                                   {selectedCoaster.variants.map((v) => (
+                                       <button
+                                           key={v}
+                                           onClick={() => setSelectedVariant(v)}
+                                           className={clsx(
+                                               "p-3 rounded-xl border text-sm font-bold transition-all",
+                                               selectedVariant === v 
+                                                  ? "bg-primary text-white border-primary shadow-lg shadow-primary/20" 
+                                                  : "bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-750"
+                                           )}
+                                       >
+                                           {v}
+                                       </button>
+                                   ))}
+                               </div>
+                           </div>
+                       )}
+
+                       {/* Restraints Input */}
+                       <div className="space-y-1.5">
+                           <label className="text-xs font-bold uppercase text-slate-500 flex items-center gap-1.5 ml-1">
+                               <Lock size={14} /> Restraints
+                           </label>
+                           <input 
+                               placeholder="e.g. Lap Bar, OTSR..."
+                               value={restraints}
+                               onChange={(e) => setRestraints(e.target.value)}
+                               className="w-full bg-slate-800 border border-slate-700 rounded-xl p-4 text-white placeholder:text-slate-600 text-sm focus:ring-1 focus:ring-primary outline-none transition-all"
+                           />
+                       </div>
+
+                       {/* Photos Input */}
+                       <div className="space-y-1.5">
+                           <label className="text-xs font-bold uppercase text-slate-500 flex items-center gap-1.5 ml-1">
+                               <Camera size={14} /> Photos
+                           </label>
+                           <div className="flex gap-2 overflow-x-auto pb-2">
+                               <label className="w-20 h-20 shrink-0 bg-slate-800 border-2 border-dashed border-slate-600 rounded-xl flex flex-col items-center justify-center text-slate-500 cursor-pointer hover:border-primary hover:text-primary transition-colors">
+                                   <Plus size={24} />
+                                   <span className="text-[8px] font-bold uppercase mt-1">Add</span>
+                                   <input type="file" multiple accept="image/*" className="hidden" onChange={handlePhotoSelect} />
+                               </label>
+                               {photos.map((p, idx) => (
+                                   <div key={idx} className="w-20 h-20 shrink-0 bg-slate-900 rounded-xl border border-slate-700 overflow-hidden relative group">
+                                       <img src={URL.createObjectURL(p)} className="w-full h-full object-cover" />
+                                       <button 
+                                          onClick={() => setPhotos(prev => prev.filter((_, i) => i !== idx))}
+                                          className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                                       >
+                                           <X size={10} />
+                                       </button>
+                                   </div>
+                               ))}
+                           </div>
+                       </div>
+
+                       {/* Notes Input */}
+                       <div className="space-y-1.5">
+                           <label className="text-xs font-bold uppercase text-slate-500 flex items-center gap-1.5 ml-1">
+                               <MessageSquare size={14} /> Notes
+                           </label>
+                           <textarea 
+                               placeholder="How was the ride? Seat location?..."
+                               value={notes}
+                               onChange={(e) => setNotes(e.target.value)}
+                               className="w-full bg-slate-800 border border-slate-700 rounded-xl p-4 text-white placeholder:text-slate-600 text-sm h-32 resize-none focus:ring-1 focus:ring-primary outline-none transition-all"
+                           />
+                       </div>
+                  </div>
+
+                  <div className="pt-4 pb-8">
+                      <button 
+                          onClick={processLog}
+                          className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-2xl font-bold text-lg shadow-xl shadow-primary/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                      >
+                          <CheckCircle2 size={24} />
+                          Confirm & Log Ride
+                      </button>
+                  </div>
+              </div>
+          </div>
+      );
+  }
+
   return (
     <div className="h-full flex flex-col space-y-5 animate-fade-in relative">
         
@@ -600,6 +752,17 @@ const AddCredit: React.FC = () => {
                      <button onClick={() => setSelectedIds(new Set())} className="hover:underline opacity-80">Clear</button>
                  )}
              </div>
+          )}
+
+          {/* Search Result Count */}
+          {(searchTerm || activeParkFilter || filterType !== 'All') && !isMultiSelectMode && (
+              <div className="px-2 flex items-center gap-3 animate-fade-in">
+                  <div className="h-px bg-slate-800 flex-1"></div>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                      {filteredCoasters.length} {filteredCoasters.length === 1 ? 'Match' : 'Matches'} Found
+                  </span>
+                  <div className="h-px bg-slate-800 flex-1"></div>
+              </div>
           )}
         </div>
 
