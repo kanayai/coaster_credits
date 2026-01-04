@@ -696,7 +696,9 @@ const AddCredit: React.FC = () => {
                                     <span className="text-[8px] bg-emerald-500 text-white px-1.5 py-0.5 rounded uppercase font-black tracking-wider">Logged</span>
                                 )}
                             </h3>
-                            <div className="text-[10px] text-slate-500 truncate font-bold uppercase tracking-wider mt-0.5">{c.park}</div>
+                            <div className="text-[10px] text-slate-500 truncate font-bold uppercase tracking-wider mt-0.5">
+                                {c.park} {c.manufacturer && <span className="text-slate-600 font-normal ml-1">• {c.manufacturer}</span>}
+                            </div>
                             
                             {/* New "View Park" Button - Shows only when NOT in Park Mode */}
                             {!activeParkFilter && !isMultiSelectMode && (
@@ -730,13 +732,14 @@ const AddCredit: React.FC = () => {
                             ) : (
                                 !isMultiSelectMode && (
                                     <button
+                                        type="button"
                                         onClick={(e) => {
                                             e.stopPropagation(); // Prevent double triggering
                                             setSelectedCoaster(c);
                                         }}
-                                        className="p-2.5 text-slate-700 group-hover:text-primary transition-colors rounded-xl hover:bg-slate-700/50"
+                                        className="relative z-10 p-3 text-slate-700 hover:bg-slate-700/50 group-hover:text-primary transition-colors rounded-xl"
                                     >
-                                        <ChevronRight size={20} />
+                                        <ChevronRight size={22} />
                                     </button>
                                 )
                             )}
