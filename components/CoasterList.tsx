@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { Trash2, Calendar, MapPin, Tag, Palmtree, Flag, Layers, Factory, CalendarRange, CheckCircle2, Bookmark, ArrowRightCircle, Edit2, ArrowLeft, ChevronRight, FolderOpen, Lock, Repeat, ListFilter, History, Share2 } from 'lucide-react';
+import { Trash2, Calendar, MapPin, Tag, Palmtree, Flag, Layers, Factory, CalendarRange, CheckCircle2, Bookmark, ArrowRightCircle, Edit2, ArrowLeft, ChevronRight, FolderOpen, Lock, Repeat, ListFilter, History, Share2, PlusCircle } from 'lucide-react';
 import clsx from 'clsx';
 import { Credit, Coaster } from '../types';
 import EditCreditModal from './EditCreditModal';
@@ -11,7 +11,7 @@ import RideDetailModal from './RideDetailModal';
 type GroupMode = 'PARK' | 'COUNTRY' | 'TYPE' | 'MANUFACTURER' | 'YEAR';
 
 const CoasterList: React.FC = () => {
-  const { credits, wishlist, coasters, activeUser, deleteCredit, removeFromWishlist, changeView, coasterListViewMode, setCoasterListViewMode } = useAppContext();
+  const { credits, wishlist, coasters, activeUser, deleteCredit, removeFromWishlist, changeView, coasterListViewMode, setCoasterListViewMode, setCoasterToLog } = useAppContext();
   
   const [groupMode, setGroupMode] = useState<GroupMode>('PARK');
   const [showAllLogs, setShowAllLogs] = useState(false);
@@ -232,7 +232,20 @@ const CoasterList: React.FC = () => {
                                                 </div>
                                                 <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
                                                     {!isWishlist && <button onClick={() => setSharingCreditData({ credit: item as unknown as Credit, coaster: item.coaster! })} className="text-primary p-2 rounded-full hover:bg-primary/10 transition-colors"><Share2 size={18} /></button>}
-                                                    {isWishlist ? <button onClick={() => changeView('ADD_CREDIT')} className="text-primary p-2 rounded-full"><ArrowRightCircle size={20} /></button> : <button onClick={() => setEditingCreditData({ credit: item as unknown as Credit, coaster: item.coaster! })} className="text-slate-500 hover:text-white p-2 rounded-full"><Edit2 size={18} /></button>}
+                                                    {isWishlist ? (
+                                                        <button 
+                                                            onClick={() => {
+                                                                setCoasterToLog(item.coaster!);
+                                                                changeView('ADD_CREDIT');
+                                                            }}
+                                                            className="text-emerald-500 bg-emerald-500/10 p-2 rounded-full hover:bg-emerald-500 hover:text-white transition-colors border border-emerald-500/20"
+                                                            title="Log this ride"
+                                                        >
+                                                            <PlusCircle size={20} />
+                                                        </button>
+                                                    ) : (
+                                                        <button onClick={() => setEditingCreditData({ credit: item as unknown as Credit, coaster: item.coaster! })} className="text-slate-500 hover:text-white p-2 rounded-full"><Edit2 size={18} /></button>
+                                                    )}
                                                     <button onClick={() => isWishlist ? removeFromWishlist(item.coasterId) : deleteCredit(item.id)} className="text-slate-500 hover:text-red-400 p-2 rounded-full"><Trash2 size={18} /></button>
                                                 </div>
                                             </div>

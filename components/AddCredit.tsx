@@ -10,7 +10,7 @@ import clsx from 'clsx';
 const normalizeText = (text: string) => cleanName(text).toLowerCase();
 
 const AddCredit: React.FC = () => {
-  const { coasters, addCredit, deleteCredit, addNewCoaster, editCoaster, addMultipleCoasters, searchOnlineCoaster, extractFromUrl, credits, activeUser, addToWishlist, removeFromWishlist, isInWishlist, lastSearchQuery, setLastSearchQuery, showNotification } = useAppContext();
+  const { coasters, addCredit, deleteCredit, addNewCoaster, editCoaster, addMultipleCoasters, searchOnlineCoaster, extractFromUrl, credits, activeUser, addToWishlist, removeFromWishlist, isInWishlist, lastSearchQuery, setLastSearchQuery, showNotification, coasterToLog, setCoasterToLog } = useAppContext();
   
   // Search and Filter State
   const searchTerm = lastSearchQuery;
@@ -73,6 +73,19 @@ const AddCredit: React.FC = () => {
   const [restraints, setRestraints] = useState('');
   const [selectedVariant, setSelectedVariant] = useState<string>('');
   const [photos, setPhotos] = useState<File[]>([]);
+
+  // Effect: Handle Deep Link from Wishlist/Other views
+  useEffect(() => {
+      if (coasterToLog) {
+          // Find the latest version of the coaster from the main list to ensure we have up to date data
+          const latest = coasters.find(c => c.id === coasterToLog.id) || coasterToLog;
+          setSelectedCoaster(latest);
+          // If available, set the park filter to give context
+          setActiveParkFilter(latest.park);
+          // Reset the global state so it doesn't trigger again
+          setCoasterToLog(null);
+      }
+  }, [coasterToLog, coasters, setCoasterToLog]);
 
   // Effect: Auto-Enable Park Mode if search matches a park name exactly (from Dashboard auto-locate)
   useEffect(() => {

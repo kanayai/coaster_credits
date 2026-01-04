@@ -21,6 +21,7 @@ interface AppContextType {
   coasterListViewMode: 'CREDITS' | 'WISHLIST';
   notification: Notification | null;
   lastSearchQuery: string;
+  coasterToLog: Coaster | null; // New state for deep linking to log
   
   // Actions
   switchUser: (userId: string) => void;
@@ -38,6 +39,7 @@ interface AppContextType {
   setCoasterListViewMode: (mode: 'CREDITS' | 'WISHLIST') => void;
   deleteCredit: (creditId: string) => void;
   setLastSearchQuery: (query: string) => void;
+  setCoasterToLog: (coaster: Coaster | null) => void; // Setter for deep linking
   addToWishlist: (coasterId: string) => void;
   removeFromWishlist: (coasterId: string) => void;
   isInWishlist: (coasterId: string) => boolean;
@@ -159,6 +161,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [coasterListViewMode, setCoasterListViewMode] = useState<'CREDITS' | 'WISHLIST'>('CREDITS');
   const [notification, setNotification] = useState<Notification | null>(null);
   const [lastSearchQuery, setLastSearchQuery] = useState('');
+  const [coasterToLog, setCoasterToLog] = useState<Coaster | null>(null);
 
   // Safe Storage Effects
   useEffect(() => {
@@ -571,10 +574,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   return (
     <AppContext.Provider value={{
-      activeUser, users, coasters, credits, wishlist, currentView, coasterListViewMode, notification, lastSearchQuery,
+      activeUser, users, coasters, credits, wishlist, currentView, coasterListViewMode, notification, lastSearchQuery, coasterToLog,
       switchUser, addUser, updateUser, addCredit, updateCredit, addNewCoaster, editCoaster, addMultipleCoasters, searchOnlineCoaster, extractFromUrl, generateIcon,
       changeView, setCoasterListViewMode, deleteCredit, addToWishlist, removeFromWishlist, isInWishlist,
-      showNotification, hideNotification, setLastSearchQuery, enrichDatabaseImages, updateCoasterImage, autoFetchCoasterImage,
+      showNotification, hideNotification, setLastSearchQuery, setCoasterToLog, enrichDatabaseImages, updateCoasterImage, autoFetchCoasterImage,
       importData, standardizeDatabase, updateRankings
     }}>
       {children}
