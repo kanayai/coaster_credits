@@ -499,12 +499,14 @@ const AddCredit: React.FC = () => {
                            <Split size={12} /> Ride Variants / Modes (Optional)
                        </label>
                        <input 
-                          placeholder="Comma separated (e.g. Forward, Reverse)" 
+                          placeholder="e.g. Forward, Reverse" 
                           value={variantsInput}
                           onChange={e => setVariantsInput(e.target.value)}
                           className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white text-xs"
                        />
-                       <p className="text-[10px] text-slate-500 mt-1 italic">Use this for distinct credits like dual tracks or forward/backward modes.</p>
+                       <p className="text-[10px] text-slate-500 mt-1 italic">
+                           <span className="text-primary font-bold">Separate multiple modes with commas.</span> Example: "Red Side, Blue Side".
+                       </p>
                   </div>
                   
                   {!manualCoasterData.imageUrl && (
