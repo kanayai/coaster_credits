@@ -12,6 +12,8 @@ export interface Notification {
   type: 'success' | 'error' | 'info';
 }
 
+export type AppTheme = 'sky' | 'emerald' | 'violet' | 'rose' | 'amber';
+
 interface AppContextType {
   activeUser: User;
   users: User[];
@@ -25,6 +27,7 @@ interface AppContextType {
   coasterToLog: Coaster | null;
   showConfetti: boolean;
   showFireworks: boolean;
+  appTheme: AppTheme;
   
   // Analytics Deep Linking
   analyticsFilter: { mode: string, value: string } | null;
@@ -59,6 +62,7 @@ interface AppContextType {
   standardizeDatabase: () => void;
   triggerConfetti: () => void;
   triggerFireworks: () => void;
+  setAppTheme: (theme: AppTheme) => void;
   
   // Ranking Actions
   updateRankings: (rankings: RankingList) => void;
@@ -112,6 +116,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [lastSearchQuery, setLastSearchQuery] = useState('');
   const [coasterToLog, setCoasterToLog] = useState<Coaster | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [appTheme, setAppTheme] = useState<AppTheme>('sky');
   
   // Animations
   const [showConfetti, setShowConfetti] = useState(false);
@@ -132,12 +137,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const loadedCredits = await storage.get<Credit[]>('cc_credits');
         const loadedWishlist = await storage.get<WishlistEntry[]>('cc_wishlist');
         const loadedActiveId = await storage.get<string>('cc_active_user_id');
+        const loadedTheme = await storage.get<AppTheme>('cc_theme');
 
         if (loadedUsers) setUsers(loadedUsers);
         if (loadedCoasters) setCoasters(loadedCoasters);
         if (loadedCredits) setCredits(loadedCredits);
         if (loadedWishlist) setWishlist(loadedWishlist);
         if (loadedActiveId) setActiveUserId(loadedActiveId);
+        if (loadedTheme) setAppTheme(loadedTheme);
         
         setIsInitialized(true);
     };
@@ -169,6 +176,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (!isInitialized) return;
       storage.set('cc_active_user_id', activeUserId);
   }, [activeUserId, isInitialized]);
+
+  useEffect(() => {
+      if (!isInitialized) return;
+      storage.set('cc_theme', appTheme);
+  }, [appTheme, isInitialized]);
 
   const activeUser = users.find(u => u.id === activeUserId) || users[0];
 
@@ -524,7 +536,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       triggerFireworks,
       updateRankings,
       analyticsFilter,
-      setAnalyticsFilter
+      setAnalyticsFilter,
+      appTheme,
+      setAppTheme
     }}>
       {children}
     </AppContext.Provider>

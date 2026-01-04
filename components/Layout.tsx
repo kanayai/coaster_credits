@@ -1,15 +1,24 @@
 
-import React from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { LayoutDashboard, PlusCircle, UserCircle, List, Info, CheckCircle, AlertCircle, X, MapPin, Zap } from 'lucide-react';
 import clsx from 'clsx';
+import { AppTheme } from '../context/AppContext';
 
 interface LayoutProps {
   children: React.ReactNode;
 }
 
+const THEME_COLORS: Record<AppTheme, { primary: string, hover: string }> = {
+    sky: { primary: '14 165 233', hover: '2 132 199' },     // Sky 500 / 600
+    emerald: { primary: '16 185 129', hover: '5 150 105' }, // Emerald 500 / 600
+    violet: { primary: '139 92 246', hover: '124 58 237' }, // Violet 500 / 600
+    rose: { primary: '244 63 94', hover: '225 29 72' },     // Rose 500 / 600
+    amber: { primary: '245 158 11', hover: '217 119 6' },   // Amber 500 / 600
+};
+
 const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const { currentView, changeView, activeUser, notification, hideNotification, showConfetti, showFireworks } = useAppContext();
+  const { currentView, changeView, activeUser, notification, hideNotification, showConfetti, showFireworks, appTheme } = useAppContext();
 
   const navItems = [
     { id: 'DASHBOARD', icon: LayoutDashboard, label: 'Dashboard' },
@@ -17,9 +26,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { id: 'COASTER_LIST', icon: List, label: 'My Log' },
     { id: 'PROFILE', icon: UserCircle, label: 'Profile' },
   ] as const;
+  
+  // Inject CSS Variables for Theme
+  const themeStyles = useMemo(() => {
+      const colors = THEME_COLORS[appTheme] || THEME_COLORS.sky;
+      return {
+          '--color-primary': colors.primary,
+          '--color-primary-hover': colors.hover,
+      } as React.CSSProperties;
+  }, [appTheme]);
 
   return (
-    <div className="relative h-screen bg-slate-950 text-white overflow-hidden font-sans selection:bg-primary/30">
+    <div className="relative h-screen bg-slate-950 text-white overflow-hidden font-sans selection:bg-primary/30" style={themeStyles}>
       {/* Dynamic Background Layer */}
       <div className="absolute inset-0 z-0 pointer-events-none select-none overflow-hidden">
         <div 

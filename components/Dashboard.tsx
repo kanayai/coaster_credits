@@ -1,8 +1,8 @@
 
 import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
-import { Trophy, Palmtree, Layers, Factory, Flag, CalendarRange, MapPin, Navigation, ChevronRight, Plus, Loader2, ListOrdered, Ticket } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { Trophy, Palmtree, Layers, Factory, Flag, CalendarRange, MapPin, Navigation, ChevronRight, Plus, Loader2, ListOrdered, Ticket, TrendingUp } from 'lucide-react';
 import EditCreditModal from './EditCreditModal';
 import RideDetailModal from './RideDetailModal';
 import ShareCardModal from './ShareCardModal';
@@ -14,7 +14,7 @@ import clsx from 'clsx';
 type ChartMetric = 'PARK' | 'TYPE' | 'MANUFACTURER' | 'COUNTRY' | 'YEAR';
 
 const Dashboard: React.FC = () => {
-  const { credits, coasters, activeUser, changeView, setLastSearchQuery, showNotification, setAnalyticsFilter } = useAppContext();
+  const { credits, coasters, activeUser, changeView, setLastSearchQuery, showNotification, setAnalyticsFilter, appTheme } = useAppContext();
 
   // Modal States
   const [editingCreditData, setEditingCreditData] = useState<{ credit: Credit, coaster: Coaster } | null>(null);
@@ -69,7 +69,7 @@ const Dashboard: React.FC = () => {
     return "Newcomer";
   }, [uniqueCreditsCount]);
 
-  // Analytics Data Calculation
+  // Analytics Data Calculation (Donut)
   const chartData = useMemo(() => {
     const dist: Record<string, number> = {};
     const processedCoasters = new Set<string>();
@@ -104,6 +104,18 @@ const Dashboard: React.FC = () => {
         }))
         .sort((a, b) => b.value - a.value);
   }, [userCredits, coasters, chartMetric]);
+
+  // Credits Per Year Calculation (Bar Chart)
+  const yearlyData = useMemo(() => {
+      const map = new Map<string, number>();
+      userCredits.forEach(c => {
+          const year = new Date(c.date).getFullYear().toString();
+          map.set(year, (map.get(year) || 0) + 1);
+      });
+      // Sort keys numerically
+      const sortedKeys = Array.from(map.keys()).sort();
+      return sortedKeys.map(year => ({ year, count: map.get(year) || 0 }));
+  }, [userCredits]);
 
   const COLORS = ['#0ea5e9', '#8b5cf6', '#f43f5e', '#10b981', '#f59e0b', '#6366f1', '#ec4899', '#14b8a6'];
   const recentCredit = userCredits.length > 0 ? userCredits[0] : null;
@@ -331,6 +343,33 @@ const Dashboard: React.FC = () => {
               </div>
           </div>
       </div>
+      
+      {/* Credits Over Time Chart */}
+      {yearlyData.length > 0 && (
+          <div className="space-y-3 shrink-0">
+             <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">Growth</h3>
+             <div className="bg-slate-800 rounded-[28px] p-5 border border-slate-700 shadow-xl relative overflow-hidden">
+                 <div className="flex items-center gap-2 mb-4">
+                     <TrendingUp size={16} className="text-primary" />
+                     <span className="text-sm font-bold text-white">Credits per Year</span>
+                 </div>
+                 <div className="h-40 w-full">
+                     <ResponsiveContainer width="100%" height="100%">
+                         <BarChart data={yearlyData}>
+                             <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                             <XAxis dataKey="year" stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
+                             <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
+                             <Tooltip 
+                                contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', color: '#fff', fontSize: '12px' }}
+                                cursor={{ fill: '#334155', opacity: 0.4 }}
+                             />
+                             <Bar dataKey="count" fill="rgb(var(--color-primary))" radius={[4, 4, 0, 0]} />
+                         </BarChart>
+                     </ResponsiveContainer>
+                 </div>
+             </div>
+          </div>
+      )}
 
       {/* Recent Activity */}
       <div className="space-y-3 shrink-0">
