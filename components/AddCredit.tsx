@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Coaster, CoasterType, Credit } from '../types';
-import { Search, Plus, Calendar, Sparkles, Loader2, Filter, Bookmark, BookmarkCheck, PlusCircle, ArrowLeft as BackIcon, Zap, Ruler, ArrowUp, History, Trash2, Clock, CheckCircle2, Globe, Info, X, Palmtree, ChevronRight, ListChecks, CheckSquare, Square, Check, Edit2, Copy, AlertCircle, Link, Image as ImageIcon, ArrowDownCircle, Images } from 'lucide-react';
+import { Search, Plus, Calendar, Sparkles, Loader2, Filter, Bookmark, BookmarkCheck, PlusCircle, ArrowLeft as BackIcon, Zap, Ruler, ArrowUp, History, Trash2, Clock, CheckCircle2, Globe, Info, X, Palmtree, ChevronRight, ListChecks, CheckSquare, Square, Check, Edit2, Copy, AlertCircle, Link, Image as ImageIcon, ArrowDownCircle, Images, BookmarkPlus, BookmarkMinus } from 'lucide-react';
 import { cleanName } from '../constants';
 import ShareCardModal from './ShareCardModal';
 import clsx from 'clsx';
@@ -213,6 +213,15 @@ const AddCredit: React.FC = () => {
     e.stopPropagation();
     addCredit(coasterId, new Date().toISOString().split('T')[0], '', '');
     showNotification("Lap logged!", "success");
+  };
+
+  const handleQuickWishlistToggle = (e: React.MouseEvent, coasterId: string) => {
+      e.stopPropagation();
+      if (isInWishlist(coasterId)) {
+          removeFromWishlist(coasterId);
+      } else {
+          addToWishlist(coasterId);
+      }
   };
 
   const handleEnterParkMode = (e: React.MouseEvent, parkName: string) => {
@@ -455,6 +464,7 @@ const AddCredit: React.FC = () => {
   }
 
   if (selectedCoaster) {
+      const isWishlisted = isInWishlist(selectedCoaster.id);
       return (
           <div className="animate-fade-in pb-24 space-y-4">
                 <div className="sticky top-0 -mx-4 -mt-4 p-4 z-20 bg-slate-900/95 backdrop-blur-md border-b border-slate-700/50 flex gap-2">
@@ -476,6 +486,20 @@ const AddCredit: React.FC = () => {
                         </div>
                     </div>
                 )}
+                
+                {/* Bucket List Action */}
+                <button 
+                    onClick={() => isWishlisted ? removeFromWishlist(selectedCoaster.id) : addToWishlist(selectedCoaster.id)}
+                    className={clsx(
+                        "w-full p-4 rounded-xl border flex items-center justify-center gap-3 font-bold transition-all shadow-md active:scale-[0.98]",
+                        isWishlisted 
+                            ? "bg-amber-500/10 border-amber-500/50 text-amber-500 hover:bg-amber-500/20" 
+                            : "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-750 hover:text-white"
+                    )}
+                >
+                    {isWishlisted ? <BookmarkCheck size={20} fill="currentColor" /> : <BookmarkPlus size={20} />}
+                    {isWishlisted ? "In Bucket List" : "Add to Bucket List"}
+                </button>
                 
                 {/* Admin/Edit Tools */}
                 <div className="flex gap-2">
@@ -639,6 +663,7 @@ const AddCredit: React.FC = () => {
             {filteredCoasters.map(c => {
                 const isRidden = credits.some(cr => cr.userId === activeUser.id && cr.coasterId === c.id);
                 const isSelected = selectedIds.has(c.id);
+                const isWishlisted = isInWishlist(c.id);
 
                 return (
                     <div 
@@ -695,14 +720,27 @@ const AddCredit: React.FC = () => {
                             )}
                         </div>
                         
-                        <div className="flex items-center px-4">
+                        <div className="flex items-center px-2 gap-1">
+                            {/* Wishlist Quick Toggle */}
+                            {!isMultiSelectMode && !isRidden && (
+                                <button 
+                                    onClick={(e) => handleQuickWishlistToggle(e, c.id)}
+                                    className={clsx(
+                                        "p-2.5 rounded-xl transition-all",
+                                        isWishlisted ? "text-amber-500 bg-amber-500/10" : "text-slate-500 hover:text-white"
+                                    )}
+                                >
+                                    {isWishlisted ? <BookmarkCheck size={18} fill="currentColor" /> : <Bookmark size={18} />}
+                                </button>
+                            )}
+
                             {isRidden && activeParkFilter && !isMultiSelectMode ? (
                                 <button onClick={(e) => handleQuickLogOneTap(e, c.id)} className="bg-emerald-500 p-2.5 rounded-xl text-white shadow-lg active:scale-90 transition-all">
                                     <Plus size={18} />
                                 </button>
                             ) : (
                                 !isMultiSelectMode && (
-                                    <div className="p-3 text-slate-700 group-hover:text-primary transition-colors">
+                                    <div className="p-2.5 text-slate-700 group-hover:text-primary transition-colors">
                                         <ChevronRight size={20} />
                                     </div>
                                 )

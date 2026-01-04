@@ -85,7 +85,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
         {/* Scrollable Viewport */}
         <main className="flex-1 overflow-y-auto no-scrollbar p-4 pb-28 relative scroll-smooth">
-          <div className="max-w-xl mx-auto h-full">
+          <div className="max-w-xl mx-auto min-h-full">
               {children}
           </div>
         </main>

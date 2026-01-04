@@ -94,8 +94,11 @@ const Dashboard: React.FC = () => {
           setIsLocatingSession(false);
           
           if (result && result.groundingChunks && result.groundingChunks.length > 0) {
-              // Extract the first park title found
-              const firstPark = result.groundingChunks.find(c => c.web?.title)?.web?.title;
+              // Extract the first park title found (Support Google Maps grounding structure)
+              // Maps grounding often uses 'maps' key, web grounding uses 'web'.
+              const firstChunk = result.groundingChunks.find(c => c.maps?.title || c.web?.title);
+              const firstPark = firstChunk?.maps?.title || firstChunk?.web?.title;
+
               if (firstPark) {
                   // Clean up title
                   const cleanParkName = firstPark.split('|')[0].trim();
