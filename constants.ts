@@ -11,6 +11,34 @@ export const cleanName = (text: string): string => {
     .replace(/\s+/g, ' '); // Collapse spaces
 };
 
+// Helper to standardize country names
+export const normalizeCountry = (rawName: string): string => {
+  if (!rawName) return 'Unknown';
+  
+  const clean = cleanName(rawName);
+  const upper = clean.toUpperCase();
+
+  // USA
+  if (upper === 'UNITED STATES' || upper === 'UNITED STATES OF AMERICA' || upper === 'US' || upper === 'U.S.A.' || upper === 'AMERICA') return 'USA';
+  
+  // UK
+  if (upper === 'UNITED KINGDOM' || upper === 'GREAT BRITAIN' || upper === 'ENGLAND' || upper === 'SCOTLAND' || upper === 'WALES' || upper === 'U.K.' || upper === 'NORTHERN IRELAND') return 'UK';
+  
+  // UAE
+  if (upper === 'UNITED ARAB EMIRATES' || upper === 'U.A.E.') return 'UAE';
+  
+  // China
+  if (upper === 'PRC' || upper === 'PEOPLE\'S REPUBLIC OF CHINA') return 'China';
+  
+  // South Korea
+  if (upper === 'SOUTH KOREA' || upper === 'REPUBLIC OF KOREA' || upper === 'KOREA') return 'South Korea';
+  
+  // Netherlands
+  if (upper === 'THE NETHERLANDS' || upper === 'HOLLAND') return 'Netherlands';
+
+  return clean;
+};
+
 // Helper to standardize manufacturer names
 export const normalizeManufacturer = (rawName: string): string => {
   if (!rawName) return 'Unknown';
