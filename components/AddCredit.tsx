@@ -111,7 +111,11 @@ const AddCredit: React.FC = () => {
     // 2. Filter by Search Term
     if (searchTerm) {
         const normalizedSearch = normalizeText(searchTerm);
-        result = result.filter(c => normalizeText(c.name).includes(normalizedSearch) || normalizeText(c.park).includes(normalizedSearch));
+        result = result.filter(c => 
+            normalizeText(c.name).includes(normalizedSearch) || 
+            normalizeText(c.park).includes(normalizedSearch) ||
+            normalizeText(c.manufacturer).includes(normalizedSearch)
+        );
     }
 
     // 3. Filter by Type
@@ -543,126 +547,6 @@ const AddCredit: React.FC = () => {
       );
   }
 
-  if (selectedCoaster) {
-      const isWishlisted = isInWishlist(selectedCoaster.id);
-      return (
-          <div className="animate-fade-in pb-24 space-y-4">
-                <div className="sticky top-0 -mx-4 -mt-4 p-4 z-20 bg-slate-900/95 backdrop-blur-md border-b border-slate-700/50 flex gap-2">
-                    <button onClick={() => setSelectedCoaster(null)} className="p-3 rounded-xl bg-slate-800 border border-slate-700 text-slate-400"><BackIcon size={20}/></button>
-                    <button onClick={() => { setActiveParkFilter(selectedCoaster.park); processLog(); }} className="flex-1 bg-emerald-500/10 text-emerald-400 font-bold py-3 rounded-xl border border-emerald-500/30 flex items-center justify-center gap-2">
-                        <Palmtree size={18} /> Log & Filter by Park
-                    </button>
-                </div>
-                
-                {selectedCoaster.imageUrl && (
-                    <div className="w-full h-48 rounded-2xl overflow-hidden shadow-lg border border-slate-700 relative group">
-                        <img src={selectedCoaster.imageUrl} alt={selectedCoaster.name} className="w-full h-full object-cover" />
-                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent" />
-                        <div className="absolute bottom-4 left-4 right-4 flex justify-between items-end">
-                            <div>
-                                <h2 className="text-3xl font-black text-white leading-tight italic drop-shadow-md">{selectedCoaster.name}</h2>
-                                <div className="text-slate-300 text-sm font-bold flex items-center gap-1 uppercase tracking-wider"><Globe size={14} className="text-primary"/> {selectedCoaster.park}</div>
-                            </div>
-                        </div>
-                    </div>
-                )}
-                
-                {/* Bucket List Action */}
-                <button 
-                    onClick={() => isWishlisted ? removeFromWishlist(selectedCoaster.id) : addToWishlist(selectedCoaster.id)}
-                    className={clsx(
-                        "w-full p-4 rounded-xl border flex items-center justify-center gap-3 font-bold transition-all shadow-md active:scale-[0.98]",
-                        isWishlisted 
-                            ? "bg-amber-500/10 border-amber-500/50 text-amber-500 hover:bg-amber-500/20" 
-                            : "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-750 hover:text-white"
-                    )}
-                >
-                    {isWishlisted ? <BookmarkCheck size={20} fill="currentColor" /> : <BookmarkPlus size={20} />}
-                    {isWishlisted ? "In Bucket List" : "Add to Bucket List"}
-                </button>
-                
-                {/* Admin/Edit Tools */}
-                <div className="flex gap-2">
-                    <button onClick={handleEditSelected} className="flex-1 bg-slate-800 border border-slate-700 p-3 rounded-xl flex items-center justify-center gap-2 text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-700">
-                        <Edit2 size={14} /> Edit Info
-                    </button>
-                    <button onClick={handleCloneSelected} className="flex-1 bg-slate-800 border border-slate-700 p-3 rounded-xl flex items-center justify-center gap-2 text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-700">
-                        <Copy size={14} /> Clone Variant
-                    </button>
-                </div>
-
-                <div className="bg-slate-800 p-5 rounded-3xl border border-slate-700 space-y-4 shadow-xl">
-                    <div className="flex items-center justify-between mb-2">
-                        <h3 className="font-bold text-white flex items-center gap-2 text-sm uppercase tracking-widest text-slate-400"><Clock size={16} className="text-primary"/> Detailed Log</h3>
-                    </div>
-                    <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Date</label>
-                        <input type="date" required value={date} onChange={e => setDate(e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white text-sm" />
-                    </div>
-
-                    {/* Variant Selection (Dynamic) */}
-                    {selectedCoaster.variants && selectedCoaster.variants.length > 0 && (
-                        <div className="animate-fade-in">
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 flex items-center gap-1">
-                                <Split size={12} className="text-accent" /> Select Variant
-                            </label>
-                            <div className="grid grid-cols-2 gap-2">
-                                {selectedCoaster.variants.map((variant) => (
-                                    <button
-                                        key={variant}
-                                        onClick={() => setSelectedVariant(variant)}
-                                        className={clsx(
-                                            "p-3 rounded-xl text-xs font-bold transition-all border",
-                                            selectedVariant === variant
-                                                ? "bg-accent text-white border-accent shadow-lg shadow-accent/20"
-                                                : "bg-slate-900 text-slate-400 border-slate-600 hover:bg-slate-800"
-                                        )}
-                                    >
-                                        {variant}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                    
-                    {/* Add Photo / Gallery Section */}
-                    <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 flex items-center gap-1">
-                            <Images size={12} /> Photos
-                        </label>
-                        <div className="flex gap-2">
-                             <div className="relative flex-1">
-                                <input 
-                                    type="file"
-                                    multiple
-                                    accept="image/*"
-                                    onChange={handlePhotoSelect}
-                                    className="hidden"
-                                    id="log-photos"
-                                />
-                                <label htmlFor="log-photos" className="w-full bg-slate-900 border border-slate-600 border-dashed rounded-xl p-3 flex items-center justify-center gap-2 cursor-pointer hover:bg-slate-900/80 transition-colors text-slate-400">
-                                    <PlusCircle size={18} />
-                                    <span className="text-xs sm:text-sm">Select Photos</span>
-                                </label>
-                            </div>
-                            {photos.length > 0 && (
-                                <div className="bg-primary/20 border border-primary/50 text-primary px-3 rounded-xl flex items-center justify-center font-bold text-xs">
-                                    {photos.length} Selected
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Experience (Optional)</label>
-                        <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="How was the ride? Seat location?" className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-white text-sm h-20 outline-none" />
-                    </div>
-                    <button onClick={() => processLog()} className="w-full bg-primary font-bold py-4 rounded-2xl shadow-xl shadow-primary/30 flex items-center justify-center gap-2 active:scale-95 transition-all"><Plus size={20}/> LOG CREDIT</button>
-                </div>
-          </div>
-      );
-  }
-
   return (
     <div className="h-full flex flex-col space-y-5 animate-fade-in relative">
         
@@ -678,7 +562,7 @@ const AddCredit: React.FC = () => {
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
                   <input 
                       type="text" 
-                      placeholder={activeParkFilter ? `Searching ${activeParkFilter}...` : "Search coaster or park name..."}
+                      placeholder={activeParkFilter ? `Searching ${activeParkFilter}...` : "Search coaster, park, or make..."}
                       value={searchTerm} 
                       onChange={e => setSearchTerm(e.target.value)} 
                       className="w-full bg-slate-900 border border-slate-700 rounded-2xl pl-12 py-4 text-white shadow-lg focus:border-primary focus:ring-1 focus:ring-primary outline-none text-sm transition-all" 
