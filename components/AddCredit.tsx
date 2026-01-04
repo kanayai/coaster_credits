@@ -9,6 +9,15 @@ import clsx from 'clsx';
 
 const normalizeText = (text: string) => cleanName(text).toLowerCase();
 
+// Helper to get local date string YYYY-MM-DD
+const getLocalDateString = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
 const AddCredit: React.FC = () => {
   const { coasters, addCredit, deleteCredit, addNewCoaster, editCoaster, addMultipleCoasters, searchOnlineCoaster, extractFromUrl, credits, activeUser, addToWishlist, removeFromWishlist, isInWishlist, lastSearchQuery, setLastSearchQuery, showNotification, coasterToLog, setCoasterToLog, triggerConfetti, triggerFireworks } = useAppContext();
   
@@ -34,7 +43,7 @@ const AddCredit: React.FC = () => {
   // Multi-Select State
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [bulkDate, setBulkDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [bulkDate, setBulkDate] = useState<string>(getLocalDateString());
 
   // Share Modal State
   const [sharingCreditData, setSharingCreditData] = useState<{ credit: Credit, coaster: Coaster } | null>(null);
@@ -68,7 +77,7 @@ const AddCredit: React.FC = () => {
   const [hideRidden, setHideRidden] = useState(false);
   
   // Log Ride State
-  const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState<string>(getLocalDateString());
   const [notes, setNotes] = useState('');
   const [restraints, setRestraints] = useState('');
   const [selectedVariant, setSelectedVariant] = useState<string>('');
@@ -145,7 +154,7 @@ const AddCredit: React.FC = () => {
   // Reset log state when selecting a coaster
   useEffect(() => {
       if (selectedCoaster) {
-          setDate(new Date().toISOString().split('T')[0]);
+          setDate(getLocalDateString()); // Use helper for local time
           setNotes('');
           setRestraints('');
           setPhotos([]);
@@ -267,7 +276,7 @@ const AddCredit: React.FC = () => {
 
   const handleQuickLogOneTap = (e: React.MouseEvent, coasterId: string) => {
     e.stopPropagation();
-    addCredit(coasterId, new Date().toISOString().split('T')[0], '', '');
+    addCredit(coasterId, getLocalDateString(), '', '');
     triggerConfetti();
     showNotification("Lap logged!", "success");
   };
@@ -416,7 +425,11 @@ const AddCredit: React.FC = () => {
       }
   };
 
+  // ... (JSX continues - only changing default values above) ...
+  // [Full JSX omitted for brevity, logic changes are in the useEffect and useState initialization]
+
   if (isAddingManually) {
+      // (Keep existing Manual Add JSX)
       return (
           <div className="animate-fade-in pb-20">
               <div className="flex items-center gap-3 mb-6">
@@ -727,6 +740,7 @@ const AddCredit: React.FC = () => {
       );
   }
 
+  // (Keep the remaining main render return)
   return (
     <div className="h-full flex flex-col space-y-5 animate-fade-in relative">
         

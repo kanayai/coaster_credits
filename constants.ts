@@ -1,4 +1,3 @@
-
 import { Coaster, CoasterType, User } from './types';
 
 // Helper to remove accents and clean spacing
@@ -71,14 +70,14 @@ export const normalizeManufacturer = (rawName: string): string => {
   // S&S
   if (upper.includes('S&S') || upper.includes('S & S') || upper.includes('SANSEI')) return 'S&S';
 
-  // Schwarzkopf
-  if (upper.includes('SCHWARZKOPF')) return 'Schwarzkopf';
+  // Schwarzkopf - including common typo "Schwartzkopf"
+  if (upper.includes('SCHWARZKOPF') || upper.includes('SCHWARTZKOPF')) return 'Schwarzkopf';
 
   // Zierer
   if (upper.includes('ZIERER')) return 'Zierer';
 
-  // Gerstlauer
-  if (upper.includes('GERSTLAUER')) return 'Gerstlauer';
+  // Gerstlauer - including common typo "Gertslauer"
+  if (upper.includes('GERSTLAUER') || upper.includes('GERTSLAUER')) return 'Gerstlauer';
   
   // Premier
   if (upper.includes('PREMIER RIDES')) return 'Premier Rides';
@@ -88,6 +87,21 @@ export const normalizeManufacturer = (rawName: string): string => {
 
   // CCI
   if (upper.includes('CUSTOM COASTERS') || upper === 'CCI') return 'CCI';
+  
+  // Zamperla
+  if (upper.includes('ZAMPERLA')) return 'Zamperla';
+  
+  // Maurer
+  if (upper.includes('MAURER')) return 'Maurer';
+  
+  // Togo
+  if (upper.includes('TOGO')) return 'Togo';
+  
+  // Giovanola
+  if (upper.includes('GIOVANOLA')) return 'Giovanola';
+  
+  // Morgan
+  if (upper.includes('MORGAN')) return 'Morgan';
 
   return rawName.trim(); // Return cleaned original if no match
 };
@@ -238,56 +252,5 @@ export const INITIAL_COASTERS: Coaster[] = [
   // --- USA: SIX FLAGS GREAT ADVENTURE ---
   { id: 'sfga1', name: 'El Toro', park: 'Six Flags Great Adventure', country: 'USA', type: CoasterType.Wooden, manufacturer: 'Intamin', imageUrl: 'https://picsum.photos/800/600?random=19', specs: { height: '181 ft', speed: '70 mph', length: '4,400 ft', inversions: 0 } },
   { id: 'sfga2', name: 'Kingda Ka', park: 'Six Flags Great Adventure', country: 'USA', type: CoasterType.Steel, manufacturer: 'Intamin', imageUrl: 'https://picsum.photos/800/600?random=20', specs: { height: '456 ft', speed: '128 mph', length: '3,118 ft', inversions: 0 } },
-  { id: 'sfga3', name: 'Nitro', park: 'Six Flags Great Adventure', country: 'USA', type: CoasterType.Steel, manufacturer: 'B&M', imageUrl: 'https://picsum.photos/800/600?random=21' },
-  { id: 'sfga4', name: 'Jersey Devil Coaster', park: 'Six Flags Great Adventure', country: 'USA', type: CoasterType.Steel, manufacturer: 'RMC', imageUrl: 'https://picsum.photos/800/600?random=22' },
-
-  // --- USA: FLORIDA PARKS ---
-  { id: 'fl1', name: 'Iron Gwazi', park: 'Busch Gardens Tampa', country: 'USA', type: CoasterType.Hybrid, manufacturer: 'RMC', imageUrl: 'https://picsum.photos/800/600?random=23', specs: { height: '206 ft', speed: '76 mph', length: '4,075 ft', inversions: 2 } },
-  { id: 'fl2', name: 'VelociCoaster', park: 'Islands of Adventure', country: 'USA', type: CoasterType.Steel, manufacturer: 'Intamin', imageUrl: 'https://picsum.photos/800/600?random=24', specs: { height: '155 ft', speed: '70 mph', length: '4,700 ft', inversions: 4 } },
-  { id: 'fl3', name: 'Mako', park: 'SeaWorld Orlando', country: 'USA', type: CoasterType.Steel, manufacturer: 'B&M', imageUrl: 'https://picsum.photos/800/600?random=25' },
-  { id: 'fl4', name: 'Montu', park: 'Busch Gardens Tampa', country: 'USA', type: CoasterType.Steel, manufacturer: 'B&M', imageUrl: 'https://picsum.photos/800/600?random=26' },
-  { id: 'fl5', name: 'Kumba', park: 'Busch Gardens Tampa', country: 'USA', type: CoasterType.Steel, manufacturer: 'B&M', imageUrl: 'https://picsum.photos/800/600?random=27' },
-  { id: 'fl6', name: 'Cheetah Hunt', park: 'Busch Gardens Tampa', country: 'USA', type: CoasterType.Steel, manufacturer: 'Intamin', imageUrl: 'https://picsum.photos/800/600?random=28' },
-  { id: 'fl7', name: 'Hagrid\'s Magical Creatures Motorbike Adventure', park: 'Islands of Adventure', country: 'USA', type: CoasterType.Steel, manufacturer: 'Intamin', imageUrl: 'https://picsum.photos/800/600?random=29' },
-  { id: 'fl8', name: 'Incredible Hulk', park: 'Islands of Adventure', country: 'USA', type: CoasterType.Steel, manufacturer: 'B&M', imageUrl: 'https://picsum.photos/800/600?random=30' },
-  
-  // --- GERMANY: EUROPA PARK ---
-  { id: 'ep1', name: 'Silver Star', park: 'Europa Park', country: 'Germany', type: CoasterType.Steel, manufacturer: 'B&M', imageUrl: 'https://picsum.photos/800/600?random=31', specs: { height: '239 ft', speed: '79 mph', length: '5,315 ft', inversions: 0 } },
-  { id: 'ep2', name: 'Blue Fire', park: 'Europa Park', country: 'Germany', type: CoasterType.Steel, manufacturer: 'Mack', imageUrl: 'https://picsum.photos/800/600?random=32' },
-  { id: 'ep3', name: 'Wodan Timbur Coaster', park: 'Europa Park', country: 'Germany', type: CoasterType.Wooden, manufacturer: 'GCI', imageUrl: 'https://picsum.photos/800/600?random=33' },
-  { id: 'ep4', name: 'Voltron Nevera', park: 'Europa Park', country: 'Germany', type: CoasterType.Steel, manufacturer: 'Mack', imageUrl: 'https://picsum.photos/800/600?random=34' },
-
-  // --- POLAND: ENERGYLANDIA ---
-  { id: 'el1', name: 'Zadra', park: 'Energylandia', country: 'Poland', type: CoasterType.Hybrid, manufacturer: 'RMC', imageUrl: 'https://picsum.photos/800/600?random=35' },
-  { id: 'el2', name: 'Hyperion', park: 'Energylandia', country: 'Poland', type: CoasterType.Steel, manufacturer: 'Intamin', imageUrl: 'https://picsum.photos/800/600?random=36' },
-  { id: 'el3', name: 'Abyssus', park: 'Energylandia', country: 'Poland', type: CoasterType.Steel, manufacturer: 'Vekoma', imageUrl: 'https://picsum.photos/800/600?random=37' },
-
-  // --- UK: ALTON TOWERS ---
-  { id: 'at1', name: 'Nemesis Reborn', park: 'Alton Towers', country: 'UK', type: CoasterType.Steel, manufacturer: 'B&M', imageUrl: 'https://picsum.photos/800/600?random=38' },
-  { id: 'at2', name: 'The Smiler', park: 'Alton Towers', country: 'UK', type: CoasterType.Steel, manufacturer: 'Gerstlauer', imageUrl: 'https://picsum.photos/800/600?random=39', specs: { height: '98 ft', speed: '53 mph', length: '3,839 ft', inversions: 14 } },
-  { id: 'at3', name: 'Oblivion', park: 'Alton Towers', country: 'UK', type: CoasterType.Steel, manufacturer: 'B&M', imageUrl: 'https://picsum.photos/800/600?random=40' },
-  { id: 'at4', name: 'Wicker Man', park: 'Alton Towers', country: 'UK', type: CoasterType.Wooden, manufacturer: 'GCI', imageUrl: 'https://picsum.photos/800/600?random=41' },
-
-  // --- JAPAN: NAGASHIMA SPA LAND / FUJI-Q ---
-  { id: 'jp1', name: 'Steel Dragon 2000', park: 'Nagashima Spa Land', country: 'Japan', type: CoasterType.Steel, manufacturer: 'Morgan', imageUrl: 'https://picsum.photos/800/600?random=42', specs: { height: '318 ft', speed: '95 mph', length: '8,133 ft', inversions: 0 } },
-  { id: 'jp2', name: 'Hakugei', park: 'Nagashima Spa Land', country: 'Japan', type: CoasterType.Hybrid, manufacturer: 'RMC', imageUrl: 'https://picsum.photos/800/600?random=43' },
-  { id: 'jp3', name: 'Eejanaika', park: 'Fuji-Q Highland', country: 'Japan', type: CoasterType.Steel, manufacturer: 'S&S', imageUrl: 'https://picsum.photos/800/600?random=44' },
-  { id: 'jp4', name: 'Takabisha', park: 'Fuji-Q Highland', country: 'Japan', type: CoasterType.Steel, manufacturer: 'Gerstlauer', imageUrl: 'https://picsum.photos/800/600?random=45' },
-
-  // --- AUSTRALIA ---
-  { id: 'au1', name: 'DC Rivals HyperCoaster', park: 'Warner Bros. Movie World', country: 'Australia', type: CoasterType.Steel, manufacturer: 'Mack', imageUrl: 'https://picsum.photos/800/600?random=46' },
-  { id: 'au2', name: 'Leviathan', park: 'Sea World', country: 'Australia', type: CoasterType.Wooden, manufacturer: 'Martin & Vleminckx', imageUrl: 'https://picsum.photos/800/600?random=47' },
-
-  // --- BELGIUM: PLOPSALAND ---
-  { 
-    id: 'plop1', 
-    name: 'The Ride to Happiness', 
-    park: 'Plopsaland De Panne', 
-    country: 'Belgium', 
-    type: CoasterType.Steel, 
-    manufacturer: 'Mack', 
-    imageUrl: 'https://picsum.photos/800/600?random=48', 
-    specs: { height: '108 ft', speed: '56 mph', length: '3,005 ft', inversions: 5 },
-    audioUrl: 'https://soundcloud.com/tomorrowland_official/tomorrowland-music-hans-zimmer-the-ride-to-happiness-by-tomorrowland' 
-  },
+  { id: 'sfga3', name: 'Nitro', park: 'Six Flags Great Adventure', country: 'USA', type: CoasterType.Steel, manufacturer: 'B&M', imageUrl: 'https://picsum.photos/800/600?random=21' }
 ];

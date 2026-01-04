@@ -29,7 +29,14 @@ const Dashboard: React.FC = () => {
   const userCredits = useMemo(() => 
     credits
       .filter(c => c.userId === activeUser.id)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+      .sort((a, b) => {
+          // Sort by Date Descending
+          const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
+          if (dateDiff !== 0) return dateDiff;
+          // Tie-breaker: creation ID (lexicographical sort works for timestamp-based IDs)
+          // Newer IDs will have larger strings/values
+          return b.id.localeCompare(a.id);
+      }),
   [credits, activeUser.id]);
   
   // Unique Count Logic

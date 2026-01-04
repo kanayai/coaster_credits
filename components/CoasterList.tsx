@@ -17,6 +17,9 @@ const CoasterList: React.FC = () => {
   const [showAllLogs, setShowAllLogs] = useState(false);
   const [selectedGroupTitle, setSelectedGroupTitle] = useState<string | null>(null);
 
+  // Deep Link State to control Back Button behavior
+  const [isDeepLinked, setIsDeepLinked] = useState(false);
+
   // Modal States
   const [editingCreditData, setEditingCreditData] = useState<{ credit: Credit, coaster: Coaster } | null>(null);
   const [viewingCreditData, setViewingCreditData] = useState<{ credit: Credit, coaster: Coaster } | null>(null);
@@ -32,6 +35,7 @@ const CoasterList: React.FC = () => {
         setGroupMode(analyticsFilter.mode as GroupMode);
         setSelectedGroupTitle(analyticsFilter.value);
         setCoasterListViewMode('CREDITS'); // Ensure we are looking at logged rides
+        setIsDeepLinked(true); // Mark as deep linked from analytics
         // Clear filter so it doesn't persist if we navigate away manually later
         setAnalyticsFilter(null);
     }
@@ -138,11 +142,27 @@ const CoasterList: React.FC = () => {
       .sort((a, b) => groupMode === 'YEAR' ? b.title.localeCompare(a.title) : a.title.localeCompare(b.title));
   }, [itemsToDisplay, groupMode]);
 
-  const handleBack = () => selectedGroupTitle ? setSelectedGroupTitle(null) : changeView('DASHBOARD');
+  const handleBack = () => {
+      if (selectedGroupTitle && isDeepLinked) {
+          // If we came from analytics (deep linked), back goes to dashboard
+          changeView('DASHBOARD');
+      } else {
+          // Normal behavior: Back goes to list root, then dashboard
+          selectedGroupTitle ? setSelectedGroupTitle(null) : changeView('DASHBOARD');
+      }
+  };
+
+  const resetDeepLink = () => {
+      if (isDeepLinked) setIsDeepLinked(false);
+  };
 
   const ModeButton = ({ mode, icon: Icon, label }: { mode: GroupMode, icon: React.ElementType, label: string }) => (
     <button
-      onClick={() => { setGroupMode(mode); setSelectedGroupTitle(null); }}
+      onClick={() => { 
+          setGroupMode(mode); 
+          setSelectedGroupTitle(null); 
+          resetDeepLink();
+      }}
       className={clsx(
         "flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all border whitespace-nowrap flex-shrink-0",
         groupMode === mode ? "bg-slate-700 text-white border-slate-600 shadow-md" : "bg-slate-800/50 text-slate-400 border-slate-700/50 hover:border-slate-600 hover:text-slate-200"
@@ -178,7 +198,14 @@ const CoasterList: React.FC = () => {
                   <h2 className="text-2xl font-bold">Logbook</h2>
               </div>
               {coasterListViewMode === 'CREDITS' && (
-                  <button onClick={() => { setShowAllLogs(!showAllLogs); setSelectedGroupTitle(null); }} className={clsx("flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all border", showAllLogs ? "bg-accent text-white border-accent shadow-lg shadow-accent/20" : "bg-slate-900 border-slate-700 text-slate-400")}>
+                  <button 
+                    onClick={() => { 
+                        setShowAllLogs(!showAllLogs); 
+                        setSelectedGroupTitle(null); 
+                        resetDeepLink();
+                    }} 
+                    className={clsx("flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all border", showAllLogs ? "bg-accent text-white border-accent shadow-lg shadow-accent/20" : "bg-slate-900 border-slate-700 text-slate-400")}
+                  >
                     {showAllLogs ? <History size={12}/> : <ListFilter size={12}/>}
                     {showAllLogs ? 'Full Log' : 'Unique'}
                   </button>
@@ -186,10 +213,24 @@ const CoasterList: React.FC = () => {
           </div>
 
           <div className="flex gap-3 mb-5">
-              <button onClick={() => { setCoasterListViewMode('CREDITS'); setSelectedGroupTitle(null); }} className={clsx("flex-1 py-3.5 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-lg border-2", coasterListViewMode === 'CREDITS' ? "bg-primary text-white border-primary shadow-primary/20" : "bg-slate-900 text-slate-400 border-slate-800")}>
+              <button 
+                onClick={() => { 
+                    setCoasterListViewMode('CREDITS'); 
+                    setSelectedGroupTitle(null); 
+                    resetDeepLink();
+                }} 
+                className={clsx("flex-1 py-3.5 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-lg border-2", coasterListViewMode === 'CREDITS' ? "bg-primary text-white border-primary shadow-primary/20" : "bg-slate-900 text-slate-400 border-slate-800")}
+              >
                   <CheckCircle2 size={18} /> Ridden
               </button>
-              <button onClick={() => { setCoasterListViewMode('WISHLIST'); setSelectedGroupTitle(null); }} className={clsx("flex-1 py-3.5 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-lg border-2", coasterListViewMode === 'WISHLIST' ? "bg-amber-500 text-white border-amber-500 shadow-amber-500/20" : "bg-slate-900 text-slate-400 border-slate-800")}>
+              <button 
+                onClick={() => { 
+                    setCoasterListViewMode('WISHLIST'); 
+                    setSelectedGroupTitle(null); 
+                    resetDeepLink();
+                }} 
+                className={clsx("flex-1 py-3.5 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-lg border-2", coasterListViewMode === 'WISHLIST' ? "bg-amber-500 text-white border-amber-500 shadow-amber-500/20" : "bg-slate-900 text-slate-400 border-slate-800")}
+              >
                   <Bookmark size={18} /> Bucket List
               </button>
           </div>
@@ -211,7 +252,14 @@ const CoasterList: React.FC = () => {
             {showCategories ? (
                  <div className="grid grid-cols-1 gap-3 animate-fade-in-up">
                     {groups.map(group => (
-                        <button key={group.title} onClick={() => setSelectedGroupTitle(group.title)} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex items-center justify-between hover:bg-slate-750 transition-all group active:scale-[0.99]">
+                        <button 
+                            key={group.title} 
+                            onClick={() => {
+                                setSelectedGroupTitle(group.title);
+                                resetDeepLink(); // Manual navigation resets deep link
+                            }} 
+                            className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex items-center justify-between hover:bg-slate-750 transition-all group active:scale-[0.99]"
+                        >
                             <div className="flex items-center gap-4">
                                 <div className="w-10 h-10 rounded-full bg-slate-900 border border-slate-700 flex items-center justify-center text-slate-400 group-hover:text-primary transition-colors"><CategoryIcon size={20} /></div>
                                 <div className="text-left">
