@@ -85,9 +85,19 @@ export const normalizeParkName = (rawName: string): string => {
   if (upper === 'BGT') return 'Busch Gardens Tampa';
   if (upper.includes('BUSCH GARDENS WILLIAMSBURG')) return 'Busch Gardens Williamsburg';
   if (upper === 'BGW') return 'Busch Gardens Williamsburg';
+  
+  // SeaWorld Corrections (Space vs No Space)
+  if (upper.includes('SEA WORLD ORLANDO')) return 'SeaWorld Orlando';
   if (upper.includes('SEAWORLD ORLANDO')) return 'SeaWorld Orlando';
+  
+  if (upper.includes('SEA WORLD SAN ANTONIO')) return 'SeaWorld San Antonio';
   if (upper.includes('SEAWORLD SAN ANTONIO')) return 'SeaWorld San Antonio';
+  
+  if (upper.includes('SEA WORLD SAN DIEGO')) return 'SeaWorld San Diego';
   if (upper.includes('SEAWORLD SAN DIEGO')) return 'SeaWorld San Diego';
+
+  if (upper.includes('SEA WORLD ABU DHABI')) return 'SeaWorld Abu Dhabi';
+  if (upper.includes('SEAWORLD ABU DHABI')) return 'SeaWorld Abu Dhabi';
 
   // Six Flags
   if (upper.includes('MAGIC MOUNTAIN')) return 'Six Flags Magic Mountain';

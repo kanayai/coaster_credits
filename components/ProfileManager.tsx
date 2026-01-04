@@ -15,7 +15,7 @@ const ActivityHeatmap = () => {
     const activityMap = useMemo(() => {
         const map = new Map<string, number>();
         credits.filter(c => c.userId === activeUser.id).forEach(c => {
-            const dateStr = c.date; // YYYY-MM-DD
+            const dateStr = c.date; // YYYY-MM-DD from input
             map.set(dateStr, (map.get(dateStr) || 0) + 1);
         });
         return map;
@@ -55,7 +55,12 @@ const ActivityHeatmap = () => {
                 {weeks.map((week, wIdx) => (
                     <div key={wIdx} className="flex flex-col gap-[3px]">
                         {week.map((day, dIdx) => {
-                             const dateStr = day.toISOString().split('T')[0];
+                             // Use local date string construction to match YYYY-MM-DD format regardless of UTC offset
+                             const year = day.getFullYear();
+                             const month = String(day.getMonth() + 1).padStart(2, '0');
+                             const date = String(day.getDate()).padStart(2, '0');
+                             const dateStr = `${year}-${month}-${date}`;
+                             
                              const count = activityMap.get(dateStr) || 0;
                              return (
                                  <div 

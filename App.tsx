@@ -11,18 +11,19 @@ import Rankings from './components/Rankings';
 import Milestones from './components/Milestones';
 
 const AppContent: React.FC = () => {
-  const { currentView } = useAppContext();
+  const { currentView, activeUser } = useAppContext();
 
   const renderView = () => {
     switch (currentView) {
-      case 'DASHBOARD': return <Dashboard />;
+      // Force Dashboard to remount when user changes to ensure fresh data visualization
+      case 'DASHBOARD': return <Dashboard key={activeUser.id} />;
       case 'ADD_CREDIT': return <AddCredit />;
       case 'COASTER_LIST': return <CoasterList />;
       case 'PROFILE': return <ProfileManager />;
       case 'PARK_STATS': return <ParkStats />;
       case 'RANKINGS': return <Rankings />;
       case 'MILESTONES': return <Milestones />;
-      default: return <Dashboard />;
+      default: return <Dashboard key={activeUser.id} />;
     }
   };
 
