@@ -729,9 +729,15 @@ const AddCredit: React.FC = () => {
                                 </button>
                             ) : (
                                 !isMultiSelectMode && (
-                                    <div className="p-2.5 text-slate-700 group-hover:text-primary transition-colors">
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation(); // Prevent double triggering
+                                            setSelectedCoaster(c);
+                                        }}
+                                        className="p-2.5 text-slate-700 group-hover:text-primary transition-colors rounded-xl hover:bg-slate-700/50"
+                                    >
                                         <ChevronRight size={20} />
-                                    </div>
+                                    </button>
                                 )
                             )}
                         </div>
