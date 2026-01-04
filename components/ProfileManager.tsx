@@ -53,28 +53,44 @@ const ActivityHeatmap = () => {
             <div className="flex items-center gap-2 mb-3 text-xs font-bold text-slate-500 uppercase tracking-widest">
                 <Calendar size={14} /> Ride History (Last Year)
             </div>
-            <div className="flex gap-[3px] min-w-max">
-                {weeks.map((week, wIdx) => (
-                    <div key={wIdx} className="flex flex-col gap-[3px]">
-                        {week.map((day) => {
-                             const year = day.getFullYear();
-                             const month = String(day.getMonth() + 1).padStart(2, '0');
-                             const date = String(day.getDate()).padStart(2, '0');
-                             const dateStr = `${year}-${month}-${date}`;
-                             
-                             const count = activityMap.get(dateStr) || 0;
-                             return (
-                                 <div 
-                                    key={dateStr} 
-                                    className={`w-3 h-3 rounded-sm ${getIntensityColor(count)}`}
-                                    title={`${dateStr}: ${count} rides`}
-                                 />
-                             );
-                        })}
-                    </div>
-                ))}
+            <div className="flex gap-[3px] min-w-max pb-6">
+                {weeks.map((week, wIdx) => {
+                    const firstDay = week[0];
+                    const prevWeek = weeks[wIdx - 1];
+                    const isNewMonth = !prevWeek || prevWeek[0].getMonth() !== firstDay.getMonth();
+                    
+                    const monthName = firstDay.toLocaleString('default', { month: 'short' });
+                    const year = firstDay.getFullYear().toString().slice(2);
+                    // Show year if Jan or start of chart
+                    const label = isNewMonth ? (firstDay.getMonth() === 0 || wIdx === 0 ? `${monthName} '${year}` : monthName) : null;
+
+                    return (
+                        <div key={wIdx} className="flex flex-col gap-[3px] relative">
+                            {week.map((day) => {
+                                 const year = day.getFullYear();
+                                 const month = String(day.getMonth() + 1).padStart(2, '0');
+                                 const date = String(day.getDate()).padStart(2, '0');
+                                 const dateStr = `${year}-${month}-${date}`;
+                                 
+                                 const count = activityMap.get(dateStr) || 0;
+                                 return (
+                                     <div 
+                                        key={dateStr} 
+                                        className={`w-3 h-3 rounded-sm ${getIntensityColor(count)}`}
+                                        title={`${dateStr}: ${count} rides`}
+                                     />
+                                 );
+                            })}
+                            {label && (
+                                <span className="absolute top-full mt-2 left-0 text-[9px] text-slate-500 font-bold whitespace-nowrap">
+                                    {label}
+                                </span>
+                            )}
+                        </div>
+                    );
+                })}
             </div>
-            <div className="flex items-center justify-end gap-2 mt-3 text-[10px] text-slate-500 font-medium">
+            <div className="flex items-center justify-end gap-2 mt-1 text-[10px] text-slate-500 font-medium border-t border-slate-800/50 pt-2">
                 <span>Less</span>
                 <div className="flex gap-[2px]">
                     <div className="w-2 h-2 rounded-sm bg-slate-800" />
