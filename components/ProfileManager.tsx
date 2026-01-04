@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { UserPlus, CheckCircle2, Smartphone, Share2, QrCode, Edit2, Save, X, FileSpreadsheet, Database, Download, Cloud, PaintBucket, Sparkles, Loader2, Copy, ExternalLink, Camera, ImageDown, Upload, Wrench, Share, FileJson, Trophy, FileText, Code2, Calendar } from 'lucide-react';
@@ -36,7 +35,7 @@ const ActivityHeatmap = () => {
             weeksArray.push(week);
         }
         return weeksArray;
-    }, [today, oneYearAgo]);
+    }, [today.toDateString(), oneYearAgo.toDateString()]);
 
     const getIntensityColor = (count: number) => {
         if (count === 0) return 'bg-slate-800';
@@ -47,15 +46,14 @@ const ActivityHeatmap = () => {
     };
 
     return (
-        <div className="bg-slate-900 rounded-xl p-4 border border-slate-800 overflow-x-auto no-scrollbar">
+        <div key={`heatmap-${credits.length}`} className="bg-slate-900 rounded-xl p-4 border border-slate-800 overflow-x-auto no-scrollbar">
             <div className="flex items-center gap-2 mb-3 text-xs font-bold text-slate-500 uppercase tracking-widest">
                 <Calendar size={14} /> Ride History (Last Year)
             </div>
             <div className="flex gap-[3px] min-w-max">
                 {weeks.map((week, wIdx) => (
                     <div key={wIdx} className="flex flex-col gap-[3px]">
-                        {week.map((day, dIdx) => {
-                             // Use local date string construction to match YYYY-MM-DD format regardless of UTC offset
+                        {week.map((day) => {
                              const year = day.getFullYear();
                              const month = String(day.getMonth() + 1).padStart(2, '0');
                              const date = String(day.getDate()).padStart(2, '0');
@@ -230,11 +228,9 @@ const ProfileManager: React.FC = () => {
   const { users, activeUser, switchUser, addUser, updateUser, credits, wishlist, coasters, generateIcon, enrichDatabaseImages, importData, standardizeDatabase, changeView, showNotification } = useAppContext();
   const [isAdding, setIsAdding] = useState(false);
   const [newUserName, setNewUserName] = useState('');
-  const [newUserPhoto, setNewUserPhoto] = useState<File | undefined>(undefined);
   const [isEnriching, setIsEnriching] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
-  const [editPhoto, setEditPhoto] = useState<File | undefined>(undefined);
 
   const startEditing = (user: User) => {
     setEditingUserId(user.id);
@@ -281,56 +277,111 @@ const ProfileManager: React.FC = () => {
                         <div className={`w-12 h-12 rounded-full ${user.avatarUrl ? 'bg-transparent' : user.avatarColor} flex items-center justify-center text-lg font-bold shadow-lg overflow-hidden`}>{user.avatarUrl ? <img src={user.avatarUrl} className="w-full h-full object-cover" /> : user.name.substring(0, 2).toUpperCase()}</div>
                     </div>
                     <div className="flex-1 text-left min-w-0">
-                        <div className="flex justify-between items-center w-full">
-                            <h3 className={`font-semibold text-lg truncate ${user.id === activeUser.id ? 'text-white' : 'text-slate-200'}`}>{user.name}</h3>
-                            <button onClick={(e) => { e.stopPropagation(); startEditing(user); }} className="p-2 text-slate-500"><Edit2 size={16} /></button>
-                        </div>
+                        {isEditing ? (
+                            <form onClick={e => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); updateUser(user.id, editName); setEditingUserId(null); }} className="flex gap-2">
+                                <input 
+                                    value={editName} 
+                                    onChange={e => setEditName(e.target.value)} 
+                                    className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white text-sm w-full"
+                                    autoFocus
+                                />
+                                <button type="submit" className="bg-emerald-600 p-1.5 rounded text-white"><Save size={14} /></button>
+                                <button type="button" onClick={() => setEditingUserId(null)} className="bg-slate-700 p-1.5 rounded text-white"><X size={14} /></button>
+                            </form>
+                        ) : (
+                            <div className="flex justify-between items-center w-full">
+                                <h3 className={`font-semibold text-lg truncate ${user.id === activeUser.id ? 'text-white' : 'text-slate-200'}`}>{user.name}</h3>
+                                <button onClick={(e) => { e.stopPropagation(); startEditing(user); }} className="p-2 text-slate-500 hover:text-white"><Edit2 size={16} /></button>
+                            </div>
+                        )}
+                        {!isEditing && <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">{user.id === activeUser.id ? 'Active Rider' : 'Switch Profile'}</p>}
                     </div>
                 </div>
              );
           })}
         </div>
+
+        {/* Add User */}
+        {isAdding ? (
+            <form onSubmit={(e) => { e.preventDefault(); if(newUserName) { addUser(newUserName); setIsAdding(false); setNewUserName(''); } }} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex gap-3 animate-fade-in">
+                <input 
+                    placeholder="Rider Name" 
+                    value={newUserName}
+                    onChange={e => setNewUserName(e.target.value)}
+                    className="flex-1 bg-slate-900 border border-slate-600 rounded-xl px-4 py-2 text-white"
+                    autoFocus
+                />
+                <button type="submit" className="bg-primary text-white px-4 py-2 rounded-xl font-bold">Save</button>
+                <button type="button" onClick={() => setIsAdding(false)} className="bg-slate-700 text-slate-300 px-4 py-2 rounded-xl font-bold">Cancel</button>
+            </form>
+        ) : (
+            <button onClick={() => setIsAdding(true)} className="w-full py-4 rounded-xl border border-dashed border-slate-600 text-slate-400 font-bold flex items-center justify-center gap-2 hover:bg-slate-800 hover:text-white transition-colors">
+                <UserPlus size={20} /> Add New Profile
+            </button>
+        )}
       </div>
 
-      {/* Activity Heatmap */}
-      <div className="border-t border-slate-800 pt-8 space-y-6">
-        <h2 className="text-xl font-bold">Riding Activity</h2>
-        <ActivityHeatmap />
+      {/* Heatmap */}
+      <div>
+          <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-3">Ride Activity</h3>
+          <ActivityHeatmap />
       </div>
 
-      <div className="border-t border-slate-800 pt-8 space-y-6">
-        <div className="flex items-center gap-2 mb-4 text-white"><Database className="text-pink-500" size={24} /><h2 className="text-xl font-bold">Database Management</h2></div>
-        <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700 shadow-xl space-y-4">
-             <button onClick={enrichDatabaseImages} className="w-full bg-pink-600 font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-lg shadow-pink-500/20"><Sparkles size={18} /> Fetch Real Photos</button>
-             <button onClick={standardizeDatabase} className="w-full bg-indigo-600 font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors"><Wrench size={18} /> Fix & Standardize Names</button>
-        </div>
-      </div>
-
-      <div className="border-t border-slate-800 pt-8">
-        <div className="flex items-center gap-2 mb-4 text-white"><Cloud size={24} className="text-primary"/><h2 className="text-xl font-bold">Backups</h2></div>
+      {/* Data Management */}
+      <div>
+        <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-3">Data & Settings</h3>
         <div className="grid grid-cols-2 gap-3">
-            <button onClick={handleExportCSV} className="bg-slate-800 border border-slate-700 p-4 rounded-xl text-center hover:bg-slate-700 transition-colors">
-                <FileSpreadsheet className="mx-auto mb-2 text-green-500" /> <span className="text-xs font-bold">CSV Export</span>
+            <button onClick={handleExportCSV} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col items-center gap-2 hover:bg-slate-750 transition-colors">
+                <FileSpreadsheet size={24} className="text-emerald-500" />
+                <span className="text-xs font-bold text-slate-300">Export CSV</span>
             </button>
-            <button onClick={() => showNotification("Coming soon to Cloud!", "info")} className="bg-slate-800 border border-slate-700 p-4 rounded-xl text-center hover:bg-slate-700 transition-colors opacity-50">
-                <Database className="mx-auto mb-2 text-primary" /> <span className="text-xs font-bold">JSON Backup</span>
+            
+            <label className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col items-center gap-2 hover:bg-slate-750 transition-colors cursor-pointer">
+                <Upload size={24} className="text-blue-500" />
+                <span className="text-xs font-bold text-slate-300">Import JSON</span>
+                <input type="file" accept=".json" className="hidden" onChange={(e) => {
+                    if (e.target.files?.[0]) {
+                        const reader = new FileReader();
+                        reader.onload = (ev) => importData(JSON.parse(ev.target?.result as string));
+                        reader.readAsText(e.target.files[0]);
+                    }
+                }} />
+            </label>
+
+            <button onClick={() => { setIsEnriching(true); enrichDatabaseImages().finally(() => setIsEnriching(false)); }} disabled={isEnriching} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col items-center gap-2 hover:bg-slate-750 transition-colors">
+                {isEnriching ? <Loader2 size={24} className="animate-spin text-primary" /> : <ImageDown size={24} className="text-primary" />}
+                <span className="text-xs font-bold text-slate-300">Fetch Photos</span>
+            </button>
+            
+             <button onClick={standardizeDatabase} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col items-center gap-2 hover:bg-slate-750 transition-colors">
+                <Wrench size={24} className="text-amber-500" />
+                <span className="text-xs font-bold text-slate-300">Clean DB</span>
             </button>
         </div>
       </div>
 
-      <div className="border-t border-slate-800 pt-8">
-        <div className="flex items-center gap-2 mb-4 text-white"><Code2 className="text-blue-400" size={24} /><h2 className="text-xl font-bold">Developer Resources</h2></div>
-        <button onClick={handleDownloadDeploymentGuide} className="w-full bg-slate-800 border border-slate-700 p-4 rounded-xl flex items-center justify-center gap-3 hover:bg-slate-700 transition-colors group">
-            <div className="bg-blue-500/20 p-2 rounded-lg group-hover:bg-blue-500/30 transition-colors">
-                <FileText size={20} className="text-blue-400"/>
-            </div>
-            <div className="text-left">
-                <span className="block font-bold text-slate-200">Download Deployment Guide</span>
-                <span className="text-[10px] text-slate-400 uppercase tracking-wider">Instructions for App Store & Play Store</span>
-            </div>
-            <Download size={16} className="text-slate-500 ml-auto" />
-        </button>
-      </div>
+       {/* Deployment Guide */}
+       <div className="bg-gradient-to-br from-indigo-900/50 to-slate-900 border border-indigo-500/30 rounded-2xl p-5 relative overflow-hidden">
+           <div className="flex items-start justify-between relative z-10">
+               <div className="space-y-2">
+                   <div className="flex items-center gap-2 text-indigo-300 font-bold text-xs uppercase tracking-wider">
+                       <Smartphone size={14} /> Mobile App
+                   </div>
+                   <h3 className="text-xl font-bold text-white">Turn this into a Real App</h3>
+                   <p className="text-sm text-slate-400 max-w-xs">
+                       Download the comprehensive guide to deploying CoasterCount Pro to the iOS App Store and Google Play Store.
+                   </p>
+                   <button onClick={handleDownloadDeploymentGuide} className="mt-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 shadow-lg shadow-indigo-500/20 transition-all">
+                       <Download size={14} /> Download Guide
+                   </button>
+               </div>
+               <Code2 size={80} className="text-indigo-500/10 absolute -right-4 -bottom-4 rotate-12" />
+           </div>
+       </div>
+       
+       <div className="text-center text-[10px] text-slate-600 font-medium pt-8">
+           CoasterCount Pro v2.1 • Built with React & Gemini
+       </div>
     </div>
   );
 };

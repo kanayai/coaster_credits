@@ -135,6 +135,13 @@ export const normalizeParkName = (rawName: string): string => {
   if (upper.includes('ENERGYLANDIA')) return 'Energylandia';
   if (upper.includes('ALTON TOWERS')) return 'Alton Towers';
   if (upper.includes('THORPE PARK')) return 'Thorpe Park';
+  if (upper.includes('CHESSINGTON') || upper === 'CWOA') return 'Chessington World of Adventures';
+  if (upper.includes('BLACKPOOL PLEASURE BEACH') || upper === 'BPB') return 'Blackpool Pleasure Beach';
+  if (upper.includes('LEGOLAND WINDSOR')) return 'Legoland Windsor';
+  if (upper.includes('DRAYTON MANOR')) return 'Drayton Manor';
+  if (upper.includes('FLAMINGOLAND') || upper.includes('FLAMINGO LAND')) return 'Flamingo Land';
+  if (upper.includes('PAULTONS PARK') || upper.includes('PAULTONS')) return 'Paultons Park';
+
   if (upper.includes('PORTAVENTURA') || upper.includes('PORT AVENTURA')) return 'PortAventura Park';
   if (upper.includes('EFTELING')) return 'Efteling';
   if (upper.includes('LISEBERG')) return 'Liseberg';

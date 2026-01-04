@@ -229,6 +229,7 @@ const CoasterList: React.FC = () => {
                             <div className="bg-slate-800/80 backdrop-blur px-4 py-2 rounded-full border border-slate-700 flex items-center gap-2 shadow-sm">
                             <CategoryIcon size={16} className="text-primary" />
                             <h3 className="text-sm font-bold text-white">{selectedGroupTitle}</h3>
+                            <span className="text-xs font-medium text-slate-400 bg-slate-700/50 px-1.5 py-0.5 rounded-md ml-1">{itemsToShow.length}</span>
                         </div>
                     </div>
                     <div className="grid grid-cols-1 gap-4">

@@ -1,8 +1,8 @@
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
-import { Trophy, Palmtree, Layers, Factory, Flag, CalendarRange, MapPin, Navigation, ChevronRight, Plus, Loader2, ListOrdered, Ticket } from 'lucide-react';
+import { Trophy, Palmtree, Layers, Factory, Flag, CalendarRange, MapPin, Navigation, ChevronRight, Plus, Loader2, ListOrdered, Ticket, ExternalLink } from 'lucide-react';
 import EditCreditModal from './EditCreditModal';
 import RideDetailModal from './RideDetailModal';
 import ShareCardModal from './ShareCardModal';
@@ -22,6 +22,9 @@ const Dashboard: React.FC = () => {
   const [sharingCreditData, setSharingCreditData] = useState<{ credit: Credit, coaster: Coaster } | null>(null);
   
   const [chartMetric, setChartMetric] = useState<ChartMetric>('PARK');
+  
+  // Navigation Delay State for UX
+  const [navigatingState, setNavigatingState] = useState<{ category: string, value: number } | null>(null);
 
   // Smart Button State
   const [isLocatingSession, setIsLocatingSession] = useState(false);
@@ -134,8 +137,15 @@ const Dashboard: React.FC = () => {
 
   const handleChartClick = (entry: any) => {
       if (!entry || !entry.name) return;
-      setAnalyticsFilter({ mode: chartMetric, value: entry.name });
-      changeView('COASTER_LIST');
+      
+      // Visual feedback + Delay
+      setNavigatingState({ category: entry.name, value: entry.value });
+
+      setTimeout(() => {
+          setAnalyticsFilter({ mode: chartMetric, value: entry.name });
+          changeView('COASTER_LIST');
+          setNavigatingState(null);
+      }, 1500); // 1.5 second delay to read value
   };
 
   const MetricButton = ({ mode, label, icon: Icon }: { mode: ChartMetric, label: string, icon: React.ElementType }) => (
@@ -269,7 +279,19 @@ const Dashboard: React.FC = () => {
       {/* Analytics Chart */}
       <div className="space-y-3 shrink-0">
           <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">Analytics</h3>
-          <div className="bg-slate-800 rounded-[28px] p-5 border border-slate-700 shadow-xl">
+          <div className="bg-slate-800 rounded-[28px] p-5 border border-slate-700 shadow-xl relative overflow-hidden">
+              
+              {/* Navigation Overlay */}
+              {navigatingState && (
+                  <div className="absolute inset-0 bg-slate-900/80 z-20 flex flex-col items-center justify-center backdrop-blur-sm animate-fade-in">
+                      <Loader2 size={32} className="text-primary animate-spin mb-3" />
+                      <div className="text-2xl font-black text-white">{navigatingState.value}</div>
+                      <div className="text-xs font-bold uppercase text-slate-400 tracking-wider">
+                          Opening {navigatingState.category}...
+                      </div>
+                  </div>
+              )}
+
               <div className="flex bg-slate-800 p-1 rounded-2xl border border-slate-700 overflow-x-auto no-scrollbar">
                   <MetricButton mode="PARK" label="Park" icon={Palmtree} />
                   <MetricButton mode="TYPE" label="Type" icon={Layers} />
