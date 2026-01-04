@@ -22,6 +22,7 @@ interface AppContextType {
   notification: Notification | null;
   lastSearchQuery: string;
   coasterToLog: Coaster | null; // New state for deep linking to log
+  showConfetti: boolean;
   
   // Actions
   switchUser: (userId: string) => void;
@@ -50,6 +51,7 @@ interface AppContextType {
   autoFetchCoasterImage: (coasterId: string) => Promise<string | null>;
   importData: (jsonData: any) => void;
   standardizeDatabase: () => void;
+  triggerConfetti: () => void;
   
   // Ranking Actions
   updateRankings: (rankings: RankingList) => void;
@@ -162,6 +164,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [notification, setNotification] = useState<Notification | null>(null);
   const [lastSearchQuery, setLastSearchQuery] = useState('');
   const [coasterToLog, setCoasterToLog] = useState<Coaster | null>(null);
+  const [showConfetti, setShowConfetti] = useState(false);
 
   // Safe Storage Effects
   useEffect(() => {
@@ -192,6 +195,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const hideNotification = () => setNotification(null);
+
+  const triggerConfetti = () => {
+    setShowConfetti(true);
+    setTimeout(() => setShowConfetti(false), 3000);
+  };
 
   const switchUser = (userId: string) => {
     const user = users.find(u => u.id === userId);
@@ -574,9 +582,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   return (
     <AppContext.Provider value={{
-      activeUser, users, coasters, credits, wishlist, currentView, coasterListViewMode, notification, lastSearchQuery, coasterToLog,
+      activeUser, users, coasters, credits, wishlist, currentView, coasterListViewMode, notification, lastSearchQuery, coasterToLog, showConfetti,
       switchUser, addUser, updateUser, addCredit, updateCredit, addNewCoaster, editCoaster, addMultipleCoasters, searchOnlineCoaster, extractFromUrl, generateIcon,
-      changeView, setCoasterListViewMode, deleteCredit, addToWishlist, removeFromWishlist, isInWishlist,
+      changeView, setCoasterListViewMode, deleteCredit, addToWishlist, removeFromWishlist, isInWishlist, triggerConfetti,
       showNotification, hideNotification, setLastSearchQuery, setCoasterToLog, enrichDatabaseImages, updateCoasterImage, autoFetchCoasterImage,
       importData, standardizeDatabase, updateRankings
     }}>

@@ -1,8 +1,87 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { UserPlus, CheckCircle2, Smartphone, Share2, QrCode, Edit2, Save, X, FileSpreadsheet, Database, Download, Cloud, PaintBucket, Sparkles, Loader2, Copy, ExternalLink, Camera, ImageDown, Upload, Wrench, Share, FileJson, Trophy, FileText, Code2 } from 'lucide-react';
+import { UserPlus, CheckCircle2, Smartphone, Share2, QrCode, Edit2, Save, X, FileSpreadsheet, Database, Download, Cloud, PaintBucket, Sparkles, Loader2, Copy, ExternalLink, Camera, ImageDown, Upload, Wrench, Share, FileJson, Trophy, FileText, Code2, Calendar } from 'lucide-react';
 import { User } from '../types';
+
+const ActivityHeatmap = () => {
+    const { credits, activeUser } = useAppContext();
+    
+    // Calculate last 365 days
+    const today = new Date();
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(today.getFullYear() - 1);
+    
+    const activityMap = useMemo(() => {
+        const map = new Map<string, number>();
+        credits.filter(c => c.userId === activeUser.id).forEach(c => {
+            const dateStr = c.date; // YYYY-MM-DD
+            map.set(dateStr, (map.get(dateStr) || 0) + 1);
+        });
+        return map;
+    }, [credits, activeUser.id]);
+
+    const weeks = useMemo(() => {
+        const weeksArray = [];
+        let currentDate = new Date(oneYearAgo);
+        // Align to previous Sunday
+        currentDate.setDate(currentDate.getDate() - currentDate.getDay());
+        
+        while (currentDate <= today) {
+            const week = [];
+            for (let i = 0; i < 7; i++) {
+                week.push(new Date(currentDate));
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+            weeksArray.push(week);
+        }
+        return weeksArray;
+    }, [today, oneYearAgo]);
+
+    const getIntensityColor = (count: number) => {
+        if (count === 0) return 'bg-slate-800';
+        if (count === 1) return 'bg-emerald-900';
+        if (count <= 3) return 'bg-emerald-700';
+        if (count <= 6) return 'bg-emerald-500';
+        return 'bg-emerald-300';
+    };
+
+    return (
+        <div className="bg-slate-900 rounded-xl p-4 border border-slate-800 overflow-x-auto no-scrollbar">
+            <div className="flex items-center gap-2 mb-3 text-xs font-bold text-slate-500 uppercase tracking-widest">
+                <Calendar size={14} /> Ride History (Last Year)
+            </div>
+            <div className="flex gap-[3px] min-w-max">
+                {weeks.map((week, wIdx) => (
+                    <div key={wIdx} className="flex flex-col gap-[3px]">
+                        {week.map((day, dIdx) => {
+                             const dateStr = day.toISOString().split('T')[0];
+                             const count = activityMap.get(dateStr) || 0;
+                             return (
+                                 <div 
+                                    key={dateStr} 
+                                    className={`w-3 h-3 rounded-sm ${getIntensityColor(count)}`}
+                                    title={`${dateStr}: ${count} rides`}
+                                 />
+                             );
+                        })}
+                    </div>
+                ))}
+            </div>
+            <div className="flex items-center justify-end gap-2 mt-3 text-[10px] text-slate-500 font-medium">
+                <span>Less</span>
+                <div className="flex gap-[2px]">
+                    <div className="w-2 h-2 rounded-sm bg-slate-800" />
+                    <div className="w-2 h-2 rounded-sm bg-emerald-900" />
+                    <div className="w-2 h-2 rounded-sm bg-emerald-700" />
+                    <div className="w-2 h-2 rounded-sm bg-emerald-500" />
+                    <div className="w-2 h-2 rounded-sm bg-emerald-300" />
+                </div>
+                <span>More</span>
+            </div>
+        </div>
+    );
+};
 
 const DEPLOYMENT_GUIDE_CONTENT = `# CoasterCount Pro - Ultimate Deployment Guide
 
@@ -206,6 +285,12 @@ const ProfileManager: React.FC = () => {
              );
           })}
         </div>
+      </div>
+
+      {/* Activity Heatmap */}
+      <div className="border-t border-slate-800 pt-8 space-y-6">
+        <h2 className="text-xl font-bold">Riding Activity</h2>
+        <ActivityHeatmap />
       </div>
 
       <div className="border-t border-slate-800 pt-8 space-y-6">

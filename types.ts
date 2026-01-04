@@ -52,6 +52,7 @@ export interface WishlistEntry {
 }
 
 export interface RankingList {
+  limit?: number; // The user's preferred list size (e.g., 10, 20, 50)
   overall: string[]; // Mixed list (Steel, Wood, etc.)
   steel: string[]; // Coaster IDs in order
   wooden: string[]; // Coaster IDs in order

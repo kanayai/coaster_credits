@@ -10,7 +10,7 @@ import clsx from 'clsx';
 const normalizeText = (text: string) => cleanName(text).toLowerCase();
 
 const AddCredit: React.FC = () => {
-  const { coasters, addCredit, deleteCredit, addNewCoaster, editCoaster, addMultipleCoasters, searchOnlineCoaster, extractFromUrl, credits, activeUser, addToWishlist, removeFromWishlist, isInWishlist, lastSearchQuery, setLastSearchQuery, showNotification, coasterToLog, setCoasterToLog } = useAppContext();
+  const { coasters, addCredit, deleteCredit, addNewCoaster, editCoaster, addMultipleCoasters, searchOnlineCoaster, extractFromUrl, credits, activeUser, addToWishlist, removeFromWishlist, isInWishlist, lastSearchQuery, setLastSearchQuery, showNotification, coasterToLog, setCoasterToLog, triggerConfetti } = useAppContext();
   
   // Search and Filter State
   const searchTerm = lastSearchQuery;
@@ -260,6 +260,7 @@ const AddCredit: React.FC = () => {
   const handleQuickLogOneTap = (e: React.MouseEvent, coasterId: string) => {
     e.stopPropagation();
     addCredit(coasterId, new Date().toISOString().split('T')[0], '', '');
+    triggerConfetti();
     showNotification("Lap logged!", "success");
   };
 
@@ -299,6 +300,7 @@ const AddCredit: React.FC = () => {
       selectedIds.forEach(id => {
           addCredit(id, bulkDate, '', '');
       });
+      triggerConfetti();
       showNotification(`Bulk logged ${selectedIds.size} rides!`, 'success');
       setSelectedIds(new Set());
       setIsMultiSelectMode(false);
@@ -313,6 +315,8 @@ const AddCredit: React.FC = () => {
         }
 
         const newCredit = await addCredit(selectedCoaster.id, date, notes, restraints, photos, selectedVariant);
+        
+        triggerConfetti();
         
         const coasterRef = selectedCoaster;
         setSelectedCoaster(null); 

@@ -1,7 +1,7 @@
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { Trash2, Calendar, MapPin, Tag, Palmtree, Flag, Layers, Factory, CalendarRange, CheckCircle2, Bookmark, ArrowRightCircle, Edit2, ArrowLeft, ChevronRight, FolderOpen, Lock, Repeat, ListFilter, History, Share2, PlusCircle, Music } from 'lucide-react';
+import { Trash2, Calendar, MapPin, Tag, Palmtree, Flag, Layers, Factory, CalendarRange, CheckCircle2, Bookmark, ArrowRightCircle, Edit2, ArrowLeft, ChevronRight, FolderOpen, Lock, Repeat, ListFilter, History, Share2, PlusCircle, Music, ArrowUp } from 'lucide-react';
 import clsx from 'clsx';
 import { Credit, Coaster } from '../types';
 import EditCreditModal from './EditCreditModal';
@@ -21,6 +21,37 @@ const CoasterList: React.FC = () => {
   const [editingCreditData, setEditingCreditData] = useState<{ credit: Credit, coaster: Coaster } | null>(null);
   const [viewingCreditData, setViewingCreditData] = useState<{ credit: Credit, coaster: Coaster } | null>(null);
   const [sharingCreditData, setSharingCreditData] = useState<{ credit: Credit, coaster: Coaster } | null>(null);
+
+  // Scroll To Top State
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // Find the main scroll container from layout
+    const scrollContainer = document.querySelector('main');
+    
+    const handleScroll = () => {
+        if (scrollContainer) {
+            setShowScrollTop(scrollContainer.scrollTop > 300);
+        }
+    };
+
+    if (scrollContainer) {
+        scrollContainer.addEventListener('scroll', handleScroll);
+    }
+    return () => {
+        if (scrollContainer) {
+            scrollContainer.removeEventListener('scroll', handleScroll);
+        }
+    };
+  }, []);
+
+  const scrollToTop = () => {
+      const scrollContainer = document.querySelector('main');
+      if (scrollContainer) {
+          scrollContainer.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+  };
 
   const itemsToDisplay = useMemo(() => {
     if (coasterListViewMode === 'CREDITS') {
@@ -128,7 +159,7 @@ const CoasterList: React.FC = () => {
   const itemsToShow = activeGroup ? activeGroup.items : [];
 
   return (
-    <div className="animate-fade-in space-y-4 pb-8">
+    <div className="animate-fade-in space-y-4 pb-8" ref={listRef}>
       <div className="sticky top-0 bg-slate-950/95 backdrop-blur-sm z-20 pb-2 pt-2 -mx-4 px-4 border-b border-slate-800/50">
           <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
@@ -273,6 +304,16 @@ const CoasterList: React.FC = () => {
                 </div>
             )}
           </>
+      )}
+
+      {/* Floating Scroll Top Button */}
+      {showScrollTop && (
+        <button 
+            onClick={scrollToTop}
+            className="fixed bottom-24 right-4 z-50 bg-primary text-white p-3 rounded-full shadow-lg shadow-primary/30 border border-white/20 animate-fade-in hover:scale-110 active:scale-95 transition-all"
+        >
+            <ArrowUp size={24} />
+        </button>
       )}
 
       {viewingCreditData && (

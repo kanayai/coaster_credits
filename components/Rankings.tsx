@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { Trophy, ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, Save, Layers, TreeDeciduous, Search, Hash, Zap, Flag, TrendingUp, Sparkles, X, Globe, ListOrdered } from 'lucide-react';
+import { Trophy, ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, Save, Layers, TreeDeciduous, Search, Hash, Zap, Flag, TrendingUp, Sparkles, X, Globe, ListOrdered, Settings, AlertTriangle } from 'lucide-react';
 import clsx from 'clsx';
 import { Coaster, CoasterType, RankingList, Credit } from '../types';
 import RideDetailModal from './RideDetailModal';
@@ -14,8 +14,25 @@ const Rankings: React.FC = () => {
   const [activeTab, setActiveTab] = useState<RankMode>('overall');
   const [activeElementKey, setActiveElementKey] = useState<string>('Best First Drop');
   
-  // Ranking Limit State
-  const [rankingLimit, setRankingLimit] = useState<number>(10);
+  // Initialize ranking limit based on saved preference OR existing data OR default to 10
+  const [rankingLimit, setRankingLimit] = useState<number>(() => {
+    const base = activeUser.rankings || { overall: [], steel: [], wooden: [] };
+    
+    // 1. Prefer saved limit
+    if (base.limit) return base.limit;
+
+    // 2. Fallback to calculating based on content size
+    const maxLen = Math.max(
+        base.overall?.length || 0, 
+        base.steel?.length || 0, 
+        base.wooden?.length || 0
+    );
+    if (maxLen > 50) return 100;
+    if (maxLen > 25) return 50;
+    if (maxLen > 20) return 25;
+    if (maxLen > 10) return 20;
+    return 10;
+  });
   
   // State for adding a new category
   const [isAddingCategory, setIsAddingCategory] = useState(false);
@@ -51,14 +68,19 @@ const Rankings: React.FC = () => {
       return coasters.filter(c => riddenIds.has(c.id));
   }, [coasters, credits, activeUser.id]);
 
+  // Determine current list for display/logic
+  const currentListIds = useMemo(() => {
+      if (activeTab === 'elements') {
+          return (tempRankings.elements && activeElementKey) ? (tempRankings.elements[activeElementKey] || []) : [];
+      } else {
+          return tempRankings[activeTab] || [];
+      }
+  }, [tempRankings, activeTab, activeElementKey]);
+
+  const isListFull = currentListIds.length >= rankingLimit;
+
   // Available coasters to add
   const availableCoasters = useMemo(() => {
-      let currentList: string[] = [];
-      if (activeTab === 'overall') currentList = tempRankings.overall || [];
-      else if (activeTab === 'steel') currentList = tempRankings.steel;
-      else if (activeTab === 'wooden') currentList = tempRankings.wooden;
-      else if (activeTab === 'elements' && tempRankings.elements) currentList = tempRankings.elements[activeElementKey] || [];
-      
       return riddenCoasters
         .filter(c => {
           let matchesType = true;
@@ -66,17 +88,18 @@ const Rankings: React.FC = () => {
           if (activeTab === 'wooden') matchesType = (c.type === CoasterType.Wooden);
           // Overall and Elements tab allows ALL coaster types
           
-          const isNotRanked = !currentList.includes(c.id);
+          const isNotRanked = !currentListIds.includes(c.id);
           const matchesSearch = c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                                c.park.toLowerCase().includes(searchQuery.toLowerCase());
           
           return matchesType && isNotRanked && matchesSearch;
         })
         .sort((a, b) => a.name.localeCompare(b.name));
-  }, [riddenCoasters, tempRankings, activeTab, activeElementKey, searchQuery]);
+  }, [riddenCoasters, currentListIds, activeTab, searchQuery]);
 
   const handleSave = () => {
-      updateRankings(tempRankings);
+      // Save the limit preference along with the lists
+      updateRankings({ ...tempRankings, limit: rankingLimit });
       changeView('PROFILE');
   };
 
@@ -181,15 +204,40 @@ const Rankings: React.FC = () => {
 
   return (
     <div className="animate-fade-in pb-20 space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-            <button onClick={() => changeView('PROFILE')} className="bg-slate-800 p-2 rounded-full border border-slate-700 text-slate-400 hover:text-white"><ArrowLeft size={20} /></button>
-            <h2 className="text-2xl font-bold">Rankings</h2>
-        </div>
-        <button onClick={handleSave} className="bg-primary text-white px-4 py-2 rounded-xl font-bold text-sm shadow-lg shadow-primary/20 flex items-center gap-2">
-            <Save size={16} /> Save
-        </button>
+      {/* Header with Limit Selector */}
+      <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+                <button onClick={() => changeView('PROFILE')} className="bg-slate-800 p-2 rounded-full border border-slate-700 text-slate-400 hover:text-white"><ArrowLeft size={20} /></button>
+                <h2 className="text-2xl font-bold">Rankings</h2>
+            </div>
+            <div className="flex items-center gap-2">
+                <div className="relative">
+                    <select 
+                        value={rankingLimit} 
+                        onChange={(e) => setRankingLimit(Number(e.target.value))}
+                        className={clsx(
+                            "appearance-none text-white text-xs font-bold py-2.5 pl-3 pr-8 rounded-xl border focus:outline-none focus:border-primary shadow-sm cursor-pointer hover:bg-slate-750 transition-colors",
+                            isListFull ? "bg-amber-500/10 border-amber-500/50 text-amber-500" : "bg-slate-800 border-slate-700"
+                        )}
+                    >
+                        <option value={5}>Top 5</option>
+                        <option value={10}>Top 10</option>
+                        <option value={20}>Top 20</option>
+                        <option value={25}>Top 25</option>
+                        <option value={30}>Top 30</option>
+                        <option value={50}>Top 50</option>
+                        <option value={100}>Top 100</option>
+                    </select>
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                        <ChevronDown size={14} />
+                    </div>
+                </div>
+                <button onClick={handleSave} className="bg-primary text-white px-4 py-2.5 rounded-xl font-bold text-xs shadow-lg shadow-primary/20 flex items-center gap-2">
+                    <Save size={16} /> Save
+                </button>
+            </div>
+          </div>
       </div>
 
       {/* Tabs */}
@@ -263,20 +311,19 @@ const Rankings: React.FC = () => {
       {/* Main Ranking List */}
       <div className="space-y-2">
            {(() => {
-               let currentList: string[] = [];
-               if (activeTab === 'elements') {
-                   currentList = (tempRankings.elements && activeElementKey) ? (tempRankings.elements[activeElementKey] || []) : [];
-               } else {
-                   // Explicit cast for safety
-                   const listKey = activeTab as 'overall' | 'steel' | 'wooden';
-                   currentList = tempRankings[listKey];
-               }
-
                if (activeTab === 'elements' && !activeElementKey) return null;
 
                return (
                    <div className="space-y-2">
-                       {currentList.map((coasterId, index) => {
+                       {/* Slot Counter Indicator */}
+                       <div className="flex justify-between items-center px-1 text-[10px] uppercase font-bold text-slate-500 tracking-wider">
+                           <span>Rankings</span>
+                           <span className={isListFull ? "text-amber-500 font-bold" : "text-slate-500"}>
+                               {currentListIds.length} / {rankingLimit} Slots Used
+                           </span>
+                       </div>
+
+                       {currentListIds.map((coasterId, index) => {
                            const coaster = coasters.find(c => c.id === coasterId);
                            if (!coaster) return null;
                            return (
@@ -297,14 +344,14 @@ const Rankings: React.FC = () => {
                                    </div>
                                    <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
                                        <button onClick={() => moveItem(index, 'up')} disabled={index === 0} className="p-1.5 text-slate-400 hover:text-white disabled:opacity-30"><ChevronUp size={16}/></button>
-                                       <button onClick={() => moveItem(index, 'down')} disabled={index === currentList.length - 1} className="p-1.5 text-slate-400 hover:text-white disabled:opacity-30"><ChevronDown size={16}/></button>
+                                       <button onClick={() => moveItem(index, 'down')} disabled={index === currentListIds.length - 1} className="p-1.5 text-slate-400 hover:text-white disabled:opacity-30"><ChevronDown size={16}/></button>
                                        <button onClick={() => removeItem(coaster.id)} className="p-1.5 text-slate-500 hover:text-red-400 ml-1"><Trash2 size={16}/></button>
                                    </div>
                                </div>
                            );
                        })}
                        
-                       {currentList.length === 0 && (
+                       {currentListIds.length === 0 && (
                            <div className="text-center py-8 text-slate-500 border-2 border-dashed border-slate-800 rounded-2xl">
                                <ListOrdered size={32} className="mx-auto mb-2 opacity-50" />
                                <p className="text-sm">List is empty.</p>
@@ -320,36 +367,49 @@ const Rankings: React.FC = () => {
       {(activeTab !== 'elements' || activeElementKey) && (
           <div className="pt-4 border-t border-slate-800">
               <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Add to Ranking</h3>
-              <div className="relative mb-3">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-                  <input 
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    placeholder="Search your ridden coasters..."
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 py-3 text-sm text-white focus:ring-1 focus:ring-primary outline-none"
-                  />
-              </div>
-              <div className="space-y-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
-                  {availableCoasters.length === 0 ? (
-                      <div className="text-center py-4 text-xs text-slate-500">
-                          {searchQuery ? "No matching ridden coasters found." : "All eligible coasters ranked!"}
+              
+              {isListFull ? (
+                  <div className="bg-amber-500/10 border border-amber-500/20 text-amber-500 text-xs p-4 rounded-xl mb-3 flex items-start gap-3">
+                      <AlertTriangle size={18} className="shrink-0" />
+                      <div>
+                          <p className="font-bold mb-1">List Reached Capacity</p>
+                          <p className="opacity-90">Switch to a higher limit (e.g. Top 20, 50) using the dropdown at the top right to continue adding.</p>
                       </div>
-                  ) : (
-                      availableCoasters.slice(0, 20).map(coaster => (
-                          <button 
-                            key={coaster.id}
-                            onClick={() => addItem(coaster.id)}
-                            className="w-full bg-slate-800/50 hover:bg-slate-800 p-3 rounded-xl border border-slate-700/50 flex items-center justify-between text-left transition-colors group"
-                          >
-                              <div className="min-w-0">
-                                  <div className="font-bold text-slate-300 group-hover:text-white text-xs truncate">{coaster.name}</div>
-                                  <div className="text-[10px] text-slate-500 truncate">{coaster.park}</div>
-                              </div>
-                              <Plus size={16} className="text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </button>
-                      ))
-                  )}
-              </div>
+                  </div>
+              ) : (
+                  <>
+                    <div className="relative mb-3">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                        <input 
+                            value={searchQuery}
+                            onChange={e => setSearchQuery(e.target.value)}
+                            placeholder="Search your ridden coasters..."
+                            className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 py-3 text-sm text-white focus:ring-1 focus:ring-primary outline-none"
+                        />
+                    </div>
+                    <div className="space-y-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
+                        {availableCoasters.length === 0 ? (
+                            <div className="text-center py-4 text-xs text-slate-500">
+                                {searchQuery ? "No matching ridden coasters found." : "All eligible coasters ranked!"}
+                            </div>
+                        ) : (
+                            availableCoasters.slice(0, 20).map(coaster => (
+                                <button 
+                                    key={coaster.id}
+                                    onClick={() => addItem(coaster.id)}
+                                    className="w-full bg-slate-800/50 hover:bg-slate-800 p-3 rounded-xl border border-slate-700/50 flex items-center justify-between text-left transition-colors group"
+                                >
+                                    <div className="min-w-0">
+                                        <div className="font-bold text-slate-300 group-hover:text-white text-xs truncate">{coaster.name}</div>
+                                        <div className="text-[10px] text-slate-500 truncate">{coaster.park}</div>
+                                    </div>
+                                    <Plus size={16} className="text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
+                                </button>
+                            ))
+                        )}
+                    </div>
+                  </>
+              )}
           </div>
       )}
 

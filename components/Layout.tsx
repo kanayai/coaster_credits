@@ -1,7 +1,6 @@
 
 import React from 'react';
 import { useAppContext } from '../context/AppContext';
-// Added Zap to the imports
 import { LayoutDashboard, PlusCircle, UserCircle, List, Info, CheckCircle, AlertCircle, X, MapPin, Zap } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -10,7 +9,7 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const { currentView, changeView, activeUser, notification, hideNotification } = useAppContext();
+  const { currentView, changeView, activeUser, notification, hideNotification, showConfetti } = useAppContext();
 
   const navItems = [
     { id: 'DASHBOARD', icon: LayoutDashboard, label: 'Dashboard' },
@@ -32,6 +31,36 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         />
         <div className="absolute inset-0 bg-gradient-to-b from-slate-900/60 via-slate-950/90 to-slate-950" />
       </div>
+
+      {/* Confetti Overlay */}
+      {showConfetti && (
+          <div className="absolute inset-0 z-[100] pointer-events-none overflow-hidden">
+              {[...Array(50)].map((_, i) => (
+                  <div 
+                      key={i}
+                      className="absolute w-2 h-2 rounded-full animate-confetti"
+                      style={{
+                          left: `${Math.random() * 100}%`,
+                          top: '-10px',
+                          backgroundColor: ['#0ea5e9', '#f43f5e', '#facc15', '#10b981', '#8b5cf6'][Math.floor(Math.random() * 5)],
+                          animationDuration: `${1 + Math.random() * 2}s`,
+                          animationDelay: `${Math.random() * 0.5}s`
+                      }}
+                  />
+              ))}
+              <style>{`
+                  @keyframes confetti {
+                      0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+                      100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+                  }
+                  .animate-confetti {
+                      animation-name: confetti;
+                      animation-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+                      animation-fill-mode: forwards;
+                  }
+              `}</style>
+          </div>
+      )}
 
       {/* Main Content Container */}
       <div className="relative z-10 flex flex-col h-full">
