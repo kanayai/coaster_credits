@@ -10,7 +10,7 @@ import clsx from 'clsx';
 const normalizeText = (text: string) => cleanName(text).toLowerCase();
 
 const AddCredit: React.FC = () => {
-  const { coasters, addCredit, deleteCredit, addNewCoaster, editCoaster, addMultipleCoasters, searchOnlineCoaster, extractFromUrl, credits, activeUser, addToWishlist, removeFromWishlist, isInWishlist, lastSearchQuery, setLastSearchQuery, showNotification, coasterToLog, setCoasterToLog, triggerConfetti } = useAppContext();
+  const { coasters, addCredit, deleteCredit, addNewCoaster, editCoaster, addMultipleCoasters, searchOnlineCoaster, extractFromUrl, credits, activeUser, addToWishlist, removeFromWishlist, isInWishlist, lastSearchQuery, setLastSearchQuery, showNotification, coasterToLog, setCoasterToLog, triggerConfetti, triggerFireworks } = useAppContext();
   
   // Search and Filter State
   const searchTerm = lastSearchQuery;
@@ -314,9 +314,25 @@ const AddCredit: React.FC = () => {
             return;
         }
 
+        // Check if unique before logging
+        const isUnique = !credits.some(c => c.userId === activeUser.id && c.coasterId === selectedCoaster.id);
+        const currentCount = new Set(credits.filter(c => c.userId === activeUser.id).map(c => c.coasterId)).size;
+
         const newCredit = await addCredit(selectedCoaster.id, date, notes, restraints, photos, selectedVariant);
         
-        triggerConfetti();
+        // Trigger Effects
+        if (isUnique) {
+            const newTotal = currentCount + 1;
+            const milestones = [1, 10, 25, 50, 100, 250, 500, 1000];
+            if (milestones.includes(newTotal)) {
+                triggerFireworks();
+                showNotification(`🏆 MILESTONE UNLOCKED: ${newTotal} CREDITS!`, 'success');
+            } else {
+                triggerConfetti();
+            }
+        } else {
+            triggerConfetti();
+        }
         
         const coasterRef = selectedCoaster;
         setSelectedCoaster(null); 

@@ -81,21 +81,24 @@ const ShareCardModal: React.FC<ShareCardModalProps> = ({ credit, coaster, onClos
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-fade-in overflow-y-auto">
-      <div className="w-full max-w-sm flex flex-col gap-6 relative">
-        <button 
-            onClick={onClose} 
-            className="absolute -top-12 right-0 p-2 bg-slate-800 rounded-full text-slate-400 hover:text-white"
-        >
-            <X size={20} />
-        </button>
-
-        <div className="text-center space-y-1">
-             <h2 className="text-xl font-bold text-white">Ride Logged!</h2>
-             <p className="text-sm text-slate-400">Share your achievement</p>
+      <div className="w-full max-w-sm flex flex-col gap-4 relative bg-slate-900 p-6 rounded-[32px] border border-slate-700 shadow-2xl">
+        
+        {/* Header with Close Button INSIDE the window */}
+        <div className="flex justify-between items-center mb-2">
+             <div>
+                <h2 className="text-xl font-bold text-white">Ride Logged!</h2>
+                <p className="text-xs text-slate-400">Share your achievement</p>
+             </div>
+             <button 
+                onClick={onClose} 
+                className="bg-slate-800 p-2 rounded-full text-slate-300 hover:text-white border border-slate-700 transition-colors"
+             >
+                <X size={20} />
+             </button>
         </div>
         
         {/* The Card - Hidden overflow to ensure clean corners on canvas */}
-        <div className="relative shadow-2xl rounded-[32px] overflow-hidden">
+        <div className="relative shadow-xl rounded-[24px] overflow-hidden border border-slate-800">
             <div ref={cardRef} className="aspect-[4/5] bg-slate-900 relative group overflow-hidden">
               {/* Background Image */}
               <div className="absolute inset-0">

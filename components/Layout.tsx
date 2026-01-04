@@ -9,7 +9,7 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const { currentView, changeView, activeUser, notification, hideNotification, showConfetti } = useAppContext();
+  const { currentView, changeView, activeUser, notification, hideNotification, showConfetti, showFireworks } = useAppContext();
 
   const navItems = [
     { id: 'DASHBOARD', icon: LayoutDashboard, label: 'Dashboard' },
@@ -58,6 +58,48 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                       animation-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);
                       animation-fill-mode: forwards;
                   }
+              `}</style>
+          </div>
+      )}
+
+      {/* Fireworks Overlay */}
+      {showFireworks && (
+          <div className="absolute inset-0 z-[101] pointer-events-none overflow-hidden">
+              {[...Array(5)].map((_, groupI) => (
+                  <div key={`fw-group-${groupI}`} className="absolute" style={{ 
+                      left: `${20 + Math.random() * 60}%`, 
+                      top: `${20 + Math.random() * 40}%`,
+                      animationDelay: `${groupI * 0.5}s` 
+                  }}>
+                      {[...Array(20)].map((_, i) => (
+                          <div 
+                              key={i}
+                              className="absolute w-1.5 h-1.5 rounded-full animate-firework"
+                              style={{
+                                  backgroundColor: ['#f43f5e', '#fbbf24', '#0ea5e9', '#d946ef', '#ffffff'][Math.floor(Math.random() * 5)],
+                                  transform: `rotate(${i * 18}deg) translate(0, 0)`,
+                                  animationName: 'fireworkBurst',
+                                  animationDuration: '1.5s',
+                                  animationTimingFunction: 'ease-out',
+                                  animationFillMode: 'forwards',
+                                  animationDelay: `${groupI * 0.5}s`
+                              }}
+                          />
+                      ))}
+                  </div>
+              ))}
+              <style>{`
+                  @keyframes fireworkBurst {
+                      0% { transform: rotate(var(--rot)) translate(0, 0); opacity: 1; }
+                      50% { opacity: 1; }
+                      100% { transform: rotate(var(--rot)) translate(150px, 0); opacity: 0; }
+                  }
+                  .animate-firework {
+                      --rot: 0deg;
+                  }
+                  ${[...Array(20)].map((_, i) => `
+                      .animate-firework:nth-child(${i + 1}) { --rot: ${i * 18}deg; }
+                  `).join('')}
               `}</style>
           </div>
       )}

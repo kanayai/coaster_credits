@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { Trash2, Calendar, MapPin, Tag, Palmtree, Flag, Layers, Factory, CalendarRange, CheckCircle2, Bookmark, ArrowRightCircle, Edit2, ArrowLeft, ChevronRight, FolderOpen, Lock, Repeat, ListFilter, History, Share2, PlusCircle, Music, ArrowUp } from 'lucide-react';
+import { Trash2, Calendar, MapPin, Tag, Palmtree, Flag, Layers, Factory, CalendarRange, CheckCircle2, Bookmark, ArrowRightCircle, Edit2, ArrowLeft, ChevronRight, FolderOpen, Lock, Repeat, ListFilter, History, Share2, PlusCircle, Music, ArrowUp, Trophy } from 'lucide-react';
 import clsx from 'clsx';
 import { Credit, Coaster } from '../types';
 import EditCreditModal from './EditCreditModal';
@@ -228,6 +228,10 @@ const CoasterList: React.FC = () => {
                             const displayImage = (item as any).photoUrl || item.coaster.imageUrl;
                             const variant = (item as any).variant;
 
+                            // Calculate Rank
+                            const rankIndex = activeUser.rankings?.overall?.indexOf(item.coaster.id);
+                            const rank = rankIndex !== undefined && rankIndex > -1 ? rankIndex + 1 : null;
+
                             return (
                                 <div 
                                     key={item.id} 
@@ -251,7 +255,14 @@ const CoasterList: React.FC = () => {
                                                 <div className="min-w-0">
                                                     <h3 className="text-lg font-bold text-white truncate leading-tight flex items-center gap-2">
                                                         {item.coaster.name}
-                                                        {!showAllLogs && rideCount > 1 && <span className="bg-primary/20 text-primary px-1.5 py-0.5 rounded text-[10px] font-bold border border-primary/30 flex items-center gap-0.5"><Repeat size={8} /> {rideCount}</span>}
+                                                        {!showAllLogs && rideCount > 1 && <span className="bg-primary/20 text-primary px-1.5 py-0.5 rounded text-[10px] font-bold border border-primary/30 flex items-center gap-0.5 shrink-0"><Repeat size={8} /> {rideCount}</span>}
+                                                        
+                                                        {/* Rank Badge */}
+                                                        {rank && (
+                                                            <span className="bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded text-[10px] font-bold border border-yellow-500/30 flex items-center gap-0.5 shrink-0">
+                                                                <Trophy size={8} fill="currentColor" /> #{rank}
+                                                            </span>
+                                                        )}
                                                     </h3>
                                                     <div className="flex items-center text-sm text-slate-400 mt-1">
                                                         <MapPin size={12} className="mr-1 shrink-0" /><span className="truncate text-xs">{item.coaster.park}</span>
