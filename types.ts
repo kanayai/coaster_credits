@@ -27,6 +27,7 @@ export interface Coaster {
   isCustom?: boolean;
   specs?: CoasterSpecs;
   variants?: string[]; // e.g. ["Forward", "Reverse"] or ["Green Side", "Red Side"]
+  audioUrl?: string; // SoundCloud or generic audio link
 }
 
 export interface Credit {

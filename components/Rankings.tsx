@@ -3,7 +3,8 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Trophy, ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, Save, Layers, TreeDeciduous, Search, Hash, Zap, Flag, TrendingUp, Sparkles, X, Globe, ListOrdered } from 'lucide-react';
 import clsx from 'clsx';
-import { Coaster, CoasterType, RankingList } from '../types';
+import { Coaster, CoasterType, RankingList, Credit } from '../types';
+import RideDetailModal from './RideDetailModal';
 
 type RankMode = 'overall' | 'steel' | 'wooden' | 'elements';
 
@@ -19,6 +20,9 @@ const Rankings: React.FC = () => {
   // State for adding a new category
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
+
+  // View Details State
+  const [viewingCoaster, setViewingCoaster] = useState<Coaster | null>(null);
 
   // Initialize temp rankings with defaults if they don't exist
   const [tempRankings, setTempRankings] = useState<RankingList>(() => {
@@ -276,15 +280,22 @@ const Rankings: React.FC = () => {
                            const coaster = coasters.find(c => c.id === coasterId);
                            if (!coaster) return null;
                            return (
-                               <div key={coaster.id} className="bg-slate-800 p-3 rounded-xl border border-slate-700 flex items-center gap-3 animate-fade-in group">
-                                   <div className="w-8 h-8 rounded-full bg-slate-900 flex items-center justify-center font-black text-slate-500 text-sm border border-slate-700 shadow-inner">
+                               <div 
+                                    key={coaster.id} 
+                                    className="bg-slate-800 p-3 rounded-xl border border-slate-700 flex items-center gap-3 animate-fade-in group hover:bg-slate-750 transition-colors cursor-pointer active:scale-[0.99]"
+                                    onClick={() => setViewingCoaster(coaster)}
+                                >
+                                   <div className="w-8 h-8 rounded-full bg-slate-900 flex items-center justify-center font-black text-slate-500 text-sm border border-slate-700 shadow-inner shrink-0">
                                        {index + 1}
                                    </div>
                                    <div className="flex-1 min-w-0">
-                                       <div className="font-bold text-white truncate text-sm">{coaster.name}</div>
+                                       <div className="font-bold text-white truncate text-sm flex items-center gap-2">
+                                           {coaster.name}
+                                           {coaster.audioUrl && <Zap size={10} className="text-primary fill-primary" />}
+                                       </div>
                                        <div className="text-[10px] text-slate-500 truncate">{coaster.park}</div>
                                    </div>
-                                   <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                                   <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
                                        <button onClick={() => moveItem(index, 'up')} disabled={index === 0} className="p-1.5 text-slate-400 hover:text-white disabled:opacity-30"><ChevronUp size={16}/></button>
                                        <button onClick={() => moveItem(index, 'down')} disabled={index === currentList.length - 1} className="p-1.5 text-slate-400 hover:text-white disabled:opacity-30"><ChevronDown size={16}/></button>
                                        <button onClick={() => removeItem(coaster.id)} className="p-1.5 text-slate-500 hover:text-red-400 ml-1"><Trash2 size={16}/></button>
@@ -340,6 +351,15 @@ const Rankings: React.FC = () => {
                   )}
               </div>
           </div>
+      )}
+
+      {/* Detail View */}
+      {viewingCoaster && (
+          <RideDetailModal 
+            coaster={viewingCoaster} 
+            credit={credits.find(c => c.userId === activeUser.id && c.coasterId === viewingCoaster.id)}
+            onClose={() => setViewingCoaster(null)} 
+          />
       )}
     </div>
   );

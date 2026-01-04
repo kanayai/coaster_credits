@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { X, Camera, Save, Lock, Sparkles, Loader2, Edit3, AlertTriangle, Link, ArrowDownCircle, Trash2, CheckCircle2, Star, Plus } from 'lucide-react';
+import { X, Camera, Save, Lock, Sparkles, Loader2, Edit3, AlertTriangle, Link, ArrowDownCircle, Trash2, CheckCircle2, Star, Plus, Music } from 'lucide-react';
 import { Credit, Coaster, CoasterType } from '../types';
 import clsx from 'clsx';
 
@@ -29,6 +29,7 @@ const EditCreditModal: React.FC<EditCreditModalProps> = ({ credit, coaster, onCl
   const [coasterName, setCoasterName] = useState(coaster.name);
   const [coasterPark, setCoasterPark] = useState(coaster.park);
   const [coasterType, setCoasterType] = useState<CoasterType>(coaster.type);
+  const [audioUrl, setAudioUrl] = useState(coaster.audioUrl || '');
 
   const [isFetchingImage, setIsFetchingImage] = useState(false);
   const [localCoasterImage, setLocalCoasterImage] = useState(coaster.imageUrl);
@@ -61,12 +62,13 @@ const EditCreditModal: React.FC<EditCreditModalProps> = ({ credit, coaster, onCl
 
     // 2. Update the Coaster Data if changed
     if (isEditingCoaster) {
-        if (coasterName !== coaster.name || coasterPark !== coaster.park || coasterType !== coaster.type || localCoasterImage !== coaster.imageUrl) {
+        if (coasterName !== coaster.name || coasterPark !== coaster.park || coasterType !== coaster.type || localCoasterImage !== coaster.imageUrl || audioUrl !== coaster.audioUrl) {
             editCoaster(coaster.id, {
                 name: coasterName,
                 park: coasterPark,
                 type: coasterType,
-                imageUrl: localCoasterImage
+                imageUrl: localCoasterImage,
+                audioUrl: audioUrl
             });
         }
     }
@@ -227,6 +229,18 @@ const EditCreditModal: React.FC<EditCreditModalProps> = ({ credit, coaster, onCl
                       >
                            {Object.values(CoasterType).map(t => <option key={t} value={t}>{t}</option>)}
                       </select>
+                      
+                      {/* Audio URL Field */}
+                      <div className="relative">
+                          <Music size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                          <input 
+                              value={audioUrl}
+                              onChange={e => setAudioUrl(e.target.value)}
+                              className="w-full bg-slate-800 border border-slate-600 rounded-lg pl-9 p-2 text-xs text-white"
+                              placeholder="SoundCloud / Audio URL"
+                          />
+                      </div>
+
                       <div className="flex items-start gap-2 text-[10px] text-amber-500 bg-amber-500/10 p-2 rounded-lg mt-2">
                           <AlertTriangle size={12} className="shrink-0 mt-0.5" />
                           <span>Renaming this coaster will update it for all your logs.</span>
@@ -237,10 +251,13 @@ const EditCreditModal: React.FC<EditCreditModalProps> = ({ credit, coaster, onCl
                      {localCoasterImage && (
                          <img src={localCoasterImage} alt="Coaster" className="w-12 h-12 rounded-lg object-cover bg-slate-900 border border-slate-600" />
                      )}
-                     <div className="min-w-0">
+                     <div className="min-w-0 flex-1">
                         <div className="text-sm font-bold text-white truncate">{coasterName}</div>
                         <div className="text-xs text-slate-400 truncate">{coasterPark}</div>
-                        <div className="text-[10px] text-slate-500 mt-0.5">{coasterType}</div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-[10px] text-slate-500">{coasterType}</span>
+                            {audioUrl && <Music size={10} className="text-primary" />}
+                        </div>
                      </div>
                   </div>
               )}
