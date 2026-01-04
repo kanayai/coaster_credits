@@ -1,8 +1,8 @@
 
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
-import { Trophy, Palmtree, Layers, Factory, Flag, CalendarRange, MapPin, Navigation, ChevronRight, Plus, Loader2, ListOrdered, Ticket, ExternalLink } from 'lucide-react';
+import { Trophy, Palmtree, Layers, Factory, Flag, CalendarRange, MapPin, Navigation, ChevronRight, Plus, Loader2, ListOrdered, Ticket } from 'lucide-react';
 import EditCreditModal from './EditCreditModal';
 import RideDetailModal from './RideDetailModal';
 import ShareCardModal from './ShareCardModal';
@@ -21,11 +21,8 @@ const Dashboard: React.FC = () => {
   const [viewingCreditData, setViewingCreditData] = useState<{ credit: Credit, coaster: Coaster } | null>(null);
   const [sharingCreditData, setSharingCreditData] = useState<{ credit: Credit, coaster: Coaster } | null>(null);
   
-  const [chartMetric, setChartMetric] = useState<ChartMetric>('PARK');
+  const [chartMetric, setChartMetric] = useState<ChartMetric>('MANUFACTURER');
   
-  // Navigation Delay State for UX
-  const [navigatingState, setNavigatingState] = useState<{ category: string, value: number } | null>(null);
-
   // Smart Button State
   const [isLocatingSession, setIsLocatingSession] = useState(false);
 
@@ -35,11 +32,10 @@ const Dashboard: React.FC = () => {
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
   [credits, activeUser.id]);
   
-  // Updated Unique Count Logic to support Variants
+  // Unique Count Logic
   const uniqueCreditsCount = useMemo(() => {
     const uniqueKeys = new Set<string>();
     userCredits.forEach(c => {
-        // Key is combination of ID and Variant. e.g. "123_Forward" vs "123_Reverse"
         const key = `${c.coasterId}|${c.variant || 'default'}`;
         uniqueKeys.add(key);
     });
@@ -66,12 +62,13 @@ const Dashboard: React.FC = () => {
     return "Newcomer";
   }, [uniqueCreditsCount]);
 
+  // Analytics Data Calculation
   const chartData = useMemo(() => {
     const dist: Record<string, number> = {};
     const processedCoasters = new Set<string>();
+    
+    // Count unique coasters per category
     userCredits.forEach(credit => {
-      // Logic for Charts: Still count by unique coaster ID to avoid double counting country/park stats visually
-      // Or should we count rides? Usually enthusiasts chart unique credits.
       const uniqueKey = `${credit.coasterId}|${credit.variant || 'default'}`;
       if (processedCoasters.has(uniqueKey)) return;
       processedCoasters.add(uniqueKey);
@@ -89,7 +86,16 @@ const Dashboard: React.FC = () => {
         dist[key] = (dist[key] || 0) + 1;
       }
     });
-    return Object.entries(dist).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 8);
+
+    const total = Object.values(dist).reduce((acc, curr) => acc + curr, 0);
+
+    return Object.entries(dist)
+        .map(([name, value]) => ({ 
+            name, 
+            value,
+            percent: total > 0 ? (value / total) * 100 : 0
+        }))
+        .sort((a, b) => b.value - a.value);
   }, [userCredits, coasters, chartMetric]);
 
   const COLORS = ['#0ea5e9', '#8b5cf6', '#f43f5e', '#10b981', '#f59e0b', '#6366f1', '#ec4899', '#14b8a6'];
@@ -106,18 +112,14 @@ const Dashboard: React.FC = () => {
       setIsLocatingSession(true);
       navigator.geolocation.getCurrentPosition(async (position) => {
           const { latitude, longitude } = position.coords;
-          // Use the findNearbyParks service
           const result = await findNearbyParks(latitude, longitude);
           setIsLocatingSession(false);
           
           if (result && result.groundingChunks && result.groundingChunks.length > 0) {
-              // Extract the first park title found (Support Google Maps grounding structure)
-              // Maps grounding often uses 'maps' key, web grounding uses 'web'.
               const firstChunk = result.groundingChunks.find(c => c.maps?.title || c.web?.title);
               const firstPark = firstChunk?.maps?.title || firstChunk?.web?.title;
 
               if (firstPark) {
-                  // Clean up title
                   const cleanParkName = firstPark.split('|')[0].trim();
                   setLastSearchQuery(cleanParkName);
                   showNotification(`Detected ${cleanParkName}!`, 'success');
@@ -135,30 +137,21 @@ const Dashboard: React.FC = () => {
       });
   };
 
-  const handleChartClick = (entry: any) => {
-      if (!entry || !entry.name) return;
-      
-      // Visual feedback + Delay
-      setNavigatingState({ category: entry.name, value: entry.value });
-
-      setTimeout(() => {
-          setAnalyticsFilter({ mode: chartMetric, value: entry.name });
-          changeView('COASTER_LIST');
-          setNavigatingState(null);
-      }, 1500); // 1.5 second delay to read value
+  const handleDeepLink = (categoryValue: string) => {
+      setAnalyticsFilter({ mode: chartMetric, value: categoryValue });
+      changeView('COASTER_LIST');
   };
 
   const MetricButton = ({ mode, label, icon: Icon }: { mode: ChartMetric, label: string, icon: React.ElementType }) => (
     <button
       onClick={() => setChartMetric(mode)}
       className={clsx(
-        "flex-1 flex flex-col items-center justify-center py-3 min-w-[70px] rounded-xl transition-all relative overflow-hidden",
-        chartMetric === mode ? "bg-slate-700 text-white shadow-md border border-slate-600" : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200"
+        "flex-1 flex flex-col items-center justify-center py-2.5 rounded-lg transition-all",
+        chartMetric === mode ? "bg-slate-700 text-white shadow-sm ring-1 ring-slate-600" : "text-slate-400 hover:bg-slate-800 hover:text-slate-300"
       )}
     >
-      <Icon size={18} className={clsx("mb-1", chartMetric === mode ? "text-primary" : "opacity-70")} />
-      <span className="text-[10px] font-bold uppercase tracking-wide">{label}</span>
-      {chartMetric === mode && <div className="absolute bottom-0 w-8 h-0.5 bg-primary rounded-t-full" />}
+      <Icon size={16} className={clsx("mb-1", chartMetric === mode ? "text-primary" : "opacity-70")} />
+      <span className="text-[9px] font-bold uppercase tracking-wide">{label}</span>
     </button>
   );
 
@@ -233,6 +226,105 @@ const Dashboard: React.FC = () => {
           <span className="font-bold text-lg">Log New Ride</span>
       </button>
 
+      {/* Analytics Card */}
+      <div className="space-y-3 shrink-0">
+          <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">Analytics Breakdown</h3>
+          <div className="bg-slate-800 rounded-[28px] p-5 border border-slate-700 shadow-xl overflow-hidden">
+              
+              {/* Controls */}
+              <div className="flex bg-slate-900/50 p-1 rounded-xl border border-slate-700 overflow-x-auto no-scrollbar mb-6">
+                  <MetricButton mode="MANUFACTURER" label="Make" icon={Factory} />
+                  <MetricButton mode="TYPE" label="Type" icon={Layers} />
+                  <MetricButton mode="PARK" label="Park" icon={Palmtree} />
+                  <MetricButton mode="COUNTRY" label="Nation" icon={Flag} />
+                  <MetricButton mode="YEAR" label="Year" icon={CalendarRange} />
+              </div>
+
+              {/* Visualization */}
+              <div className="flex flex-col gap-6">
+                  {/* Donut */}
+                  <div className="h-48 relative shrink-0">
+                      {chartData.length > 0 ? (
+                          <ResponsiveContainer width="100%" height="100%">
+                              <PieChart>
+                                  <Pie
+                                      data={chartData}
+                                      cx="50%"
+                                      cy="50%"
+                                      innerRadius={55}
+                                      outerRadius={80}
+                                      paddingAngle={4}
+                                      dataKey="value"
+                                      stroke="none"
+                                  >
+                                      {chartData.map((entry, index) => (
+                                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                      ))}
+                                  </Pie>
+                                  <Tooltip 
+                                      contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
+                                      itemStyle={{ color: '#fff' }}
+                                      formatter={(value: number) => [`${value} Rides`, '']}
+                                  />
+                              </PieChart>
+                          </ResponsiveContainer>
+                      ) : (
+                          <div className="absolute inset-0 flex items-center justify-center text-slate-500 text-sm font-medium">
+                              No data yet.
+                          </div>
+                      )}
+                      
+                      {/* Center Text */}
+                      {chartData.length > 0 && (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                              <span className="text-3xl font-black text-white">{uniqueCreditsCount}</span>
+                              <span className="text-[10px] text-slate-400 font-bold uppercase">Unique</span>
+                          </div>
+                      )}
+                  </div>
+
+                  {/* List View Breakdown */}
+                  <div className="space-y-3">
+                      <div className="flex justify-between items-end px-1">
+                           <div className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Top {chartMetric.toLowerCase()}s</div>
+                           <div className="text-[10px] text-slate-500">{chartData.length} Categories</div>
+                      </div>
+                      
+                      <div className="max-h-[300px] overflow-y-auto pr-1 space-y-2 custom-scrollbar">
+                          {chartData.map((entry, idx) => (
+                              <button 
+                                key={idx}
+                                onClick={() => handleDeepLink(entry.name)}
+                                className="w-full bg-slate-900/40 hover:bg-slate-700/50 p-3 rounded-xl border border-slate-700/50 flex items-center gap-3 transition-colors group active:scale-[0.99]"
+                              >
+                                  <div className="w-2 h-8 rounded-full" style={{ backgroundColor: COLORS[idx % COLORS.length] }} />
+                                  
+                                  <div className="flex-1 min-w-0 text-left">
+                                      <div className="flex justify-between items-center mb-1">
+                                          <span className="font-bold text-sm text-slate-200 truncate pr-2 group-hover:text-white transition-colors">{entry.name}</span>
+                                          <span className="font-bold text-white text-sm">{entry.value}</span>
+                                      </div>
+                                      {/* Progress Bar */}
+                                      <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                                          <div 
+                                            className="h-full rounded-full transition-all duration-500" 
+                                            style={{ 
+                                                width: `${entry.percent}%`, 
+                                                backgroundColor: COLORS[idx % COLORS.length] 
+                                            }} 
+                                          />
+                                      </div>
+                                  </div>
+                                  
+                                  <ChevronRight size={16} className="text-slate-600 group-hover:text-white shrink-0" />
+                              </button>
+                          ))}
+                      </div>
+                  </div>
+              </div>
+          </div>
+      </div>
+
       {/* Recent Activity */}
       <div className="space-y-3 shrink-0">
           <div className="flex items-center justify-between px-1">
@@ -274,87 +366,6 @@ const Dashboard: React.FC = () => {
                   <button onClick={() => changeView('ADD_CREDIT')} className="text-primary text-xs font-bold uppercase">Start Logging</button>
               </div>
           )}
-      </div>
-
-      {/* Analytics Chart */}
-      <div className="space-y-3 shrink-0">
-          <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">Analytics</h3>
-          <div className="bg-slate-800 rounded-[28px] p-5 border border-slate-700 shadow-xl relative overflow-hidden">
-              
-              {/* Navigation Overlay */}
-              {navigatingState && (
-                  <div className="absolute inset-0 bg-slate-900/80 z-20 flex flex-col items-center justify-center backdrop-blur-sm animate-fade-in">
-                      <Loader2 size={32} className="text-primary animate-spin mb-3" />
-                      <div className="text-2xl font-black text-white">{navigatingState.value}</div>
-                      <div className="text-xs font-bold uppercase text-slate-400 tracking-wider">
-                          Opening {navigatingState.category}...
-                      </div>
-                  </div>
-              )}
-
-              <div className="flex bg-slate-800 p-1 rounded-2xl border border-slate-700 overflow-x-auto no-scrollbar">
-                  <MetricButton mode="PARK" label="Park" icon={Palmtree} />
-                  <MetricButton mode="TYPE" label="Type" icon={Layers} />
-                  <MetricButton mode="MANUFACTURER" label="Manufacturer" icon={Factory} />
-                  <MetricButton mode="COUNTRY" label="Country" icon={Flag} />
-                  <MetricButton mode="YEAR" label="Year" icon={CalendarRange} />
-              </div>
-
-              <div className="h-64 mt-6 relative">
-                  {chartData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                              <Pie
-                                  data={chartData}
-                                  cx="50%"
-                                  cy="50%"
-                                  innerRadius={60}
-                                  outerRadius={80}
-                                  paddingAngle={5}
-                                  dataKey="value"
-                                  stroke="none"
-                                  onClick={handleChartClick}
-                                  cursor="pointer"
-                              >
-                                  {chartData.map((entry, index) => (
-                                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                  ))}
-                              </Pie>
-                              <Tooltip 
-                                  contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', borderRadius: '12px', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
-                                  itemStyle={{ color: '#fff' }}
-                              />
-                          </PieChart>
-                      </ResponsiveContainer>
-                  ) : (
-                      <div className="absolute inset-0 flex items-center justify-center text-slate-500 text-sm font-medium">
-                          Not enough data to chart.
-                      </div>
-                  )}
-                  {/* Center Stat */}
-                  {chartData.length > 0 && (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                          <span className="text-3xl font-black text-white">{chartData[0]?.value}</span>
-                          <span className="text-[10px] text-slate-400 font-bold uppercase max-w-[80px] truncate text-center">{chartData[0]?.name}</span>
-                      </div>
-                  )}
-              </div>
-
-              {/* Legend */}
-              <div className="grid grid-cols-2 gap-2 mt-4">
-                  {chartData.slice(0, 4).map((entry, idx) => (
-                      <div 
-                        key={idx} 
-                        className="flex items-center gap-2 text-xs p-1.5 rounded-lg hover:bg-slate-700/50 cursor-pointer transition-colors"
-                        onClick={() => handleChartClick(entry)}
-                      >
-                          <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: COLORS[idx % COLORS.length] }} />
-                          <span className="text-slate-300 truncate flex-1">{entry.name}</span>
-                          <span className="font-bold text-white">{entry.value}</span>
-                      </div>
-                  ))}
-              </div>
-          </div>
       </div>
 
       {/* Rankings Teaser */}
