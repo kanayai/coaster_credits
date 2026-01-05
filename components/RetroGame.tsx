@@ -26,10 +26,11 @@ const RetroGame: React.FC = () => {
   const SPEED_INITIAL = 6;
   const OBSTACLE_GAP_MIN = 400; 
   const OBSTACLE_GAP_MAX = 800;
+  const LANE_HEIGHT = 320; // Fixed play area height for consistent physics across devices
 
   // Game Refs (Mutable state for loop)
   const gameRef = useRef({
-    isRunning: false, // Critical for loop control
+    isRunning: false,
     player: { 
         x: 100, 
         y: 0, 
@@ -47,18 +48,26 @@ const RetroGame: React.FC = () => {
     frame: 0,
     score: 0,
     animationId: 0,
-    pixelRatio: 1
+    pixelRatio: 1,
+    floorY: 0,
+    ceilingY: 0
   });
 
   // --- AUDIO SYSTEM ---
-  useEffect(() => {
-      // Initialize AudioContext on mount (suspended state)
+  const initAudio = () => {
       if (!audioCtxRef.current) {
           const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
           if (AudioContext) {
               audioCtxRef.current = new AudioContext();
           }
       }
+      // Attempt to resume if suspended (Mobile browser policy)
+      if (audioCtxRef.current?.state === 'suspended') {
+          audioCtxRef.current.resume().catch(err => console.warn('Audio resume failed', err));
+      }
+  };
+
+  useEffect(() => {
       return () => {
           stopMusic();
           if (gameRef.current.animationId) cancelAnimationFrame(gameRef.current.animationId);
@@ -92,18 +101,18 @@ const RetroGame: React.FC = () => {
       const tempo = 0.15; // Seconds per 16th note
       const lookahead = 0.1; // How far ahead to schedule
 
+      // Safety check if context is closed
+      if (ctx.state === 'closed') return;
+
       while (nextNoteTimeRef.current < ctx.currentTime + lookahead) {
-          // Simple 8-bit Loop
-          const bassSequence = [110, 110, 164, 110, 146, 110, 196, 164]; // A2 scaleish
-          const melodySequence = [440, 0, 523, 0, 659, 523, 0, 440]; // A4...
+          const bassSequence = [110, 110, 164, 110, 146, 110, 196, 164]; 
+          const melodySequence = [440, 0, 523, 0, 659, 523, 0, 440]; 
 
           const beat = melodyIndexRef.current % 8;
           
-          // Bass
           if (bassSequence[beat]) {
               playTone(bassSequence[beat], 'square', tempo, nextNoteTimeRef.current, 0.05);
           }
-          // Melody (every other bar roughly)
           if (melodySequence[beat] && Math.floor(melodyIndexRef.current / 8) % 2 === 0) {
               playTone(melodySequence[beat], 'sawtooth', tempo, nextNoteTimeRef.current, 0.03);
           }
@@ -116,9 +125,7 @@ const RetroGame: React.FC = () => {
   };
 
   const startMusic = () => {
-      if (audioCtxRef.current?.state === 'suspended') {
-          audioCtxRef.current.resume().catch(e => console.log("Audio resume failed", e));
-      }
+      initAudio(); // Ensure active
       if (!musicTimerRef.current && !isMuted) {
           nextNoteTimeRef.current = audioCtxRef.current?.currentTime || 0;
           scheduleMusic();
@@ -136,16 +143,15 @@ const RetroGame: React.FC = () => {
       e.stopPropagation();
       e.preventDefault();
       setIsMuted(!isMuted);
-      if (!isMuted) { // currently not muted, so we are muting
+      if (!isMuted) { 
           stopMusic();
-      } else { // currently muted, so we are unmuting
+      } else { 
           if (gameState === 'PLAYING') startMusic();
       }
   };
 
   // --- GAME LOGIC ---
 
-  // Handle Resize & Init Canvas
   useEffect(() => {
     const handleResize = () => {
         if (canvasRef.current && containerRef.current) {
@@ -161,32 +167,30 @@ const RetroGame: React.FC = () => {
             canvasRef.current.width = width * dpr;
             canvasRef.current.height = height * dpr;
 
+            // Update Floor/Ceiling logic for consistent gameplay
+            // Center the "lane" in the screen
+            const centerY = height / 2;
+            gameRef.current.ceilingY = centerY - (LANE_HEIGHT / 2);
+            gameRef.current.floorY = centerY + (LANE_HEIGHT / 2);
+
             const ctx = canvasRef.current.getContext('2d');
             if (ctx) ctx.scale(dpr, dpr);
         }
     };
 
     window.addEventListener('resize', handleResize);
-    // Slight delay to ensure DOM is ready if transitioning views
     setTimeout(handleResize, 100);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // CRITICAL: Prevent default touch behaviors on the container to stop scrolling/zooming on iOS
+  // Prevent default scroll behavior
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-
-    const preventDefault = (e: TouchEvent) => {
-        // Prevent default browser actions like scrolling or double-tap zoom
-        if(e.cancelable) e.preventDefault();
-    };
-
-    // Use { passive: false } to allow calling preventDefault()
+    const preventDefault = (e: TouchEvent) => { if(e.cancelable) e.preventDefault(); };
     container.addEventListener('touchstart', preventDefault, { passive: false });
     container.addEventListener('touchmove', preventDefault, { passive: false });
     container.addEventListener('touchend', preventDefault, { passive: false });
-
     return () => {
         container.removeEventListener('touchstart', preventDefault);
         container.removeEventListener('touchmove', preventDefault);
@@ -197,21 +201,29 @@ const RetroGame: React.FC = () => {
   const startGame = (e?: React.SyntheticEvent) => {
     if(e) { e.preventDefault(); e.stopPropagation(); }
     
-    if (!containerRef.current) return;
-    const logicalHeight = containerRef.current.clientHeight;
+    // Explicitly unlock audio on user gesture
+    initAudio();
 
-    // Safety: Cancel any existing loops
-    if (gameRef.current.animationId) {
-        cancelAnimationFrame(gameRef.current.animationId);
-    }
+    if (!containerRef.current) return;
+    
+    // Recalculate dimensions just in case
+    const height = containerRef.current.clientHeight;
+    const centerY = height / 2;
+    const ceilingY = centerY - (LANE_HEIGHT / 2);
+    const floorY = centerY + (LANE_HEIGHT / 2);
+
+    gameRef.current.ceilingY = ceilingY;
+    gameRef.current.floorY = floorY;
+
+    if (gameRef.current.animationId) cancelAnimationFrame(gameRef.current.animationId);
 
     // Reset State
     gameRef.current = {
         ...gameRef.current,
-        isRunning: true, // Mark game as active immediately
+        isRunning: true,
         player: { 
             x: 80, 
-            y: logicalHeight - 100, 
+            y: floorY - 20, // Start on floor
             width: 40, 
             height: 20, 
             dy: 0, 
@@ -239,7 +251,6 @@ const RetroGame: React.FC = () => {
       if (player.grounded) {
           player.dy = -JUMP_FORCE * player.gravityDirection;
           player.grounded = false;
-          // Jump SFX
           if (!isMuted) playTone(300, 'square', 0.1, audioCtxRef.current!.currentTime, 0.1);
       }
   };
@@ -248,8 +259,10 @@ const RetroGame: React.FC = () => {
       const { player } = gameRef.current;
       player.gravityDirection *= -1;
       player.grounded = false;
-      createExplosion(player.x + player.width/2, player.y + player.height/2, '#8b5cf6', 5);
-      // Gravity SFX
+      
+      const cy = player.y + player.height/2;
+      createExplosion(player.x + player.width/2, cy, '#8b5cf6', 5);
+      
       if (!isMuted) playTone(150, 'sawtooth', 0.15, audioCtxRef.current!.currentTime, 0.1);
   };
 
@@ -266,7 +279,6 @@ const RetroGame: React.FC = () => {
   };
 
   const loop = () => {
-    // Check the REF state, not the REACT state variable to prevent stale closure issues
     if (!gameRef.current.isRunning) return;
     
     const canvas = canvasRef.current;
@@ -281,8 +293,8 @@ const RetroGame: React.FC = () => {
     const width = container.clientWidth;
     const height = container.clientHeight;
     
-    const FLOOR_Y = height - 80;
-    const CEILING_Y = 80;
+    // Use dynamic lane coordinates
+    const { floorY: FLOOR_Y, ceilingY: CEILING_Y } = game;
 
     // Logic
     game.speed += 0.0005;
@@ -410,8 +422,15 @@ const RetroGame: React.FC = () => {
     }
 
     // Draw
-    ctx.fillStyle = '#0f172a';
+    ctx.clearRect(0, 0, width, height);
+
+    // Draw Lane (Darker Background for the lane)
+    ctx.fillStyle = '#0f172a'; // Main BG
     ctx.fillRect(0, 0, width, height);
+    
+    // Lane BG
+    ctx.fillStyle = '#1e293b'; 
+    ctx.fillRect(0, CEILING_Y, width, LANE_HEIGHT);
 
     ctx.lineWidth = 4;
     ctx.strokeStyle = '#334155';
@@ -423,7 +442,7 @@ const RetroGame: React.FC = () => {
     const tieSpacing = 50;
     const tieOffset = (game.frame * game.speed) % tieSpacing;
     ctx.lineWidth = 2;
-    ctx.strokeStyle = '#1e293b';
+    ctx.strokeStyle = '#334155';
     for(let x = -tieOffset; x < width; x+=tieSpacing) {
         ctx.beginPath(); ctx.moveTo(x, CEILING_Y - 10); ctx.lineTo(x, CEILING_Y); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(x, FLOOR_Y); ctx.lineTo(x, FLOOR_Y + 10); ctx.stroke();
@@ -488,12 +507,11 @@ const RetroGame: React.FC = () => {
   };
 
   const gameOver = () => {
-      gameRef.current.isRunning = false; // Stop the loop logic immediately
+      gameRef.current.isRunning = false; 
       cancelAnimationFrame(gameRef.current.animationId);
       setGameState('GAMEOVER');
       stopMusic();
       
-      // Game Over sound
       if (!isMuted) playTone(100, 'sawtooth', 0.5, audioCtxRef.current!.currentTime, 0.2);
 
       const finalScore = gameRef.current.score;
@@ -504,15 +522,15 @@ const RetroGame: React.FC = () => {
       }
   };
 
-  // Robust Input Handling for Mobile - Using both Pointer and Touch
-  const handleJumpAction = (e: any) => {
-      if (e.cancelable) e.preventDefault(); 
+  // Robust Input Handling for Mobile - Using only PointerEvents to prevent double-fire
+  const handleJumpAction = (e: React.PointerEvent) => {
+      e.preventDefault(); 
       e.stopPropagation();
       if (gameRef.current.isRunning) jump();
   };
 
-  const handleInvertAction = (e: any) => {
-      if (e.cancelable) e.preventDefault();
+  const handleInvertAction = (e: React.PointerEvent) => {
+      e.preventDefault();
       e.stopPropagation();
       if (gameRef.current.isRunning) toggleGravity();
   };
@@ -536,8 +554,8 @@ const RetroGame: React.FC = () => {
   return (
     <div 
         ref={containerRef} 
-        className="fixed inset-0 z-[100] bg-slate-950 flex flex-col overflow-hidden"
-        style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' }}
+        className="fixed inset-0 z-[100] bg-slate-950 flex flex-col overflow-hidden select-none"
+        style={{ touchAction: 'none' }}
     >
         {/* HUD */}
         <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-start pointer-events-none z-10">
@@ -576,23 +594,21 @@ const RetroGame: React.FC = () => {
         {/* Game Canvas */}
         <canvas ref={canvasRef} className="block w-full h-full" />
 
-        {/* Touch Controls Overlay - Using PointerEvents + TouchStart for max compatibility */}
+        {/* Touch Controls Overlay - Using PointerEvents exclusively */}
         {gameState === 'PLAYING' && (
             <div className="absolute inset-x-0 bottom-0 pb-safe p-4 z-30 flex gap-4 pointer-events-none select-none">
                 <button 
                     onPointerDown={handleInvertAction}
-                    onTouchStart={handleInvertAction}
                     className="flex-1 h-32 bg-purple-600/10 border-2 border-purple-500/30 rounded-3xl backdrop-blur-sm flex flex-col items-center justify-center text-purple-300 pointer-events-auto active:bg-purple-600/30 active:scale-95 transition-all select-none"
-                    style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' }}
+                    style={{ touchAction: 'none' }}
                 >
                     <ArrowDown size={40} />
                     <span className="text-sm font-bold uppercase mt-2">Gravity</span>
                 </button>
                 <button 
                     onPointerDown={handleJumpAction}
-                    onTouchStart={handleJumpAction}
                     className="flex-1 h-32 bg-blue-600/10 border-2 border-blue-500/30 rounded-3xl backdrop-blur-sm flex flex-col items-center justify-center text-blue-300 pointer-events-auto active:bg-blue-600/30 active:scale-95 transition-all select-none"
-                    style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' }}
+                    style={{ touchAction: 'none' }}
                 >
                     <ArrowUp size={40} />
                     <span className="text-sm font-bold uppercase mt-2">Jump</span>
@@ -610,7 +626,6 @@ const RetroGame: React.FC = () => {
                     
                     <button 
                         onClick={startGame} 
-                        onTouchEnd={startGame}
                         className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-xl font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2 transition-transform active:scale-95 touch-manipulation"
                     >
                         <Play size={20} fill="currentColor" /> START RIDE
@@ -644,7 +659,6 @@ const RetroGame: React.FC = () => {
                     <div className="space-y-3">
                         <button 
                             onClick={startGame} 
-                            onTouchEnd={startGame}
                             className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-xl font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2 transition-transform active:scale-95 touch-manipulation"
                         >
                             <RotateCcw size={20} /> RIDE AGAIN
