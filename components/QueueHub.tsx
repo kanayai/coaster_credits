@@ -18,55 +18,78 @@ const triggerHaptic = (type: 'success' | 'error' | 'light' = 'light') => {
 
 // --- VISUALS ---
 const CoasterCrashVisual: React.FC<{ wrongs: number; maxWrongs: number; isLoser: boolean }> = ({ wrongs, maxWrongs, isLoser }) => {
-    // Calculate position (0 to 100%)
-    // We want the train to be at the edge (say 80%) when wrongs == maxWrongs - 1
-    // When wrongs == maxWrongs, it goes over the edge
-    
-    const safePercentage = Math.min((wrongs / maxWrongs) * 85, 85);
+    // Calculate progress towards the cliff edge (0 to 100%)
+    // The cliff edge is at 80% width.
+    const progress = (wrongs / maxWrongs) * 80;
     
     return (
-        <div className="w-full h-24 relative mb-6 overflow-hidden bg-slate-900/50 rounded-xl border border-slate-700/50">
-            {/* The Track */}
-            <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
-                {/* Support Columns */}
-                <line x1="10%" y1="100%" x2="10%" y2="60%" stroke="#475569" strokeWidth="4" />
-                <line x1="30%" y1="100%" x2="30%" y2="50%" stroke="#475569" strokeWidth="4" />
-                <line x1="50%" y1="100%" x2="50%" y2="40%" stroke="#475569" strokeWidth="4" />
-                <line x1="70%" y1="100%" x2="70%" y2="30%" stroke="#475569" strokeWidth="4" />
-                <line x1="85%" y1="100%" x2="85%" y2="30%" stroke="#475569" strokeWidth="4" />
+        <div className="w-full h-32 relative mb-6 overflow-hidden bg-slate-900 rounded-xl border border-slate-700 shadow-inner">
+            {/* Background Scenery */}
+            <div className="absolute inset-0 opacity-20">
+                <div className="absolute bottom-0 left-10 w-20 h-40 bg-slate-700 rounded-t-full"></div>
+                <div className="absolute bottom-0 left-40 w-32 h-24 bg-slate-800 rounded-t-full"></div>
+            </div>
 
-                {/* Rails */}
-                <path d="M0,70 Q40,60 90,30" stroke="#0ea5e9" strokeWidth="4" fill="none" />
-                {/* Broken End */}
-                <path d="M90,30 L95,25" stroke="#0ea5e9" strokeWidth="4" strokeDasharray="4 4" fill="none" />
-            </svg>
+            {/* The Track (Broken at the end) */}
+            <div className="absolute bottom-8 left-0 right-0 h-4 bg-slate-800 border-t-4 border-slate-600 w-[85%] rounded-r-sm">
+                {/* Supports */}
+                <div className="absolute top-4 left-[20%] w-2 h-20 bg-slate-800"></div>
+                <div className="absolute top-4 left-[50%] w-2 h-20 bg-slate-800"></div>
+                <div className="absolute top-4 left-[80%] w-2 h-20 bg-slate-800"></div>
+            </div>
+            
+            {/* Warning Sign at Edge */}
+            <div className="absolute bottom-12 left-[82%] text-yellow-500 animate-pulse">
+                <AlertCircle size={16} fill="currentColor" className="text-black" />
+            </div>
 
             {/* The Train Cart */}
             <div 
                 className={clsx(
-                    "absolute transition-all duration-500 ease-out",
-                    isLoser ? "animate-coaster-crash" : ""
+                    "absolute bottom-9 w-12 h-8 transition-all duration-500 ease-out z-10",
+                    isLoser ? "animate-fall-off-cliff" : ""
                 )}
                 style={{
-                    left: `${isLoser ? 90 : 5 + safePercentage}%`,
-                    top: `${isLoser ? 30 : 65 - (safePercentage * 0.4)}%`, // Approximate slope calculation
-                    transform: isLoser ? 'rotate(90deg)' : `rotate(${-25}deg)`
+                    left: isLoser ? '85%' : `${5 + progress}%`,
+                    // If not loser, stay on track. If loser, animation takes over.
                 }}
             >
-                <div className="text-2xl filter drop-shadow-lg">🎢</div>
+                {/* Cart Body */}
+                <div className="w-full h-full bg-primary rounded-lg border-2 border-white/20 relative shadow-lg">
+                    {/* Riders */}
+                    <div className="absolute -top-3 left-1 w-3 h-3 bg-white rounded-full"></div>
+                    <div className="absolute -top-3 right-1 w-3 h-3 bg-white rounded-full"></div>
+                    {/* Wheels */}
+                    <div className="absolute -bottom-2 left-1 w-3 h-3 bg-black rounded-full border border-slate-600"></div>
+                    <div className="absolute -bottom-2 right-1 w-3 h-3 bg-black rounded-full border border-slate-600"></div>
+                </div>
             </div>
 
-            {/* Cliff / Danger Zone */}
-            <div className="absolute right-0 top-0 bottom-0 w-[10%] bg-gradient-to-l from-red-500/20 to-transparent border-l border-red-500/30" />
+            {/* Explosion Effect (Only visible on loss) */}
+            {isLoser && (
+                <div className="absolute bottom-0 right-[5%] text-4xl animate-explosion z-20">
+                    💥
+                </div>
+            )}
             
             <style>{`
-                @keyframes coaster-crash {
-                    0% { left: 85%; top: 30%; transform: rotate(-25deg); }
-                    30% { left: 95%; top: 40%; transform: rotate(45deg); }
-                    100% { left: 100%; top: 150%; transform: rotate(180deg); opacity: 0; }
+                @keyframes fall-off-cliff {
+                    0% { left: 85%; bottom: 36px; transform: rotate(0deg); }
+                    30% { left: 90%; bottom: 36px; transform: rotate(-15deg); }
+                    50% { left: 95%; bottom: 0px; transform: rotate(45deg); }
+                    100% { left: 95%; bottom: -50px; transform: rotate(180deg); }
                 }
-                .animate-coaster-crash {
-                    animation: coaster-crash 1.5s forwards cubic-bezier(0.5, 0, 0.75, 0);
+                .animate-fall-off-cliff {
+                    animation: fall-off-cliff 0.8s forwards ease-in;
+                }
+                @keyframes explosion {
+                    0% { opacity: 0; transform: scale(0); }
+                    50% { opacity: 0; }
+                    55% { opacity: 1; transform: scale(1.5); }
+                    100% { opacity: 0; transform: scale(2); }
+                }
+                .animate-explosion {
+                    animation: explosion 1s forwards 0.6s; /* Delays until train hits bottom */
                 }
             `}</style>
         </div>

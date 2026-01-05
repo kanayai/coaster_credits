@@ -11,6 +11,48 @@ const DIFFICULTY_CONFIG: Record<Difficulty, { speed: number, gapMin: number, gap
   ADVANCED: { speed: 9, gapMin: 300, gapMax: 600, gravity: 0.8, jump: 14, label: 'Hard', color: 'bg-red-500', carCount: 3 }
 };
 
+// GLOBAL AUDIO ENGINE (OUTSIDE COMPONENT TO PREVENT RE-INIT)
+let globalAudioCtx: AudioContext | null = null;
+
+const initAudio = () => {
+    if (!globalAudioCtx) {
+        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioContext) {
+            globalAudioCtx = new AudioContext();
+        }
+    }
+    return globalAudioCtx;
+};
+
+// Robust Play Tone Function
+const playGlobalTone = (freq: number, type: OscillatorType, duration: number, vol: number = 0.5) => {
+    const ctx = initAudio();
+    if (!ctx) return;
+    
+    // Auto-resume if suspended (Browser policy fix)
+    if (ctx.state === 'suspended') {
+        ctx.resume().catch(e => console.log(e));
+    }
+
+    try {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, ctx.currentTime);
+        
+        // Louder Gain
+        gain.gain.setValueAtTime(vol, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + duration + 0.1);
+    } catch (e) {
+        console.error("Audio Play Error", e);
+    }
+};
+
 const RetroGame: React.FC = () => {
   const { changeView, activeUser, saveHighScore } = useAppContext();
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -22,8 +64,6 @@ const RetroGame: React.FC = () => {
   const [highScore, setHighScore] = useState(activeUser.highScore || 0);
   const [isNewRecord, setIsNewRecord] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-  
-  // Ref for mute state to ensure interval closures always see current value
   const isMutedRef = useRef(isMuted); 
   
   // Game State for UI
@@ -31,7 +71,6 @@ const RetroGame: React.FC = () => {
   const [isBoosting, setIsBoosting] = useState(false);
 
   // Audio Context Refs
-  const audioCtxRef = useRef<AudioContext | null>(null);
   const musicIntervalRef = useRef<number | null>(null);
 
   // Sync mute ref
@@ -80,81 +119,25 @@ const RetroGame: React.FC = () => {
     slope: 0
   });
 
-  // --- AUDIO SYSTEM (REFACTORED) ---
-  
-  const initAudio = () => {
-      if (!audioCtxRef.current) {
-          const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-          if (AudioContext) {
-              audioCtxRef.current = new AudioContext();
-          }
-      }
-      return audioCtxRef.current;
-  };
-
-  const unlockAudio = async () => {
-      const ctx = initAudio();
-      if (!ctx) return;
-      if (ctx.state === 'suspended') {
-          try {
-            await ctx.resume();
-          } catch(e) {
-              console.error("Audio resume failed", e);
-          }
-      }
-  };
-
-  const playTone = (freq: number, type: OscillatorType, duration: number, vol: number = 0.5) => {
-      // Use Ref to check mute status inside async/callback contexts
+  const playSound = (freq: number, type: OscillatorType, duration: number, vol: number) => {
       if (isMutedRef.current) return;
-      
-      const ctx = initAudio();
-      if (!ctx) return;
-      
-      // Auto-resume if suspended (common in mobile browsers)
-      if (ctx.state === 'suspended') ctx.resume();
-
-      try {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = type;
-        osc.frequency.setValueAtTime(freq, ctx.currentTime);
-        
-        // Louder mix
-        gain.gain.setValueAtTime(vol, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
-
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start();
-        osc.stop(ctx.currentTime + duration + 0.1);
-      } catch (e) {
-          console.error(e);
-      }
+      playGlobalTone(freq, type, duration, vol);
   };
 
   const playMusicNote = () => {
       if (isMutedRef.current || !gameRef.current.isRunning || gameRef.current.isLiftHill) return;
       
-      const ctx = initAudio();
-      if (!ctx) return;
-
       const baseFreq = 110; // A2
       const notes = [1, 1.5, 2, 2.5]; // Simple scale
       const note = notes[Math.floor(Math.random() * notes.length)] * baseFreq;
       
-      playTone(note, 'triangle', 0.15, 0.3);
+      // Increased Volume
+      playGlobalTone(note, 'triangle', 0.15, 0.4);
   };
 
   useEffect(() => {
-      const handleInteraction = () => unlockAudio();
-      window.addEventListener('touchstart', handleInteraction);
-      window.addEventListener('click', handleInteraction);
       return () => {
           if (musicIntervalRef.current) clearInterval(musicIntervalRef.current);
-          if (audioCtxRef.current) audioCtxRef.current.close();
-          window.removeEventListener('touchstart', handleInteraction);
-          window.removeEventListener('click', handleInteraction);
       };
   }, []);
 
@@ -194,8 +177,14 @@ const RetroGame: React.FC = () => {
     e.preventDefault();
     e.stopPropagation();
     
-    // CRITICAL: Ensure audio context is active on start button press
-    await unlockAudio();
+    // CRITICAL: Initialize Audio on Start Click
+    initAudio();
+    if (globalAudioCtx && globalAudioCtx.state === 'suspended') {
+        await globalAudioCtx.resume();
+    }
+    // Play a start sound to confirm
+    playGlobalTone(600, 'square', 0.1, 0.5);
+    setTimeout(() => playGlobalTone(880, 'square', 0.2, 0.5), 100);
 
     if (!containerRef.current) return;
 
@@ -255,7 +244,7 @@ const RetroGame: React.FC = () => {
       if (player.grounded) {
           player.dy = -settings.jump * player.gravityDirection;
           player.grounded = false;
-          playTone(400, 'square', 0.1, 0.4);
+          playSound(400, 'square', 0.1, 0.5);
       }
   };
 
@@ -264,7 +253,7 @@ const RetroGame: React.FC = () => {
       player.gravityDirection *= -1;
       player.grounded = false;
       createExplosion(player.x + player.width/2, player.y + player.height/2, '#8b5cf6', 5);
-      playTone(200, 'sawtooth', 0.15, 0.4);
+      playSound(200, 'sawtooth', 0.15, 0.5);
   };
 
   const activateBoost = (e?: React.SyntheticEvent) => {
@@ -276,7 +265,7 @@ const RetroGame: React.FC = () => {
           gameRef.current.boosting = true;
           gameRef.current.shake = 15; 
           setIsBoosting(true);
-          playTone(600, 'sawtooth', 0.5, 0.5);
+          playSound(600, 'sawtooth', 0.5, 0.6);
           createExplosion(gameRef.current.player.x, gameRef.current.player.y, '#0ea5e9', 20);
       }
   };
@@ -367,10 +356,10 @@ const RetroGame: React.FC = () => {
         setHighScore(currentScore);
         saveHighScore(currentScore);
         setIsNewRecord(true);
-        playTone(600, 'square', 0.2, 0.6);
-        setTimeout(() => playTone(800, 'square', 0.4, 0.6), 200);
+        playSound(600, 'square', 0.2, 0.6);
+        setTimeout(() => playSound(800, 'square', 0.4, 0.6), 200);
     } else {
-        playTone(100, 'sawtooth', 0.5, 0.6);
+        playSound(100, 'sawtooth', 0.5, 0.6);
     }
   };
 
@@ -461,7 +450,7 @@ const RetroGame: React.FC = () => {
     if (game.isLiftHill) {
         game.liftHillTimer--;
         // Click-Clack Sound
-        if (game.frame % 15 === 0) playTone(800, 'square', 0.05, 0.3);
+        if (game.frame % 15 === 0) playSound(800, 'square', 0.05, 0.3);
 
         if (game.liftHillTimer <= 0) game.isLiftHill = false;
     } 
@@ -520,7 +509,7 @@ const RetroGame: React.FC = () => {
                 game.score += 5; 
                 setScore(game.score);
                 game.shake = 5; 
-                playTone(100, 'square', 0.1, 0.6);
+                playSound(100, 'square', 0.1, 0.6);
                 continue;
             } else {
                 gameOver();
@@ -545,7 +534,7 @@ const RetroGame: React.FC = () => {
                 setBoostValue(game.boost);
             }
             createExplosion(col.x, col.y, '#facc15', 8);
-            playTone(800, 'square', 0.1, 0.4);
+            playSound(800, 'square', 0.1, 0.4);
         }
         if (col.x < -50) game.collectibles.splice(i, 1);
     }
@@ -661,9 +650,8 @@ const RetroGame: React.FC = () => {
   };
 
   const forceAudioUnlock = () => {
-      unlockAudio();
       // Play a quick sound to prove it works
-      playTone(440, 'sine', 0.1, 0.5);
+      playGlobalTone(440, 'sine', 0.1, 0.5);
   };
 
   return (
