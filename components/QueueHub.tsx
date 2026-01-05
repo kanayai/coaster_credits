@@ -1,31 +1,31 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { ArrowLeft, Gamepad2, BrainCircuit, Mic2, HelpCircle, Trophy, RefreshCw, Zap, Ticket, Loader2, Sparkles, AlertCircle, CheckCircle2, Timer } from 'lucide-react';
+import { ArrowLeft, Gamepad2, BrainCircuit, Mic2, HelpCircle, Trophy, RefreshCw, Zap, Ticket, Loader2, Sparkles, AlertCircle, CheckCircle2, Timer, X, Search } from 'lucide-react';
 import clsx from 'clsx';
 import { GoogleGenAI } from "@google/genai";
 
 // --- MEMORY GAME ---
 const MemoryGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
-    // Extended Icon Set for 5x5 (Needs 12 unique pairs + 1 Wildcard)
-    const ICONS = [
-        '🎢', // Coaster
-        '🎡', // Ferris Wheel
-        '🎪', // Tent
-        '🍦', // Food
-        '🤢', // Nausea
-        '🚂', // Train
-        '⛓️', // Chain Lift
-        '📸', // On-ride Photo
-        '🌊', // Log Flume
-        '🙌', // Hands Up
-        '🔧', // Maintenance
-        '🛑', // Brakes
+    // 12 Pairs of Brands/Manufacturers + 1 Golden Ticket
+    const BRANDS = [
+        { label: 'RMC', type: 'mfg' },
+        { label: 'B&M', type: 'mfg' },
+        { label: 'Intamin', type: 'mfg' },
+        { label: 'Vekoma', type: 'mfg' },
+        { label: 'Mack', type: 'mfg' },
+        { label: 'Arrow', type: 'mfg' },
+        { label: 'GCI', type: 'mfg' },
+        { label: 'S&S', type: 'mfg' },
+        { label: 'Disney', type: 'park' },
+        { label: 'Six Flags', type: 'park' },
+        { label: 'Cedar Pt', type: 'park' },
+        { label: 'Universal', type: 'park' },
     ];
 
-    const GOLDEN_TICKET = '🎫';
+    const GOLDEN_TICKET = { label: '🎫', type: 'golden' };
 
-    const [cards, setCards] = useState<{ id: number, icon: string, flipped: boolean, matched: boolean, isGolden: boolean }[]>([]);
+    const [cards, setCards] = useState<{ id: number, label: string, type: string, flipped: boolean, matched: boolean }[]>([]);
     const [flippedIndices, setFlippedIndices] = useState<number[]>([]);
     const [moves, setMoves] = useState(0);
     const [matches, setMatches] = useState(0);
@@ -36,17 +36,15 @@ const MemoryGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
 
     const resetGame = () => {
         // 12 Pairs (24 cards) + 1 Golden Ticket (1 card) = 25 Cards (5x5)
-        const pairCards = [...ICONS, ...ICONS].map(icon => ({ icon, isGolden: false }));
-        const goldenCard = { icon: GOLDEN_TICKET, isGolden: true };
-        
-        const deck = [...pairCards, goldenCard];
+        const pairCards = [...BRANDS, ...BRANDS];
+        const deck = [...pairCards, GOLDEN_TICKET];
         
         const shuffled = deck.sort(() => Math.random() - 0.5).map((item, idx) => ({
             id: idx,
-            icon: item.icon,
+            label: item.label,
+            type: item.type,
             flipped: false,
             matched: false,
-            isGolden: item.isGolden
         }));
 
         setCards(shuffled);
@@ -63,12 +61,11 @@ const MemoryGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
         const newCards = [...cards];
 
         // LOGIC: Golden Ticket (Instant Match)
-        if (clickedCard.isGolden) {
+        if (clickedCard.type === 'golden') {
             newCards[index].flipped = true;
             newCards[index].matched = true;
             setCards(newCards);
             setMatches(m => m + 1);
-            // Visual flair for golden ticket could go here
             return;
         }
 
@@ -83,7 +80,7 @@ const MemoryGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
             setMoves(m => m + 1);
             const [firstIdx, secondIdx] = newFlipped;
             
-            if (cards[firstIdx].icon === cards[secondIdx].icon) {
+            if (cards[firstIdx].label === cards[secondIdx].label) {
                 // Match Found
                 setTimeout(() => {
                     setCards(prev => prev.map((c, i) => (i === firstIdx || i === secondIdx) ? { ...c, matched: true } : c));
@@ -101,7 +98,18 @@ const MemoryGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
     };
 
     // Total matches needed: 12 pairs + 1 golden ticket = 13 "matches" logic
-    const isWin = matches === ICONS.length + 1;
+    const isWin = matches === BRANDS.length + 1;
+
+    // Helper for card styling based on content
+    const getCardStyle = (card: typeof cards[0]) => {
+        if (!card.flipped && !card.matched) return "bg-slate-800 border-slate-700 hover:bg-slate-700";
+        
+        if (card.type === 'golden') return "bg-amber-400 border-amber-200 text-3xl shadow-[0_0_15px_rgba(251,191,36,0.6)] rotate-y-180";
+        if (card.type === 'mfg') return "bg-indigo-600 border-indigo-400 text-white rotate-y-180";
+        if (card.type === 'park') return "bg-emerald-600 border-emerald-400 text-white rotate-y-180";
+        
+        return "bg-slate-700";
+    };
 
     return (
         <div className="h-full flex flex-col relative animate-fade-in">
@@ -120,22 +128,26 @@ const MemoryGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
                         key={idx}
                         onClick={() => handleCardClick(idx)}
                         className={clsx(
-                            "w-full aspect-square rounded-xl text-2xl sm:text-3xl flex items-center justify-center transition-all duration-300 transform perspective-1000",
-                            card.flipped || card.matched 
-                                ? (card.isGolden ? "bg-amber-400 border-amber-200 shadow-[0_0_15px_rgba(251,191,36,0.6)] rotate-y-180" : "bg-indigo-600 rotate-y-180 border-indigo-400")
-                                : "bg-slate-800 border-slate-700 hover:bg-slate-700",
-                            card.matched && !card.isGolden ? "opacity-50" : "opacity-100 border"
+                            "w-full aspect-square rounded-xl flex items-center justify-center transition-all duration-300 transform perspective-1000 border-2 p-1",
+                            getCardStyle(card),
+                            card.matched && card.type !== 'golden' ? "opacity-50" : "opacity-100"
                         )}
                         disabled={card.flipped || card.matched}
                      >
-                         {(card.flipped || card.matched) ? card.icon : <Zap size={14} className="text-slate-600" />}
+                         {(card.flipped || card.matched) ? (
+                             <span className={clsx("font-black text-center leading-none", card.label.length > 5 ? "text-[8px] sm:text-[10px]" : "text-xs sm:text-sm")}>
+                                 {card.label}
+                             </span>
+                         ) : (
+                             <Zap size={14} className="text-slate-600" />
+                         )}
                      </button>
                  ))}
              </div>
 
              {/* Footer instructions */}
              <div className="text-center mt-4 text-[10px] text-slate-500 font-bold uppercase tracking-widest shrink-0">
-                 Find the Golden Ticket {GOLDEN_TICKET} for a free match!
+                 Match the Industry Giants!
              </div>
 
              {isWin && (
@@ -207,10 +219,6 @@ const TriviaGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
         if (activeQuestions.length > 0 && currentQIndex < activeQuestions.length) {
             const q = activeQuestions[currentQIndex];
             const answersWithIndex = q.a.map((ans, idx) => ({ text: ans, originalIndex: idx }));
-            // Shuffle answers so the correct one isn't always in the same visual spot (though logic uses index)
-            // Actually, my data structure has correct answer as index 0 for most... I need to handle that.
-            // Wait, looking at data: most correct answers are index 0 in the `a` array in my big list above for ease of writing.
-            // I need to shuffle them for display but track which one is correct.
             setShuffledAnswers(answersWithIndex.sort(() => Math.random() - 0.5));
         }
     }, [currentQIndex, activeQuestions]);
@@ -327,6 +335,7 @@ const TriviaGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
 // --- JOKE GENERATOR ---
 const JokeGenerator: React.FC<{ onExit: () => void }> = ({ onExit }) => {
     const [joke, setJoke] = useState<string>("Why did the roller coaster break up? It had too many ups and downs.");
+    const [topic, setTopic] = useState<string>('');
     const [isLoading, setIsLoading] = useState(false);
 
     const generateJoke = async () => {
@@ -334,9 +343,14 @@ const JokeGenerator: React.FC<{ onExit: () => void }> = ({ onExit }) => {
         try {
             if (process.env.API_KEY) {
                 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+                
+                const prompt = topic.trim() 
+                    ? `Tell me a short, funny, clean joke about roller coasters specifically related to "${topic}". Try to be clever. Keep it under 2 sentences.`
+                    : "Tell me a short, funny, clean joke about roller coasters or theme parks. Try to use enthusiast terms like 'airtime', 'hang time', 'stapling', 'block zones', or 'operations'. Keep it under 2 sentences.";
+
                 const response = await ai.models.generateContent({
                     model: 'gemini-3-flash-preview',
-                    contents: "Tell me a short, funny, clean joke about roller coasters or theme parks. Keep it under 2 sentences.",
+                    contents: prompt,
                 });
                 if (response.response.text()) {
                     setJoke(response.response.text());
@@ -357,12 +371,32 @@ const JokeGenerator: React.FC<{ onExit: () => void }> = ({ onExit }) => {
                  <button onClick={onExit} className="bg-slate-800 p-2 rounded-full border border-slate-700 text-slate-400"><ArrowLeft size={20}/></button>
              </div>
 
-             <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
-                 <div className="bg-slate-800 p-8 rounded-3xl border border-slate-700 shadow-2xl relative">
+             <div className="flex-1 flex flex-col items-center px-4">
+                 
+                 {/* Input for specific topic */}
+                 <div className="w-full max-w-sm mb-6 relative">
+                     <input 
+                        type="text" 
+                        placeholder="Topic (e.g. 'Bank Turn', 'RMC', 'Line Jumping')" 
+                        value={topic}
+                        onChange={(e) => setTopic(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 pl-10 text-white text-sm focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-all placeholder:text-slate-600"
+                     />
+                     <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
+                         <Search size={16} />
+                     </div>
+                     {topic && (
+                         <button onClick={() => setTopic('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">
+                             <X size={16} />
+                         </button>
+                     )}
+                 </div>
+
+                 <div className="w-full max-w-sm bg-slate-800 p-8 rounded-3xl border border-slate-700 shadow-2xl relative mb-8">
                      <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-purple-500 text-white p-3 rounded-full shadow-lg">
                          <Mic2 size={24} />
                      </div>
-                     <p className="text-xl font-medium text-white leading-relaxed italic">
+                     <p className="text-xl font-medium text-white leading-relaxed italic text-center">
                          "{joke}"
                      </p>
                  </div>
@@ -370,10 +404,10 @@ const JokeGenerator: React.FC<{ onExit: () => void }> = ({ onExit }) => {
                  <button 
                     onClick={generateJoke} 
                     disabled={isLoading}
-                    className="mt-8 bg-purple-600 hover:bg-purple-500 text-white px-8 py-4 rounded-2xl font-bold shadow-lg shadow-purple-500/20 flex items-center gap-2 transition-transform active:scale-95"
+                    className="w-full max-w-sm bg-purple-600 hover:bg-purple-500 text-white px-8 py-4 rounded-2xl font-bold shadow-lg shadow-purple-500/20 flex items-center justify-center gap-2 transition-transform active:scale-95"
                  >
                      {isLoading ? <Loader2 size={20} className="animate-spin" /> : <Sparkles size={20} />}
-                     Tell Another
+                     {topic ? `Roast "${topic}"` : 'Tell Another'}
                  </button>
              </div>
         </div>
@@ -430,7 +464,7 @@ const QueueHub: React.FC = () => {
           />
           <MenuItem 
              title="Track Match" 
-             desc="5x5 Coaster Memory Challenge." 
+             desc="5x5 Manufacturer Memory Challenge." 
              icon={BrainCircuit} 
              color="from-indigo-500 to-blue-600"
              onClick={() => setActiveActivity('MEMORY')}
