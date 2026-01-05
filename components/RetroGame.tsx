@@ -7,8 +7,8 @@ type Difficulty = 'BEGINNER' | 'MEDIUM' | 'ADVANCED';
 
 const DIFFICULTY_CONFIG: Record<Difficulty, { speed: number, gapMin: number, gapMax: number, gravity: number, jump: number, label: string, color: string, carCount: number }> = {
   BEGINNER: { speed: 5, gapMin: 600, gapMax: 1000, gravity: 0.5, jump: 11, label: 'Easy', color: 'bg-emerald-500', carCount: 1 },
-  MEDIUM: { speed: 7, gapMin: 400, gapMax: 800, gravity: 0.6, jump: 12, label: 'Medium', color: 'bg-yellow-500', carCount: 1 },
-  ADVANCED: { speed: 9, gapMin: 300, gapMax: 600, gravity: 0.8, jump: 14, label: 'Hard', color: 'bg-red-500', carCount: 2 }
+  MEDIUM: { speed: 7, gapMin: 400, gapMax: 800, gravity: 0.6, jump: 12, label: 'Medium', color: 'bg-yellow-500', carCount: 2 },
+  ADVANCED: { speed: 9, gapMin: 300, gapMax: 600, gravity: 0.8, jump: 14, label: 'Hard', color: 'bg-red-500', carCount: 3 }
 };
 
 const RetroGame: React.FC = () => {
@@ -29,7 +29,6 @@ const RetroGame: React.FC = () => {
   const musicTimerRef = useRef<number | null>(null);
   const melodyIndexRef = useRef(0);
   const lastChainTimeRef = useRef(0);
-  const audioUnlockedRef = useRef(false);
 
   // Game Constants
   const LANE_HEIGHT = 320; 
@@ -73,36 +72,33 @@ const RetroGame: React.FC = () => {
       if (!audioCtxRef.current) {
           const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
           if (AudioContext) {
-              audioCtxRef.current = new AudioContext();
+              audioCtxRef.current = new AudioContext({ latencyHint: 'interactive' });
           }
       }
       return audioCtxRef.current;
   };
 
   // The "Nuclear Option" for iOS Audio: Play a silent buffer inside a user event
+  // AND forcefully resume the context if suspended.
   const unlockAudio = () => {
-      if (audioUnlockedRef.current) return;
-      
       const ctx = getAudioContext();
       if (!ctx) return;
 
-      // Create a tiny empty buffer
-      const buffer = ctx.createBuffer(1, 1, 22050);
-      const source = ctx.createBufferSource();
-      source.buffer = buffer;
-      source.connect(ctx.destination);
-      
-      // Play it immediately
-      if (source.start) source.start(0);
-      else if ((source as any).noteOn) (source as any).noteOn(0);
-
-      // Try to resume
+      // Always try to resume if suspended
       if (ctx.state === 'suspended') {
-          ctx.resume().then(() => {
-              audioUnlockedRef.current = true;
-          }).catch(console.error);
-      } else {
-          audioUnlockedRef.current = true;
+          ctx.resume().catch(e => console.error("Audio resume failed:", e));
+      }
+
+      // Create a tiny empty buffer and play it to "warm up" the pipeline
+      try {
+          const buffer = ctx.createBuffer(1, 1, 22050);
+          const source = ctx.createBufferSource();
+          source.buffer = buffer;
+          source.connect(ctx.destination);
+          if (source.start) source.start(0);
+          else if ((source as any).noteOn) (source as any).noteOn(0);
+      } catch (e) {
+          // Ignore errors if buffer fails
       }
   };
 
@@ -130,7 +126,7 @@ const RetroGame: React.FC = () => {
       const ctx = getAudioContext();
       if (!ctx || isMuted) return;
       
-      // Aggressive resume check
+      // Aggressive resume check on every note
       if (ctx.state === 'suspended') {
           ctx.resume().catch(() => {});
       }
@@ -674,6 +670,7 @@ const RetroGame: React.FC = () => {
         ref={containerRef} 
         className="fixed inset-0 z-[100] bg-slate-950 flex flex-col overflow-hidden select-none touch-none" 
         onPointerDown={handleGameInteraction} // Handle touch for the entire screen
+        onTouchStart={unlockAudio} // Extra audio unlock trigger on the container
     >
         <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-start pointer-events-none z-10">
             <div className="flex items-center gap-3 pointer-events-auto">
@@ -722,7 +719,7 @@ const RetroGame: React.FC = () => {
 
                     <button 
                         onClick={startGame}
-                        onTouchEnd={startGame} 
+                        onTouchStart={unlockAudio} // Explicit iOS Audio Unlock
                         className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 touch-manipulation cursor-pointer"
                     >
                         <Play size={20} fill="currentColor" /> START RIDE
@@ -746,7 +743,7 @@ const RetroGame: React.FC = () => {
                     <div className="space-y-3">
                         <button 
                             onClick={startGame}
-                            onTouchEnd={startGame}
+                            onTouchStart={unlockAudio}
                             className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 touch-manipulation cursor-pointer"
                         >
                             <RotateCcw size={20} /> RIDE AGAIN
