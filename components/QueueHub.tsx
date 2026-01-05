@@ -1,9 +1,20 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { ArrowLeft, Gamepad2, BrainCircuit, Mic2, HelpCircle, Trophy, RefreshCw, Zap, Ticket, Loader2, Sparkles, AlertCircle, CheckCircle2, Timer, X, Search, Hash } from 'lucide-react';
+import { ArrowLeft, Gamepad2, BrainCircuit, Mic2, HelpCircle, Trophy, RefreshCw, Zap, Ticket, Loader2, Sparkles, AlertCircle, CheckCircle2, Timer, X, Search, Hash, Copy, Percent } from 'lucide-react';
 import clsx from 'clsx';
 import { GoogleGenAI } from "@google/genai";
+
+// --- UX HELPERS ---
+const triggerHaptic = (type: 'success' | 'error' | 'light' = 'light') => {
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        switch(type) {
+            case 'success': navigator.vibrate([50, 50, 50]); break;
+            case 'error': navigator.vibrate([100, 50, 100]); break;
+            default: navigator.vibrate(10);
+        }
+    }
+};
 
 // --- MEMORY GAME ---
 const MemoryGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
@@ -57,6 +68,7 @@ const MemoryGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
         // Prevent clicking if 2 are already flipped, or card is already revealed
         if (flippedIndices.length >= 2 || cards[index].flipped || cards[index].matched) return;
 
+        triggerHaptic('light');
         const clickedCard = cards[index];
         const newCards = [...cards];
 
@@ -66,6 +78,7 @@ const MemoryGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
             newCards[index].matched = true;
             setCards(newCards);
             setMatches(m => m + 1);
+            triggerHaptic('success');
             return;
         }
 
@@ -82,6 +95,7 @@ const MemoryGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
             
             if (cards[firstIdx].label === cards[secondIdx].label) {
                 // Match Found
+                triggerHaptic('success');
                 setTimeout(() => {
                     setCards(prev => prev.map((c, i) => (i === firstIdx || i === secondIdx) ? { ...c, matched: true } : c));
                     setFlippedIndices([]);
@@ -190,6 +204,7 @@ const WordGuessGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
 
     const handleGuess = (char: string) => {
         if (guessed.has(char) || wrongs >= MAX_WRONGS) return;
+        triggerHaptic('light');
         
         const newGuessed = new Set(guessed);
         newGuessed.add(char);
@@ -197,6 +212,7 @@ const WordGuessGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
 
         if (!word.includes(char)) {
             setWrongs(w => w + 1);
+            triggerHaptic('error');
         }
     };
 
@@ -212,12 +228,34 @@ const WordGuessGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
 
     return (
         <div className="h-full flex flex-col animate-fade-in relative">
-             <div className="flex items-center justify-between mb-4 shrink-0">
+             <div className="flex items-center justify-between mb-2 shrink-0">
                  <button onClick={onExit} className="bg-slate-800 p-2 rounded-full border border-slate-700 text-slate-400"><ArrowLeft size={20}/></button>
-                 <div className="flex items-center gap-2">
-                     {[...Array(MAX_WRONGS)].map((_, i) => (
-                         <div key={i} className={`w-3 h-3 rounded-full ${i < wrongs ? 'bg-red-500' : 'bg-slate-700'}`} />
-                     ))}
+                 <div className="text-xs font-bold text-slate-500 uppercase">Don't Crash the Train!</div>
+             </div>
+
+             {/* Visual Progress: Coaster Train approaching a cliff */}
+             <div className="w-full h-24 bg-slate-800/50 rounded-xl mb-4 relative overflow-hidden border border-slate-700">
+                 {/* Track Line */}
+                 <div className="absolute top-1/2 left-4 right-4 h-1 bg-slate-600 rounded-full" />
+                 {/* Danger Zone */}
+                 <div className="absolute top-1/2 right-4 w-4 h-4 bg-red-500/20 -translate-y-1/2 rounded-full animate-pulse" />
+                 <div className="absolute top-1/2 right-4 -translate-y-1/2 text-red-500 text-xs font-bold">X</div>
+                 
+                 {/* Moving Train */}
+                 <div 
+                    className="absolute top-1/2 -translate-y-1/2 transition-all duration-500 ease-out"
+                    style={{ 
+                        left: `${(wrongs / MAX_WRONGS) * 80 + 5}%`, // 5% to 85%
+                    }}
+                 >
+                     <div className="flex gap-0.5">
+                         {[1,2,3].map(i => (
+                             <div key={i} className={clsx("w-6 h-4 rounded-t-md relative", isLose ? "bg-red-500 animate-bounce" : "bg-primary")}>
+                                 <div className="absolute -bottom-1 left-1 w-1.5 h-1.5 bg-black rounded-full" />
+                                 <div className="absolute -bottom-1 right-1 w-1.5 h-1.5 bg-black rounded-full" />
+                             </div>
+                         ))}
+                     </div>
                  </div>
              </div>
 
@@ -411,7 +449,8 @@ const TriviaGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
     const [score, setScore] = useState(0);
     const [showResult, setShowResult] = useState(false);
     const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
-    const [shuffledAnswers, setShuffledAnswers] = useState<{text: string, originalIndex: number}[]>([]);
+    const [shuffledAnswers, setShuffledAnswers] = useState<{text: string, originalIndex: number, disabled?: boolean}[]>([]);
+    const [lifelineUsed, setLifelineUsed] = useState(false);
 
     // Initialize Game on Mount
     useEffect(() => {
@@ -426,14 +465,21 @@ const TriviaGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
             const q = activeQuestions[currentQIndex];
             const answersWithIndex = q.a.map((ans, idx) => ({ text: ans, originalIndex: idx }));
             setShuffledAnswers(answersWithIndex.sort(() => Math.random() - 0.5));
+            setLifelineUsed(false); // Reset lifeline for new question
         }
     }, [currentQIndex, activeQuestions]);
 
     const handleAnswer = (originalIndex: number) => {
+        triggerHaptic('light');
         setSelectedAnswer(originalIndex);
         const isCorrect = originalIndex === activeQuestions[currentQIndex].correct;
         
-        if (isCorrect) setScore(s => s + 1);
+        if (isCorrect) {
+            setScore(s => s + 1);
+            triggerHaptic('success');
+        } else {
+            triggerHaptic('error');
+        }
 
         setTimeout(() => {
             if (currentQIndex < activeQuestions.length - 1) {
@@ -445,6 +491,28 @@ const TriviaGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
         }, 1500);
     };
 
+    const handleLifeline = () => {
+        if (lifelineUsed) return;
+        triggerHaptic('light');
+        const q = activeQuestions[currentQIndex];
+        const correctIndex = q.correct;
+        
+        // Find wrong indices currently in shuffled list
+        const wrongIndices = shuffledAnswers
+            .filter(a => a.originalIndex !== correctIndex)
+            .map(a => a.originalIndex);
+        
+        // Pick 2 wrong to remove (or disable)
+        const indicesToRemove = wrongIndices.sort(() => Math.random() - 0.5).slice(0, 2);
+        
+        setShuffledAnswers(prev => prev.map(a => ({
+            ...a,
+            disabled: indicesToRemove.includes(a.originalIndex)
+        })));
+        
+        setLifelineUsed(true);
+    };
+
     const reset = () => {
         // Reshuffle for a new game
         const shuffled = [...ALL_QUESTIONS].sort(() => Math.random() - 0.5).slice(0, 10);
@@ -453,6 +521,7 @@ const TriviaGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
         setScore(0);
         setShowResult(false);
         setSelectedAnswer(null);
+        setLifelineUsed(false);
     };
 
     if (activeQuestions.length === 0) return <div className="flex items-center justify-center h-full"><Loader2 className="animate-spin text-primary"/></div>;
@@ -472,9 +541,29 @@ const TriviaGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
                         <h3 className="text-xl font-bold text-white text-center leading-relaxed">{currentQuestion.q}</h3>
                      </div>
                      
+                     <div className="flex justify-end mb-4">
+                         <button 
+                            onClick={handleLifeline} 
+                            disabled={lifelineUsed}
+                            className={clsx(
+                                "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase transition-all border",
+                                lifelineUsed ? "bg-slate-800 text-slate-500 border-slate-700 opacity-50" : "bg-purple-600 text-white border-purple-500 shadow-lg shadow-purple-500/20 active:scale-95"
+                            )}
+                         >
+                             <Percent size={12} /> 50/50 Lifeline
+                         </button>
+                     </div>
+
                      <div className="space-y-3">
                          {shuffledAnswers.map((ansObj, idx) => {
-                             let stateClass = "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700";
+                             if (ansObj.disabled) {
+                                 // Render a placeholder or invisible block to keep layout stable but hide text
+                                 return (
+                                     <div key={idx} className="w-full p-4 rounded-xl border border-transparent bg-slate-900/30 opacity-30 pointer-events-none" />
+                                 );
+                             }
+
+                             let stateClass = "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 active:scale-[0.98]";
                              const isSelected = selectedAnswer !== null;
                              
                              if (isSelected) {
@@ -496,7 +585,7 @@ const TriviaGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
                                     key={idx}
                                     onClick={() => !isSelected && handleAnswer(ansObj.originalIndex)}
                                     className={clsx(
-                                        "w-full p-4 rounded-xl border font-bold text-left transition-all relative overflow-hidden", 
+                                        "w-full p-4 rounded-xl border font-bold text-left transition-all relative overflow-hidden shadow-sm", 
                                         stateClass
                                     )}
                                     disabled={isSelected}
@@ -543,9 +632,11 @@ const JokeGenerator: React.FC<{ onExit: () => void }> = ({ onExit }) => {
     const [joke, setJoke] = useState<string>("Why did the roller coaster break up? It had too many ups and downs.");
     const [topic, setTopic] = useState<string>('');
     const [isLoading, setIsLoading] = useState(false);
+    const [copied, setCopied] = useState(false);
 
     const generateJoke = async () => {
         setIsLoading(true);
+        setCopied(false);
         try {
             if (process.env.API_KEY) {
                 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -569,6 +660,13 @@ const JokeGenerator: React.FC<{ onExit: () => void }> = ({ onExit }) => {
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const handleCopy = () => {
+        navigator.clipboard.writeText(joke);
+        setCopied(true);
+        triggerHaptic('success');
+        setTimeout(() => setCopied(false), 2000);
     };
 
     return (
@@ -598,13 +696,21 @@ const JokeGenerator: React.FC<{ onExit: () => void }> = ({ onExit }) => {
                      )}
                  </div>
 
-                 <div className="w-full max-w-sm bg-slate-800 p-8 rounded-3xl border border-slate-700 shadow-2xl relative mb-8">
+                 <div className="w-full max-w-sm bg-slate-800 p-8 rounded-3xl border border-slate-700 shadow-2xl relative mb-8 group">
                      <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-purple-500 text-white p-3 rounded-full shadow-lg">
                          <Mic2 size={24} />
                      </div>
                      <p className="text-xl font-medium text-white leading-relaxed italic text-center">
                          "{joke}"
                      </p>
+                     
+                     <button 
+                        onClick={handleCopy} 
+                        className="absolute bottom-4 right-4 p-2 text-slate-500 hover:text-white transition-colors"
+                        title="Copy Joke"
+                     >
+                         {copied ? <CheckCircle2 size={18} className="text-emerald-500" /> : <Copy size={18} />}
+                     </button>
                  </div>
                  
                  <button 
@@ -633,7 +739,7 @@ const QueueHub: React.FC = () => {
 
   const MenuItem = ({ title, desc, icon: Icon, color, onClick }: any) => (
       <button 
-        onClick={onClick}
+        onClick={() => { triggerHaptic('light'); onClick(); }}
         className="w-full bg-slate-800 hover:bg-slate-750 p-5 rounded-2xl border border-slate-700 flex items-center gap-4 group transition-all active:scale-[0.98] text-left"
       >
           <div className={`p-4 rounded-xl bg-gradient-to-br ${color} text-white shadow-lg shrink-0 group-hover:scale-110 transition-transform`}>
