@@ -172,6 +172,28 @@ const RetroGame: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // CRITICAL: Prevent default touch behaviors on the container to stop scrolling/zooming on iOS
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const preventDefault = (e: TouchEvent) => {
+        // Prevent default browser actions like scrolling or double-tap zoom
+        if(e.cancelable) e.preventDefault();
+    };
+
+    // Use { passive: false } to allow calling preventDefault()
+    container.addEventListener('touchstart', preventDefault, { passive: false });
+    container.addEventListener('touchmove', preventDefault, { passive: false });
+    container.addEventListener('touchend', preventDefault, { passive: false });
+
+    return () => {
+        container.removeEventListener('touchstart', preventDefault);
+        container.removeEventListener('touchmove', preventDefault);
+        container.removeEventListener('touchend', preventDefault);
+    };
+  }, []);
+
   const startGame = (e?: React.SyntheticEvent) => {
     if(e) { e.preventDefault(); e.stopPropagation(); }
     
@@ -482,15 +504,15 @@ const RetroGame: React.FC = () => {
       }
   };
 
-  // Robust Input Handling for Mobile - Using Pointer Events
-  const handleJumpAction = (e: React.PointerEvent | React.MouseEvent) => {
-      e.preventDefault(); 
+  // Robust Input Handling for Mobile - Using both Pointer and Touch
+  const handleJumpAction = (e: any) => {
+      if (e.cancelable) e.preventDefault(); 
       e.stopPropagation();
       if (gameRef.current.isRunning) jump();
   };
 
-  const handleInvertAction = (e: React.PointerEvent | React.MouseEvent) => {
-      e.preventDefault();
+  const handleInvertAction = (e: any) => {
+      if (e.cancelable) e.preventDefault();
       e.stopPropagation();
       if (gameRef.current.isRunning) toggleGravity();
   };
@@ -514,7 +536,8 @@ const RetroGame: React.FC = () => {
   return (
     <div 
         ref={containerRef} 
-        className="fixed inset-0 z-[100] bg-slate-950 flex flex-col overflow-hidden select-none touch-none"
+        className="fixed inset-0 z-[100] bg-slate-950 flex flex-col overflow-hidden"
+        style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' }}
     >
         {/* HUD */}
         <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-start pointer-events-none z-10">
@@ -553,19 +576,23 @@ const RetroGame: React.FC = () => {
         {/* Game Canvas */}
         <canvas ref={canvasRef} className="block w-full h-full" />
 
-        {/* Touch Controls Overlay - Using PointerEvents */}
+        {/* Touch Controls Overlay - Using PointerEvents + TouchStart for max compatibility */}
         {gameState === 'PLAYING' && (
             <div className="absolute inset-x-0 bottom-0 pb-safe p-4 z-30 flex gap-4 pointer-events-none select-none">
                 <button 
                     onPointerDown={handleInvertAction}
-                    className="flex-1 h-32 bg-purple-600/10 border-2 border-purple-500/30 rounded-3xl backdrop-blur-sm flex flex-col items-center justify-center text-purple-300 pointer-events-auto active:bg-purple-600/30 active:scale-95 transition-all touch-none select-none"
+                    onTouchStart={handleInvertAction}
+                    className="flex-1 h-32 bg-purple-600/10 border-2 border-purple-500/30 rounded-3xl backdrop-blur-sm flex flex-col items-center justify-center text-purple-300 pointer-events-auto active:bg-purple-600/30 active:scale-95 transition-all select-none"
+                    style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' }}
                 >
                     <ArrowDown size={40} />
                     <span className="text-sm font-bold uppercase mt-2">Gravity</span>
                 </button>
                 <button 
                     onPointerDown={handleJumpAction}
-                    className="flex-1 h-32 bg-blue-600/10 border-2 border-blue-500/30 rounded-3xl backdrop-blur-sm flex flex-col items-center justify-center text-blue-300 pointer-events-auto active:bg-blue-600/30 active:scale-95 transition-all touch-none select-none"
+                    onTouchStart={handleJumpAction}
+                    className="flex-1 h-32 bg-blue-600/10 border-2 border-blue-500/30 rounded-3xl backdrop-blur-sm flex flex-col items-center justify-center text-blue-300 pointer-events-auto active:bg-blue-600/30 active:scale-95 transition-all select-none"
+                    style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' }}
                 >
                     <ArrowUp size={40} />
                     <span className="text-sm font-bold uppercase mt-2">Jump</span>
@@ -583,6 +610,7 @@ const RetroGame: React.FC = () => {
                     
                     <button 
                         onClick={startGame} 
+                        onTouchEnd={startGame}
                         className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-xl font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2 transition-transform active:scale-95 touch-manipulation"
                     >
                         <Play size={20} fill="currentColor" /> START RIDE
@@ -616,6 +644,7 @@ const RetroGame: React.FC = () => {
                     <div className="space-y-3">
                         <button 
                             onClick={startGame} 
+                            onTouchEnd={startGame}
                             className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-xl font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2 transition-transform active:scale-95 touch-manipulation"
                         >
                             <RotateCcw size={20} /> RIDE AGAIN
