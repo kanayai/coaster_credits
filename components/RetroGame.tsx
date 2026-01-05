@@ -29,16 +29,17 @@ const RetroGame: React.FC = () => {
   const musicTimerRef = useRef<number | null>(null);
   const melodyIndexRef = useRef(0);
   const lastChainTimeRef = useRef(0);
+  const audioUnlockedRef = useRef(false);
 
   // Game Constants
   const LANE_HEIGHT = 320; 
   const CAR_WIDTH = 44;
   const CAR_GAP = 6;
 
-  // Game Refs (Mutable state for loop)
+  // Game Refs
   const gameRef = useRef({
     isRunning: false,
-    settings: DIFFICULTY_CONFIG['MEDIUM'], // Default settings
+    settings: DIFFICULTY_CONFIG['MEDIUM'], 
     player: { 
         x: 100, 
         y: 0, 
@@ -67,8 +68,51 @@ const RetroGame: React.FC = () => {
 
   // --- AUDIO SYSTEM (Mobile Optimized) ---
   
-  // Clean up on unmount
+  // Initialize audio context lazily but robustly
+  const getAudioContext = () => {
+      if (!audioCtxRef.current) {
+          const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+          if (AudioContext) {
+              audioCtxRef.current = new AudioContext();
+          }
+      }
+      return audioCtxRef.current;
+  };
+
+  // The "Nuclear Option" for iOS Audio: Play a silent buffer inside a user event
+  const unlockAudio = () => {
+      if (audioUnlockedRef.current) return;
+      
+      const ctx = getAudioContext();
+      if (!ctx) return;
+
+      // Create a tiny empty buffer
+      const buffer = ctx.createBuffer(1, 1, 22050);
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(ctx.destination);
+      
+      // Play it immediately
+      if (source.start) source.start(0);
+      else if ((source as any).noteOn) (source as any).noteOn(0);
+
+      // Try to resume
+      if (ctx.state === 'suspended') {
+          ctx.resume().then(() => {
+              audioUnlockedRef.current = true;
+          }).catch(console.error);
+      } else {
+          audioUnlockedRef.current = true;
+      }
+  };
+
+  // Add global listeners to catch the very first interaction anywhere
   useEffect(() => {
+      const globalUnlock = () => unlockAudio();
+      document.addEventListener('touchstart', globalUnlock, { passive: true });
+      document.addEventListener('click', globalUnlock, { passive: true });
+      document.addEventListener('keydown', globalUnlock, { passive: true });
+
       return () => {
           stopMusic();
           if (gameRef.current.animationId) cancelAnimationFrame(gameRef.current.animationId);
@@ -76,28 +120,17 @@ const RetroGame: React.FC = () => {
               audioCtxRef.current.close().catch(() => {});
               audioCtxRef.current = null;
           }
+          document.removeEventListener('touchstart', globalUnlock);
+          document.removeEventListener('click', globalUnlock);
+          document.removeEventListener('keydown', globalUnlock);
       };
   }, []);
 
-  const ensureAudioContext = () => {
-      if (!audioCtxRef.current) {
-          const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-          if (AudioContext) {
-              audioCtxRef.current = new AudioContext();
-          }
-      }
-      // Force resume on every interaction to wake up the audio engine
-      const ctx = audioCtxRef.current;
-      if (ctx && ctx.state === 'suspended') {
-          ctx.resume().catch(() => {});
-      }
-      return ctx;
-  };
-
   const playTone = (freq: number, type: OscillatorType, duration: number, startTime: number, vol: number = 0.3) => {
-      const ctx = audioCtxRef.current;
+      const ctx = getAudioContext();
       if (!ctx || isMuted) return;
       
+      // Aggressive resume check
       if (ctx.state === 'suspended') {
           ctx.resume().catch(() => {});
       }
@@ -109,8 +142,9 @@ const RetroGame: React.FC = () => {
         osc.type = type;
         osc.frequency.setValueAtTime(freq, startTime);
         
+        // Attack/Decay envelope to avoid clicking
         gain.gain.setValueAtTime(0.001, startTime);
-        gain.gain.exponentialRampToValueAtTime(vol, startTime + 0.02);
+        gain.gain.exponentialRampToValueAtTime(vol, startTime + 0.01);
         gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
         
         osc.connect(gain);
@@ -119,12 +153,12 @@ const RetroGame: React.FC = () => {
         osc.start(startTime);
         osc.stop(startTime + duration + 0.05);
       } catch (e) {
-          // Ignore
+          // Ignore audio errors
       }
   };
 
   const playChainClick = () => {
-      const ctx = audioCtxRef.current;
+      const ctx = getAudioContext();
       if (!ctx || isMuted) return;
       // Mechanical "Clack"
       playTone(80, 'sawtooth', 0.05, ctx.currentTime, 0.15);
@@ -132,7 +166,7 @@ const RetroGame: React.FC = () => {
   };
 
   const scheduleMusic = () => {
-      const ctx = audioCtxRef.current;
+      const ctx = getAudioContext();
       if (!ctx || isMuted || ctx.state !== 'running') return;
 
       // Don't play music during lift hill, focus on the CLACK
@@ -171,7 +205,7 @@ const RetroGame: React.FC = () => {
   };
 
   const startMusic = () => {
-      const ctx = ensureAudioContext();
+      const ctx = getAudioContext();
       if (ctx && !musicTimerRef.current && !isMuted) {
           nextNoteTimeRef.current = ctx.currentTime + 0.05; 
           scheduleMusic();
@@ -188,7 +222,7 @@ const RetroGame: React.FC = () => {
   const toggleMute = (e: React.SyntheticEvent) => {
       e.stopPropagation();
       e.preventDefault();
-      ensureAudioContext(); 
+      unlockAudio(); 
       
       setIsMuted(prev => {
           const next = !prev;
@@ -232,7 +266,9 @@ const RetroGame: React.FC = () => {
   const startGame = (e: React.SyntheticEvent | Event) => {
     e.preventDefault();
     e.stopPropagation();
-    ensureAudioContext();
+    
+    // CRITICAL: Unlock audio on start
+    unlockAudio();
 
     if (!containerRef.current) return;
 
@@ -281,12 +317,12 @@ const RetroGame: React.FC = () => {
   };
 
   const jump = () => {
-      ensureAudioContext(); 
+      unlockAudio(); // Try unlock again just in case
       const { player, settings } = gameRef.current;
       if (player.grounded) {
           player.dy = -settings.jump * player.gravityDirection;
           player.grounded = false;
-          const ctx = audioCtxRef.current;
+          const ctx = getAudioContext();
           if (ctx && ctx.state === 'running' && !isMuted) {
               playTone(300, 'square', 0.1, ctx.currentTime, 0.2);
           }
@@ -294,22 +330,26 @@ const RetroGame: React.FC = () => {
   };
 
   const toggleGravity = () => {
-      ensureAudioContext();
+      unlockAudio(); // Try unlock again just in case
       const { player } = gameRef.current;
       player.gravityDirection *= -1;
       player.grounded = false;
       
       createExplosion(player.x + player.width/2, player.y + player.height/2, '#8b5cf6', 5);
       
-      const ctx = audioCtxRef.current;
+      const ctx = getAudioContext();
       if (ctx && ctx.state === 'running' && !isMuted) {
           playTone(150, 'sawtooth', 0.15, ctx.currentTime, 0.2);
       }
   };
 
+  // Improved Interaction Handler for Gestures
   const handleGameInteraction = (e: React.TouchEvent | React.MouseEvent) => {
       if (!gameRef.current.isRunning) return;
       e.preventDefault();
+      
+      // Always try to unlock audio on any game interaction
+      unlockAudio();
       
       let clientX;
       if ('touches' in e) {
@@ -320,6 +360,7 @@ const RetroGame: React.FC = () => {
       }
 
       const screenWidth = window.innerWidth;
+      // Split Screen Logic: Left = Gravity, Right = Jump
       if (clientX < screenWidth / 2) {
           toggleGravity();
       } else {
@@ -395,11 +436,6 @@ const RetroGame: React.FC = () => {
     const h = p.height;
     const color = p.gravityDirection === 1 ? '#facc15' : '#8b5cf6'; // Yellow or Purple
     const carW = CAR_WIDTH;
-    
-    // Calculate total train width to center items
-    // Start X relative to center:
-    // If 1 car: center is 0.
-    // If 2 cars: left center is -25, right center is +25 (approx)
     
     const totalW = p.width;
     const startX = -totalW / 2 + carW / 2;
@@ -524,7 +560,7 @@ const RetroGame: React.FC = () => {
         if (!col.collected && dist < (p.width/2 + col.size/2)) {
             col.collected = true; game.score += 10; setScore(game.score);
             createExplosion(col.x, col.y, '#facc15', 8);
-            const ctx = audioCtxRef.current;
+            const ctx = getAudioContext();
             if (ctx && ctx.state === 'running' && !isMuted) playTone(800, 'square', 0.1, ctx.currentTime, 0.15);
         }
         if (col.x < -50) game.collectibles.splice(i, 1);
@@ -613,7 +649,7 @@ const RetroGame: React.FC = () => {
       cancelAnimationFrame(gameRef.current.animationId);
       setGameState('GAMEOVER');
       stopMusic();
-      const ctx = audioCtxRef.current;
+      const ctx = getAudioContext();
       if (ctx && ctx.state === 'running' && !isMuted) playTone(100, 'sawtooth', 0.5, ctx.currentTime, 0.3);
       if (gameRef.current.score > highScore) {
           setHighScore(gameRef.current.score);
