@@ -183,11 +183,22 @@ const RetroGame: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Prevent default scroll behavior
+  // Prevent default scroll behavior but allow buttons
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    const preventDefault = (e: TouchEvent) => { if(e.cancelable) e.preventDefault(); };
+    
+    const preventDefault = (e: TouchEvent) => { 
+        // CRITICAL FIX: Allow touch events on buttons to function normally
+        // This stops the canvas from scrolling/zooming but lets clicks pass through to UI
+        const target = e.target as HTMLElement;
+        if (target.closest('button')) {
+            return;
+        }
+        
+        if(e.cancelable) e.preventDefault(); 
+    };
+
     container.addEventListener('touchstart', preventDefault, { passive: false });
     container.addEventListener('touchmove', preventDefault, { passive: false });
     container.addEventListener('touchend', preventDefault, { passive: false });
@@ -198,8 +209,11 @@ const RetroGame: React.FC = () => {
     };
   }, []);
 
-  const startGame = (e?: React.SyntheticEvent) => {
-    if(e) { e.preventDefault(); e.stopPropagation(); }
+  const startGame = (e?: React.SyntheticEvent | Event) => {
+    if(e) { 
+        e.preventDefault(); 
+        e.stopPropagation(); 
+    }
     
     // Explicitly unlock audio on user gesture
     initAudio();
@@ -625,8 +639,8 @@ const RetroGame: React.FC = () => {
                     <p className="text-sm text-slate-400 mb-6">Avoid obstacles. Collect coins. Don't crash.</p>
                     
                     <button 
-                        onClick={startGame} 
-                        className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-xl font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2 transition-transform active:scale-95 touch-manipulation"
+                        onPointerDown={startGame} 
+                        className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-xl font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2 transition-transform active:scale-95 touch-manipulation select-none"
                     >
                         <Play size={20} fill="currentColor" /> START RIDE
                     </button>
@@ -658,14 +672,14 @@ const RetroGame: React.FC = () => {
                     
                     <div className="space-y-3">
                         <button 
-                            onClick={startGame} 
-                            className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-xl font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2 transition-transform active:scale-95 touch-manipulation"
+                            onPointerDown={startGame} 
+                            className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-xl font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2 transition-transform active:scale-95 touch-manipulation select-none"
                         >
                             <RotateCcw size={20} /> RIDE AGAIN
                         </button>
                         <button 
-                            onClick={() => changeView('QUEUE_HUB')} 
-                            className="w-full bg-slate-800 text-slate-400 py-3 rounded-xl font-bold text-xs hover:text-white transition-colors touch-manipulation"
+                            onPointerDown={() => changeView('QUEUE_HUB')} 
+                            className="w-full bg-slate-800 text-slate-400 py-3 rounded-xl font-bold text-xs hover:text-white transition-colors touch-manipulation select-none"
                         >
                             EXIT TO HUB
                         </button>
