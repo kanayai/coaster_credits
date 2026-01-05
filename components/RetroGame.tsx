@@ -1,7 +1,15 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { ArrowLeft, Play, RotateCcw, Trophy, Gamepad2, PartyPopper, ArrowUp, ArrowDown, Volume2, VolumeX } from 'lucide-react';
+import { ArrowLeft, Play, RotateCcw, Trophy, Gamepad2, PartyPopper, ArrowUp, ArrowDown, Volume2, VolumeX, BarChart3 } from 'lucide-react';
+
+type Difficulty = 'BEGINNER' | 'MEDIUM' | 'ADVANCED';
+
+const DIFFICULTY_CONFIG: Record<Difficulty, { speed: number, gapMin: number, gapMax: number, gravity: number, jump: number, label: string, color: string }> = {
+  BEGINNER: { speed: 5, gapMin: 600, gapMax: 1000, gravity: 0.5, jump: 11, label: 'Easy', color: 'bg-emerald-500' },
+  MEDIUM: { speed: 7, gapMin: 400, gapMax: 800, gravity: 0.6, jump: 12, label: 'Medium', color: 'bg-yellow-500' },
+  ADVANCED: { speed: 9, gapMin: 300, gapMax: 600, gravity: 0.8, jump: 14, label: 'Hard', color: 'bg-red-500' }
+};
 
 const RetroGame: React.FC = () => {
   const { changeView, activeUser, saveHighScore } = useAppContext();
@@ -9,6 +17,7 @@ const RetroGame: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const [gameState, setGameState] = useState<'START' | 'PLAYING' | 'GAMEOVER'>('START');
+  const [difficulty, setDifficulty] = useState<Difficulty>('MEDIUM');
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(activeUser.highScore || 0);
   const [isNewRecord, setIsNewRecord] = useState(false);
@@ -21,21 +30,17 @@ const RetroGame: React.FC = () => {
   const melodyIndexRef = useRef(0);
 
   // Game Constants
-  const GRAVITY_MAGNITUDE = 0.6;
-  const JUMP_FORCE = 12;
-  const SPEED_INITIAL = 6;
-  const OBSTACLE_GAP_MIN = 400; 
-  const OBSTACLE_GAP_MAX = 800;
   const LANE_HEIGHT = 320; 
 
   // Game Refs (Mutable state for loop)
   const gameRef = useRef({
     isRunning: false,
+    settings: DIFFICULTY_CONFIG['MEDIUM'], // Default settings
     player: { 
         x: 100, 
         y: 0, 
-        width: 40, 
-        height: 20, 
+        width: 44, // Slightly wider for the train look
+        height: 24, 
         dy: 0, 
         grounded: false,
         gravityDirection: 1, 
@@ -44,7 +49,7 @@ const RetroGame: React.FC = () => {
     obstacles: [] as { x: number, width: number, height: number, type: 'FLOOR' | 'CEILING', passed: boolean }[],
     collectibles: [] as { x: number, y: number, collected: boolean, size: number }[],
     particles: [] as { x: number, y: number, vx: number, vy: number, life: number, color: string }[],
-    speed: SPEED_INITIAL,
+    speed: 0,
     frame: 0,
     score: 0,
     animationId: 0,
@@ -85,11 +90,10 @@ const RetroGame: React.FC = () => {
       }
 
       // 3. Play a silent "unlock" buffer immediately
-      // This forces the audio clock to start ticking on iOS
       try {
           const osc = ctx.createOscillator();
           const gain = ctx.createGain();
-          gain.gain.value = 0.001; // Tiny audible amount to ensure mixer engagement
+          gain.gain.value = 0.001; 
           osc.connect(gain);
           gain.connect(ctx.destination);
           osc.start(0);
@@ -103,7 +107,6 @@ const RetroGame: React.FC = () => {
       const ctx = audioCtxRef.current;
       if (!ctx || isMuted) return;
       
-      // Safety check for suspended state during gameplay
       if (ctx.state === 'suspended') {
           ctx.resume().catch(() => {});
           return; 
@@ -116,7 +119,6 @@ const RetroGame: React.FC = () => {
         osc.type = type;
         osc.frequency.setValueAtTime(freq, startTime);
         
-        // Simple linear ramp for mobile stability
         gain.gain.setValueAtTime(vol, startTime);
         gain.gain.linearRampToValueAtTime(0.01, startTime + duration);
         
@@ -134,7 +136,9 @@ const RetroGame: React.FC = () => {
       const ctx = audioCtxRef.current;
       if (!ctx || isMuted || ctx.state !== 'running') return;
 
-      const tempo = 0.15; 
+      // Tempo increases slightly with difficulty
+      const baseTempo = difficulty === 'ADVANCED' ? 0.12 : difficulty === 'MEDIUM' ? 0.15 : 0.18;
+      const tempo = baseTempo; 
       const lookahead = 0.1; 
 
       if (nextNoteTimeRef.current < ctx.currentTime) {
@@ -164,7 +168,6 @@ const RetroGame: React.FC = () => {
   const startMusic = () => {
       const ctx = audioCtxRef.current;
       if (ctx && !musicTimerRef.current && !isMuted) {
-          // Ensure we are in the future to avoid "start time in past" glitches
           nextNoteTimeRef.current = ctx.currentTime + 0.05; 
           scheduleMusic();
       }
@@ -180,7 +183,6 @@ const RetroGame: React.FC = () => {
   const toggleMute = (e: React.SyntheticEvent) => {
       e.stopPropagation();
       e.preventDefault();
-      // Ensure context is initialized/resumed when toggling mute off
       if (isMuted) initAudio();
       
       setIsMuted(prev => {
@@ -247,7 +249,6 @@ const RetroGame: React.FC = () => {
     e.preventDefault();
     e.stopPropagation();
     
-    // CRITICAL: Initialize Audio directly in the event handler
     initAudio();
 
     if (!containerRef.current) return;
@@ -259,14 +260,17 @@ const RetroGame: React.FC = () => {
 
     if (gameRef.current.animationId) cancelAnimationFrame(gameRef.current.animationId);
 
+    const settings = DIFFICULTY_CONFIG[difficulty];
+
     gameRef.current = {
         ...gameRef.current,
         isRunning: true,
+        settings, // Apply selected difficulty settings
         player: { 
             x: 80, 
             y: gameRef.current.floorY - 20, 
-            width: 40, 
-            height: 20, 
+            width: 44, // Train car width
+            height: 24, // Train car height
             dy: 0, 
             grounded: true, 
             gravityDirection: 1, 
@@ -275,7 +279,7 @@ const RetroGame: React.FC = () => {
         obstacles: [],
         collectibles: [],
         particles: [],
-        speed: SPEED_INITIAL,
+        speed: settings.speed,
         frame: 0,
         score: 0
     };
@@ -289,9 +293,9 @@ const RetroGame: React.FC = () => {
   };
 
   const jump = () => {
-      const { player } = gameRef.current;
+      const { player, settings } = gameRef.current;
       if (player.grounded) {
-          player.dy = -JUMP_FORCE * player.gravityDirection;
+          player.dy = -settings.jump * player.gravityDirection;
           player.grounded = false;
           const ctx = audioCtxRef.current;
           if (ctx && ctx.state === 'running' && !isMuted) {
@@ -325,6 +329,67 @@ const RetroGame: React.FC = () => {
       }
   };
 
+  const drawTrainCar = (ctx: CanvasRenderingContext2D, p: typeof gameRef.current.player) => {
+    ctx.save();
+    // Translate to center of player to handle rotation
+    ctx.translate(p.x + p.width/2, p.y + p.height/2);
+    ctx.rotate(p.rotation);
+    
+    const w = p.width;
+    const h = p.height;
+    const color = p.gravityDirection === 1 ? '#facc15' : '#8b5cf6'; // Yellow or Purple
+
+    // 1. Draw Wheels (Bottom, slightly inset)
+    ctx.fillStyle = '#64748b'; // Slate 500
+    // Back Wheel
+    ctx.beginPath();
+    ctx.arc(-w/2 + 8, h/2, 6, 0, Math.PI*2); 
+    ctx.fill();
+    // Front Wheel
+    ctx.beginPath();
+    ctx.arc(w/2 - 8, h/2, 6, 0, Math.PI*2); 
+    ctx.fill();
+
+    // 2. Draw Main Chassis (Rounded Rect)
+    ctx.fillStyle = color;
+    // Main body
+    ctx.beginPath();
+    ctx.roundRect(-w/2, -h/2, w, h, 6);
+    ctx.fill();
+    
+    // Front Nose (Slightly angled or just a different shade)
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.beginPath();
+    ctx.moveTo(w/2 - 10, -h/2);
+    ctx.lineTo(w/2, -h/2);
+    ctx.lineTo(w/2, h/2);
+    ctx.lineTo(w/2 - 10, h/2);
+    ctx.fill();
+
+    // 3. Draw Seat Backs (Top)
+    ctx.fillStyle = '#1e293b'; // Dark Slate
+    ctx.fillRect(-w/2 + 4, -h/2 - 6, 8, 6); // Back seat
+    ctx.fillRect(-w/2 + 18, -h/2 - 6, 8, 6); // Front seat
+
+    // 4. "RMC" Text
+    ctx.fillStyle = '#0f172a'; // Dark Slate text
+    ctx.font = '900 10px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('RMC', 0, 1);
+
+    // 5. Shine Effect
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.beginPath();
+    ctx.moveTo(-w/2 + 2, -h/2 + 2);
+    ctx.lineTo(w/2 - 10, -h/2 + 2);
+    ctx.lineTo(w/2 - 15, -h/2 + 8);
+    ctx.lineTo(-w/2 + 2, -h/2 + 8);
+    ctx.fill();
+
+    ctx.restore();
+  };
+
   const loop = () => {
     if (!gameRef.current.isRunning) return;
     
@@ -337,6 +402,7 @@ const RetroGame: React.FC = () => {
     }
 
     const game = gameRef.current;
+    const { settings } = game;
     const width = container.clientWidth;
     const height = container.clientHeight;
     const { floorY: FLOOR_Y, ceilingY: CEILING_Y } = game;
@@ -345,7 +411,7 @@ const RetroGame: React.FC = () => {
     game.frame++;
 
     const p = game.player;
-    p.dy += GRAVITY_MAGNITUDE * p.gravityDirection;
+    p.dy += settings.gravity * p.gravityDirection;
     p.y += p.dy;
 
     if (p.gravityDirection === 1) {
@@ -361,7 +427,8 @@ const RetroGame: React.FC = () => {
     const lastObsX = game.obstacles.length > 0 ? game.obstacles[game.obstacles.length - 1].x : -9999;
     const lastColX = game.collectibles.length > 0 ? game.collectibles[game.collectibles.length - 1].x : -9999;
     
-    if (width - Math.max(lastObsX, lastColX) > Math.random() * (OBSTACLE_GAP_MAX - OBSTACLE_GAP_MIN) + OBSTACLE_GAP_MIN) {
+    // Spawn Logic using Difficulty Settings
+    if (width - Math.max(lastObsX, lastColX) > Math.random() * (settings.gapMax - settings.gapMin) + settings.gapMin) {
         const spawnX = width + 50;
         if (Math.random() > 0.7) {
             game.collectibles.push({ x: spawnX, y: (FLOOR_Y + CEILING_Y) / 2, collected: false, size: 25 });
@@ -432,13 +499,8 @@ const RetroGame: React.FC = () => {
         ctx.arc(part.x, part.y, 3, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1.0;
     }
 
-    ctx.save();
-    ctx.translate(p.x + p.width/2, p.y + p.height/2);
-    ctx.rotate(p.rotation);
-    ctx.fillStyle = p.gravityDirection === 1 ? '#0ea5e9' : '#8b5cf6';
-    ctx.shadowBlur = 15; ctx.shadowColor = ctx.fillStyle;
-    ctx.fillRect(-p.width/2, -p.height/2, p.width, p.height);
-    ctx.restore();
+    // DRAW THE PLAYER TRAIN
+    drawTrainCar(ctx, p);
 
     gameRef.current.animationId = requestAnimationFrame(loop);
   };
@@ -510,8 +572,26 @@ const RetroGame: React.FC = () => {
             <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm p-6">
                 <div className="bg-slate-900 p-8 rounded-3xl border border-slate-700 shadow-2xl text-center max-w-sm w-full">
                     <Gamepad2 size={48} className="text-primary mx-auto mb-4" />
-                    <h2 className="text-3xl font-black text-white italic tracking-tighter mb-2">COASTER DASH</h2>
-                    <p className="text-sm text-slate-400 mb-6">Avoid obstacles. Collect coins. Don't crash.</p>
+                    <h2 className="text-3xl font-black text-white italic tracking-tighter mb-1">COASTER DASH</h2>
+                    <p className="text-sm text-slate-400 mb-6">Select your difficulty</p>
+                    
+                    <div className="flex gap-2 mb-6 w-full">
+                        {(Object.keys(DIFFICULTY_CONFIG) as Difficulty[]).map((level) => (
+                            <button
+                                key={level}
+                                onClick={(e) => { e.stopPropagation(); setDifficulty(level); }}
+                                className={`flex-1 py-3 rounded-xl text-[10px] font-bold uppercase transition-all border ${
+                                    difficulty === level 
+                                    ? DIFFICULTY_CONFIG[level].color + ' text-white border-transparent shadow-lg scale-105' 
+                                    : 'bg-slate-800 text-slate-500 border-slate-700 hover:bg-slate-700'
+                                }`}
+                            >
+                                <div className="mb-1"><BarChart3 size={16} className="mx-auto" /></div>
+                                {DIFFICULTY_CONFIG[level].label}
+                            </button>
+                        ))}
+                    </div>
+
                     <button 
                         onClick={startGame}
                         onTouchEnd={startGame} 
@@ -531,6 +611,9 @@ const RetroGame: React.FC = () => {
                     <div className="py-4">
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Final Score</span>
                         <div className="text-5xl font-black text-white font-mono">{score}</div>
+                        <div className="mt-2 inline-block px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-400">
+                             Difficulty: <span className="text-white">{DIFFICULTY_CONFIG[difficulty].label}</span>
+                        </div>
                     </div>
                     <div className="space-y-3">
                         <button 

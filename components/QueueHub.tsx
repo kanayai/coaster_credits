@@ -164,38 +164,129 @@ const MemoryGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
 
 // --- TRIVIA GAME ---
 const TriviaGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
-    // Massive Question Database
+    // Massive Question Database - Now over 100 questions!
     const ALL_QUESTIONS = [
+        // --- HISTORY & RECORDS ---
         { q: "Which park is known as the 'Roller Coaster Capital of the World'?", a: ["Cedar Point", "Six Flags Magic Mountain", "Energylandia", "Europa Park"], correct: 0 },
         { q: "What was the first tubular steel roller coaster?", a: ["Matterhorn Bobsleds", "Magnum XL-200", "Corkscrew", "Revolution"], correct: 0 },
+        { q: "What is the fastest roller coaster in the world (as of 2024)?", a: ["Formula Rossa", "Kingda Ka", "Red Force", "Top Thrill 2"], correct: 0 },
+        { q: "Which coaster has the most inversions in the world (14)?", a: ["The Smiler", "Altair", "Colossus", "Sik"], correct: 0 },
+        { q: "Which park has the most roller coasters in the world?", a: ["Six Flags Magic Mountain", "Cedar Point", "Energylandia", "Canada's Wonderland"], correct: 0 },
+        { q: "What year did Cedar Point open?", a: ["1870", "1905", "1950", "1920"], correct: 0 },
+        { q: "What is the steepest coaster drop (approx)?", a: ["121.5 degrees (TMNT Shellraiser)", "100 degrees", "90 degrees", "110 degrees"], correct: 0 },
+        { q: "Millennium Force (Cedar Point) was the first ever...?", a: ["Giga Coaster", "Hyper Coaster", "Strata Coaster", "Terra Coaster"], correct: 0 },
+        { q: "The Beast at Kings Island is famous for being the longest...", a: ["Wooden Coaster", "Steel Coaster", "Inverted Coaster", "Flying Coaster"], correct: 0 },
+        { q: "Which coaster was the first to break the 100mph barrier?", a: ["Tower of Terror II", "Superman: The Escape", "Millennium Force", "Steel Phantom"], correct: 0 },
+        { q: "What was the first roller coaster to go upside down (modern era)?", a: ["Corkscrew (Knott's)", "Revolution (SFMM)", "The Bat", "Matterhorn"], correct: 0 },
+        { q: "Magnum XL-200 is credited with starting which era?", a: ["The Coaster Wars", "The Golden Age", "The Loop Era", "The RMC Era"], correct: 0 },
+        { q: "Which coaster held the height record before Top Thrill Dragster?", a: ["Steel Dragon 2000", "Millennium Force", "Superman: The Escape", "Fujiyama"], correct: 0 },
+        { q: "Where is the oldest operating roller coaster, Leap-The-Dips, located?", a: ["Lakemont Park", "Kennywood", "Dorney Park", "Knoebels"], correct: 0 },
+        { q: "Which coaster features a record-breaking 7 inversions for a wooden coaster?", a: ["Outlaw Run", "Wildfire", "Steel Vengeance", "Goliath"], correct: 0 },
+
+        // --- MANUFACTURERS & TECH ---
         { q: "What does 'RMC' stand for?", a: ["Rocky Mountain Construction", "Ride Maintenance Corp", "Real Metal Coasters", "Rapid Motion Coasters"], correct: 0 },
-        { q: "Kingda Ka is located in which state?", a: ["New Jersey", "Ohio", "California", "Florida"], correct: 0 },
-        { q: "What does 'LSM' stand for?", a: ["Linear Synchronous Motor", "Linear Standard Motor", "Launch Speed Mechanism", "Lift System Magnetic"], correct: 0 },
         { q: "Which manufacturer is known for B&M?", a: ["Bolliger & Mabillard", "Barnes & Miller", "Big & Massive", "Black & Mack"], correct: 0 },
         { q: "What is the name of the track used by RMC to convert wooden coasters?", a: ["I-Box Track", "Topper Track", "T-Rex Track", "Box Track"], correct: 0 },
-        { q: "Which coaster has the most inversions in the world (14)?", a: ["The Smiler", "Altair", "Colossus", "Sik"], correct: 0 },
-        { q: "What is a 'Hypercoaster'?", a: ["A coaster between 200-299ft", "A coaster over 300ft", "A coaster with a launch", "A coaster with 5+ inversions"], correct: 0 },
-        { q: "Which park has the most roller coasters in the world?", a: ["Six Flags Magic Mountain", "Cedar Point", "Energylandia", "Canada's Wonderland"], correct: 0 },
-        { q: "Who designed 'The Beast' at Kings Island?", a: ["Al Collins & Jeff Gramke", "Ron Toomer", "Werner Stengel", "Alan Schilke"], correct: 0 },
-        { q: "What is a 'Block Zone'?", a: ["A section of track where only 1 train can be", "The waiting area for the ride", "The brake run at the end", "A restricted area for staff"], correct: 0 },
-        { q: "Millennium Force (Cedar Point) was the first ever...?", a: ["Giga Coaster", "Hyper Coaster", "Strata Coaster", "Terra Coaster"], correct: 0 },
-        { q: "Which ride type is an 'SLC'?", a: ["Suspended Looping Coaster", "Super Launch Coaster", "Steel Loop Coaster", "Standard Launch Coaster"], correct: 0 },
-        { q: "What is the fastest roller coaster in the world?", a: ["Formula Rossa", "Kingda Ka", "Red Force", "Top Thrill 2"], correct: 0 },
-        { q: "Which coaster features a 'Top Hat' element?", a: ["VelociCoaster", "Fury 325", "Iron Gwazi", "Maverick"], correct: 0 },
-        { q: "What year did Cedar Point open?", a: ["1870", "1905", "1950", "1920"], correct: 0 },
-        { q: "Which country is Phantasialand located in?", a: ["Germany", "Netherlands", "France", "Belgium"], correct: 0 },
-        { q: "What distinguishes a 'Floorless' coaster?", a: ["Trains ride above track with no floor", "Trains hang below the track", "Riders stand up", "There are no restraints"], correct: 0 },
-        { q: "What is 'Airtime'?", a: ["Negative G-force feeling weightless", "Positive G-force pushing you down", "Lateral G-force pushing side to side", "Time spent in the queue"], correct: 0 },
-        { q: "Steel Vengeance was formerly known as...?", a: ["Mean Streak", "Disaster Transport", "Mantis", "Wicked Twister"], correct: 0 },
-        { q: "Which manufacturer created the '4D' coaster (X2)?", a: ["Arrow Dynamics", "B&M", "Intamin", "Vekoma"], correct: 0 },
-        { q: "What is a 'Pre-Drop'?", a: ["A small dip before the main drop", "The brake run before the station", "The queue line area", "A safety check"], correct: 0 },
-        { q: "Where is 'Expedition GeForce' located?", a: ["Holiday Park", "Europa Park", "Heide Park", "Hansa Park"], correct: 0 },
-        { q: "What is the term for a coaster that doesn't complete a full circuit?", a: ["Shuttle Coaster", "Powered Coaster", "Spinning Coaster", "Wild Mouse"], correct: 0 },
-        { q: "Which coaster is known for its 'Banana Roll'?", a: ["Steel Curtain", "Hydra The Revenge", "Skyrush", "Mystic Timbers"], correct: 0 },
-        { q: "Which park opened 'Galaxy's Edge'?", a: ["Disneyland / Disney World", "Universal Studios", "Six Flags", "SeaWorld"], correct: 0 },
-        { q: "What is the steepest coaster drop (approx)?", a: ["121.5 degrees (TMNT Shellraiser)", "100 degrees", "90 degrees", "110 degrees"], correct: 0 },
         { q: "Intamin is a manufacturer based in which country?", a: ["Switzerland", "Germany", "USA", "Italy"], correct: 0 },
-        { q: "What does 'LSM' use to launch trains?", a: ["Magnets", "Hydraulics", "Flywheels", "Compressed Air"], correct: 0 },
+        { q: "Which manufacturer created the '4D' coaster (X2)?", a: ["Arrow Dynamics", "B&M", "Intamin", "Vekoma"], correct: 0 },
+        { q: "What does 'LSM' stand for?", a: ["Linear Synchronous Motor", "Linear Standard Motor", "Launch Speed Mechanism", "Lift System Magnetic"], correct: 0 },
+        { q: "Who designed 'The Beast' at Kings Island?", a: ["Al Collins & Jeff Gramke", "Ron Toomer", "Werner Stengel", "Alan Schilke"], correct: 0 },
+        { q: "What does 'LIM' stand for?", a: ["Linear Induction Motor", "Linear Impulse Motor", "Launch Induction Mechanism", "Lift Induction Magnet"], correct: 0 },
+        { q: "Which manufacturer is famous for the 'SLC' model?", a: ["Vekoma", "Arrow", "B&M", "Intamin"], correct: 0 },
+        { q: "Who invented the tubular steel track?", a: ["Arrow Dynamics", "Schwarzkopf", "B&M", "Intamin"], correct: 0 },
+        { q: "Which company manufactures the 'Raptor' single-rail track?", a: ["RMC", "Intamin", "Mack Rides", "S&S"], correct: 0 },
+        { q: "Gerstlauer is famous for which coaster model?", a: ["Eurofighter", "Hypercoaster", "Dive Coaster", "4D Coaster"], correct: 0 },
+        { q: "Which manufacturer built 'Steel Dragon 2000'?", a: ["Morgan", "Arrow", "B&M", "Intamin"], correct: 0 },
+        { q: "Great Coasters International (GCI) is known for building what type of coasters?", a: ["Wooden", "Steel", "Hybrid", "Inverted"], correct: 0 },
+        { q: "Who is considered the father of the modern vertical loop?", a: ["Anton Schwarzkopf", "Ron Toomer", "John Miller", "Walter Bolliger"], correct: 0 },
+        { q: "Which company bought Arrow Dynamics?", a: ["S&S", "Vekoma", "Intamin", "Mack Rides"], correct: 0 },
+
+        // --- ELEMENTS & TERMINOLOGY ---
+        { q: "What is a 'Block Zone'?", a: ["A section of track where only 1 train can be", "The waiting area for the ride", "The brake run at the end", "A restricted area for staff"], correct: 0 },
+        { q: "What is 'Airtime'?", a: ["Negative G-force feeling weightless", "Positive G-force pushing you down", "Lateral G-force pushing side to side", "Time spent in the queue"], correct: 0 },
+        { q: "What distinguishes a 'Floorless' coaster?", a: ["Trains ride above track with no floor", "Trains hang below the track", "Riders stand up", "There are no restraints"], correct: 0 },
+        { q: "What is a 'Pre-Drop'?", a: ["A small dip before the main drop", "The brake run before the station", "The queue line area", "A safety check"], correct: 0 },
+        { q: "What is a 'Zero-G Roll'?", a: ["An inversion providing weightlessness", "A loop that pulls high Gs", "A flat turn", "A launch section"], correct: 0 },
+        { q: "What is a 'Cobra Roll'?", a: ["A double inversion element", "A snake themed train", "A type of barrel roll", "A vertical loop"], correct: 0 },
+        { q: "What does 'MCBR' stand for?", a: ["Mid-Course Brake Run", "Main Computer Brake Release", "Maximum Coaster Brake Rate", "Manual Coaster Brake Release"], correct: 0 },
+        { q: "What is a 'Dive Coaster' known for?", a: ["A vertical hold before the drop", "Going underwater", "Being very short", "Having stand-up trains"], correct: 0 },
+        { q: "What is the 'Unlock' sound on a B&M coaster?", a: ["The floor dropping/pins releasing", "The brakes opening", "The restraints locking", "The launch motor charging"], correct: 0 },
+        { q: "What is a 'Chain Lift'?", a: ["Mechanism to pull train up hill", "Safety restraint type", "The track connector", "A type of inversion"], correct: 0 },
+        { q: "What is an 'Inverted' coaster?", a: ["Train hangs below the track", "You ride backwards", "The track is upside down", "You lay flat"], correct: 0 },
+        { q: "What is a 'Flying' coaster?", a: ["You lay flat facing the ground", "You hang below the track seated", "You stand up", "The track is invisible"], correct: 0 },
+        { q: "What is a 'Wing' coaster?", a: ["Seats are on either side of track", "It has wings on the train", "It flies through the air", "It only turns left"], correct: 0 },
+        { q: "What is a 'Hypercoaster'?", a: ["A coaster between 200-299ft", "A coaster over 300ft", "A coaster with a launch", "A coaster with 5+ inversions"], correct: 0 },
+        { q: "What is a 'Giga Coaster'?", a: ["A coaster between 300-399ft", "A coaster over 400ft", "A coaster over 200ft", "A coaster with 10 inversions"], correct: 0 },
+        { q: "What is a 'Strata Coaster'?", a: ["A coaster over 400ft", "A coaster over 500ft", "A coaster over 300ft", "A wooden coaster"], correct: 0 },
+        { q: "What is a 'Mobius Loop' coaster?", a: ["One track, two stations (racing)", "An infinite loop", "A coaster that never stops", "A shuttle coaster"], correct: 0 },
+        { q: "What is 'Ejector Airtime'?", a: ["Strong negative Gs (-1g or less)", "Floating sensation (0g)", "Positive Gs", "Lateral forces"], correct: 0 },
+        { q: "What is 'Floater Airtime'?", a: ["Weightlessness (~0g)", "Strong negative forces", "Being pushed into seat", "Side-to-side forces"], correct: 0 },
+
+        // --- SPECIFIC RIDES & PARKS ---
+        { q: "Kingda Ka is located in which state?", a: ["New Jersey", "Ohio", "California", "Florida"], correct: 0 },
+        { q: "Where is 'Expedition GeForce' located?", a: ["Holiday Park", "Europa Park", "Heide Park", "Hansa Park"], correct: 0 },
+        { q: "Which coaster features a 'Top Hat' element?", a: ["VelociCoaster", "Fury 325", "Iron Gwazi", "Maverick"], correct: 0 },
+        { q: "Which park opened 'Galaxy's Edge'?", a: ["Disneyland / Disney World", "Universal Studios", "Six Flags", "SeaWorld"], correct: 0 },
+        { q: "Steel Vengeance was formerly known as...?", a: ["Mean Streak", "Disaster Transport", "Mantis", "Wicked Twister"], correct: 0 },
+        { q: "Which coaster is known for its 'Banana Roll'?", a: ["Steel Curtain", "Hydra The Revenge", "Skyrush", "Mystic Timbers"], correct: 0 },
+        { q: "Which country is Phantasialand located in?", a: ["Germany", "Netherlands", "France", "Belgium"], correct: 0 },
+        { q: "What is the name of the dragon coaster at Islands of Adventure?", a: ["Hagrid's Magical Creatures", "Dragon Challenge", "Iron Dragon", "Dueling Dragons"], correct: 0 },
+        { q: "The Voyage is located at which park?", a: ["Holiday World", "Dollywood", "Silver Dollar City", "Kentucky Kingdom"], correct: 0 },
+        { q: "Which park is home to 'Fury 325'?", a: ["Carowinds", "Kings Island", "Cedar Point", "Canada's Wonderland"], correct: 0 },
+        { q: "Where can you ride 'Taron'?", a: ["Phantasialand", "Europa Park", "Efteling", "PortAventura"], correct: 0 },
+        { q: "Which coaster has a 'Mosasaurus Roll'?", a: ["VelociCoaster", "Iron Gwazi", "Pantheon", "Maverick"], correct: 0 },
+        { q: "El Toro is famous for being a...", a: ["Prefabricated Wooden Coaster", "Hybrid Coaster", "Steel Coaster", "Launched Woodie"], correct: 0 },
+        { q: "Which park is home to 'Formula Rossa'?", a: ["Ferrari World Abu Dhabi", "Ferrari Land Spain", "Dubai Parks", "Motiongate"], correct: 0 },
+        { q: "What theme park resort is 'Efteling' in?", a: ["Netherlands", "Germany", "Belgium", "Denmark"], correct: 0 },
+        { q: "Which Six Flags park has the 'Golden Kingdom' area?", a: ["Great Adventure", "Magic Mountain", "Great America", "Over Texas"], correct: 0 },
+        { q: "Where is 'Do-Dodonpa' located?", a: ["Fuji-Q Highland", "Tokyo Dome City", "Nagashima Spa Land", "Universal Japan"], correct: 0 },
+        { q: "What park features 'Leviathan'?", a: ["Canada's Wonderland", "SeaWorld Orlando", "Six Flags Darien Lake", "Marineland"], correct: 0 },
+        { q: "Which coaster replaced 'Son of Beast'?", a: ["Banshee", "Mystic Timbers", "Orion", "Diamondback"], correct: 0 },
+        { q: "Where is 'Nemesis' located?", a: ["Alton Towers", "Thorpe Park", "Blackpool Pleasure Beach", "Drayton Manor"], correct: 0 },
+        { q: "What type of coaster is 'Time Traveler' at Silver Dollar City?", a: ["Spinning Coaster", "Flying Coaster", "Dive Coaster", "Inverted Coaster"], correct: 0 },
+        { q: "Which Disney park has 'Tron Lightcycle Power Run' (Original)?", a: ["Shanghai Disneyland", "Magic Kingdom", "Disneyland", "Tokyo Disneyland"], correct: 0 },
+        { q: "Which coaster is known as the 'Golden Horse' clone often?", a: ["SLC", "Boomerang", "Big Apple", "Wild Mouse"], correct: 0 },
+        { q: "Where is 'Shambhala' located?", a: ["PortAventura", "Parque Warner", "Terra Mitica", "Tibidabo"], correct: 0 },
+        { q: "Which UK park has 'The Big One'?", a: ["Blackpool Pleasure Beach", "Alton Towers", "Thorpe Park", "Fantasy Island"], correct: 0 },
+        { q: "What is the name of the RMC at Busch Gardens Tampa?", a: ["Iron Gwazi", "Steel Vengeance", "Twisted Timbers", "Wicked Cyclone"], correct: 0 },
+        { q: "Which coaster has a 'Stall' element that holds you upside down?", a: ["Goliath (SFGam)", "Raging Bull", "Batman", "Viper"], correct: 0 },
+        { q: "Where is 'Kärnan' located?", a: ["Hansa Park", "Heide Park", "Phantasialand", "Movie Park Germany"], correct: 0 },
+        { q: "What coaster was the first to use a vertical lift hill?", a: ["Fahrenheit", "Euro-Mir", "Rip Ride Rockit", "Smiler"], correct: 0 },
+        { q: "Which park has a coaster named 'Cannibal'?", a: ["Lagoon", "Lake Compounce", "Knoebels", "Waldameer"], correct: 0 },
+        
+        // --- OBSCURE & FUN ---
+        { q: "Which coaster appears in the movie 'Final Destination 3'?", a: ["Corkscrew (Playland)", "Viper (SFMM)", "Colossus (SFMM)", "Revolution"], correct: 0 },
+        { q: "What is a 'Credit'?", a: ["A ridden coaster count", "Money for the park", "A pass to skip lines", "A type of ticket"], correct: 0 },
+        { q: "What does 'GP' stand for in enthusiast slang?", a: ["General Public", "Great Park", "Good Point", "Grand Prix"], correct: 0 },
+        { q: "What is 'Stapling'?", a: ["Pushing restraints down too tight", "Connecting track pieces", "Scanning a ticket", "Staying in your seat for another ride"], correct: 0 },
+        { q: "What is a 'Zen Ride'?", a: ["Riding a train alone", "Riding with eyes closed", "Riding in the back row", "Riding at night"], correct: 0 },
+        { q: "What is 'Marathoning'?", a: ["Riding a coaster repeatedly", "Running to the queue", "Staying at the park all day", "Walking the track"], correct: 0 },
+        { q: "Which coaster has a 'Holding Brake' on the vertical drop?", a: ["Griffon/SheiKra", "Valravn", "Oblivion", "Yukon Striker"], correct: 0 },
+        { q: "What is the 'Point of No Return'?", a: ["Cresting the lift hill", "Entering the queue", "Leaving the station", "The final brake run"], correct: 0 },
+        { q: "Which coaster is themed to a country music star?", a: ["Mystery Mine (Dolly)", "FireChaser Express", "Lightning Rod", "Tennessee Tornado"], correct: 0 }, // Trick question context but implies Dollywood association
+        { q: "What color is the track of 'Nitro' at SFGAdv?", a: ["Yellow/Pink", "Blue/Orange", "Red/White", "Green/Black"], correct: 0 },
+        { q: "What is a 'Boomerang' coaster?", a: ["Goes forward then backward", "A spinning coaster", "A wooden coaster", "A continuously looping coaster"], correct: 0 },
+        { q: "Who built 'Big Thunder Mountain'?", a: ["Vekoma/Arrow", "Intamin", "B&M", "Mack"], correct: 0 },
+        { q: "Which coaster is nicknamed 'Intimidator'?", a: ["Intimidator 305", "Fury 325", "Leviathan", "Millennium Force"], correct: 0 },
+        { q: "What is the 'Butter' smoothness scale?", a: ["Smooth as butter", "Rough as gravel", "Shaky", "Painful"], correct: 0 },
+        { q: "What is a 'Dark Ride'?", a: ["Indoor ride with scenes", "Night time ride", "Ride with lights off", "Scary ride"], correct: 0 },
+        { q: "Which park has a coaster jumping over the entrance?", a: ["Cedar Point (GateKeeper)", "Six Flags Magic Mountain", "Kings Island", "Dollywood"], correct: 0 },
+        { q: "What is 'ERT'?", a: ["Exclusive Ride Time", "Early Ride Ticket", "Emergency Ride Termination", "Extra Ride Time"], correct: 0 },
+        { q: "What is 'Rope Drop'?", a: ["Park opening time", "A ride element", "Restraint release", "Closing time"], correct: 0 },
+        { q: "Which coaster is famous for the 'Quad Down'?", a: ["Lightning Rod", "Steel Vengeance", "Twisted Timbers", "Storm Chaser"], correct: 0 },
+        { q: "What is a 'Terrain Coaster'?", a: ["Uses the ground's topography", "Built on flat concrete", "Goes underground only", "Made of dirt"], correct: 0 },
+        { q: "Which park is built in a quarry?", a: ["Six Flags Fiesta Texas", "Six Flags Over Texas", "Dollywood", "Silver Dollar City"], correct: 0 },
+        { q: "What is the 'ACE'?", a: ["American Coaster Enthusiasts", "Association of Coaster Engineers", "All Coaster Events", "American Coaster Establishment"], correct: 0 },
+        { q: "Which coaster has a 'Jojo Roll' right out of the station?", a: ["Hydra The Revenge", "Copperhead Strike", "Time Traveler", "Ride to Happiness"], correct: 0 },
+        { q: "What represents '1 G'?", a: ["Normal gravity", "Weightlessness", "Double weight", "Freefall"], correct: 0 },
+        { q: "Which coaster has trains shaped like a motorbike?", a: ["Hagrid's / TRON", "VelociCoaster", "Taron", "Blue Fire"], correct: 0 },
+        { q: "What does 'POV' stand for?", a: ["Point of View", "Point of Velocity", "Park of Value", "Position of Vehicle"], correct: 0 },
+        { q: "Which country has the most roller coasters?", a: ["China", "USA", "Japan", "Germany"], correct: 0 },
+        { q: "What is the 'B&M Roar'?", a: ["Sound of the wheels on track", "The screams of riders", "The chain lift motor", "The brakes"], correct: 0 },
+        { q: "Which coaster is themed to the band Aerosmith?", a: ["Rock 'n' Roller Coaster", "Hollywood Rip Ride Rockit", "Led Zeppelin: The Ride", "Hard Rock Park"], correct: 0 },
+        { q: "What is a 'Rollback'?", a: ["Train fails to crest hill and falls back", "Train completes circuit twice", "Price reduction", "Restraints opening"], correct: 0 },
+        { q: "Which park has a coaster named 'Batman: The Ride'?", a: ["Multiple Six Flags Parks", "Cedar Fair Parks", "Disney Parks", "Universal Parks"], correct: 0 },
+        { q: "What is 'Theme Park Review'?", a: ["A famous enthusiast site/group", "A magazine", "A government agency", "A ride manufacturer"], correct: 0 },
     ];
 
     // State to hold the randomized subset of questions
@@ -352,8 +443,8 @@ const JokeGenerator: React.FC<{ onExit: () => void }> = ({ onExit }) => {
                     model: 'gemini-3-flash-preview',
                     contents: prompt,
                 });
-                if (response.response.text()) {
-                    setJoke(response.response.text());
+                if (response.text) {
+                    setJoke(response.text);
                 }
             } else {
                 setJoke("API Key missing. Why was the computer cold? It left its Windows open.");
@@ -471,7 +562,7 @@ const QueueHub: React.FC = () => {
           />
           <MenuItem 
              title="Queue Trivia" 
-             desc="Test your knowledge (30+ Questions)." 
+             desc="Test your knowledge (100+ Questions)." 
              icon={HelpCircle} 
              color="from-emerald-500 to-teal-600"
              onClick={() => setActiveActivity('TRIVIA')}
