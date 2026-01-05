@@ -16,6 +16,63 @@ const triggerHaptic = (type: 'success' | 'error' | 'light' = 'light') => {
     }
 };
 
+// --- VISUALS ---
+const CoasterCrashVisual: React.FC<{ wrongs: number; maxWrongs: number; isLoser: boolean }> = ({ wrongs, maxWrongs, isLoser }) => {
+    // Calculate position (0 to 100%)
+    // We want the train to be at the edge (say 80%) when wrongs == maxWrongs - 1
+    // When wrongs == maxWrongs, it goes over the edge
+    
+    const safePercentage = Math.min((wrongs / maxWrongs) * 85, 85);
+    
+    return (
+        <div className="w-full h-24 relative mb-6 overflow-hidden bg-slate-900/50 rounded-xl border border-slate-700/50">
+            {/* The Track */}
+            <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
+                {/* Support Columns */}
+                <line x1="10%" y1="100%" x2="10%" y2="60%" stroke="#475569" strokeWidth="4" />
+                <line x1="30%" y1="100%" x2="30%" y2="50%" stroke="#475569" strokeWidth="4" />
+                <line x1="50%" y1="100%" x2="50%" y2="40%" stroke="#475569" strokeWidth="4" />
+                <line x1="70%" y1="100%" x2="70%" y2="30%" stroke="#475569" strokeWidth="4" />
+                <line x1="85%" y1="100%" x2="85%" y2="30%" stroke="#475569" strokeWidth="4" />
+
+                {/* Rails */}
+                <path d="M0,70 Q40,60 90,30" stroke="#0ea5e9" strokeWidth="4" fill="none" />
+                {/* Broken End */}
+                <path d="M90,30 L95,25" stroke="#0ea5e9" strokeWidth="4" strokeDasharray="4 4" fill="none" />
+            </svg>
+
+            {/* The Train Cart */}
+            <div 
+                className={clsx(
+                    "absolute transition-all duration-500 ease-out",
+                    isLoser ? "animate-coaster-crash" : ""
+                )}
+                style={{
+                    left: `${isLoser ? 90 : 5 + safePercentage}%`,
+                    top: `${isLoser ? 30 : 65 - (safePercentage * 0.4)}%`, // Approximate slope calculation
+                    transform: isLoser ? 'rotate(90deg)' : `rotate(${-25}deg)`
+                }}
+            >
+                <div className="text-2xl filter drop-shadow-lg">🎢</div>
+            </div>
+
+            {/* Cliff / Danger Zone */}
+            <div className="absolute right-0 top-0 bottom-0 w-[10%] bg-gradient-to-l from-red-500/20 to-transparent border-l border-red-500/30" />
+            
+            <style>{`
+                @keyframes coaster-crash {
+                    0% { left: 85%; top: 30%; transform: rotate(-25deg); }
+                    30% { left: 95%; top: 40%; transform: rotate(45deg); }
+                    100% { left: 100%; top: 150%; transform: rotate(180deg); opacity: 0; }
+                }
+                .animate-coaster-crash {
+                    animation: coaster-crash 1.5s forwards cubic-bezier(0.5, 0, 0.75, 0);
+                }
+            `}</style>
+        </div>
+    );
+};
+
 // --- MEMORY GAME ---
 const MemoryGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
     // 12 Pairs of Brands/Manufacturers + 1 Golden Ticket
@@ -183,7 +240,60 @@ const WordGuessGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
         "COBRA ROLL", "GIGA COASTER", "LAUNCH TRACK", "DROP TOWER", "WOODEN COASTER", 
         "STEEL VENGEANCE", "IRON GWAZI", "MILLENNIUM FORCE", "KINGDA KA", "TOP THRILL",
         "MAGIC MOUNTAIN", "CEDAR POINT", "DOLLYWOOD", "BUSCH GARDENS", "ALTITUDE",
-        "GRAVITY", "VELOCITY", "RESTRAINT", "LAP BAR", "SHOULDER HARNESS"
+        "GRAVITY", "VELOCITY", "RESTRAINT", "LAP BAR", "SHOULDER HARNESS",
+        "MACK RIDES", "GERSTLAUER", "ZAMPERLA", "PREMIER RIDES", "GRAVITY GROUP", 
+        "BOLLIGER AND MABILLARD", "ARROW DYNAMICS", "SCHWARZKOPF", "MAURER", "ZIERER", 
+        "BATWING", "SEA SERPENT", "BOWTIE", "PRETZEL LOOP", "IMMELMANN", "DIVE LOOP", 
+        "ZERO G STALL", "TOP HAT", "CORKSCREW", "VERTICAL LOOP", "INCLINED LOOP", "HELIX", 
+        "OVERBANKED TURN", "RAVEN TURN", "NORWEGIAN LOOP", "SIDEWINDER", "HAMMERHEAD", 
+        "HORSESHOE", "CUTBACK", "HEARTLINE ROLL", "BARREL ROLL", "INLINE TWIST", 
+        "JOJO ROLL", "BANANA ROLL", "MOSASAURUS ROLL", "STRATA COASTER", "DIVE COASTER", 
+        "WING COASTER", "FLYING COASTER", "INVERTED COASTER", "FLOORLESS COASTER", 
+        "STAND UP COASTER", "SUSPENDED COASTER", "PIPELINE COASTER", "BOBSLED COASTER", 
+        "MINE TRAIN", "WILD MOUSE", "SPINNING COASTER", "FOURTH DIMENSION", "EUROFIGHTER", 
+        "INFINITY COASTER", "RAPTOR TRACK", "IBOX TRACK", "TOPPER TRACK", "HYBRID COASTER", 
+        "STEEPLECHASE", "SINGLE RAIL", "POWERED COASTER", "SHUTTLE COASTER", "BOOMERANG", 
+        "CABLE LIFT", "LSM LAUNCH", "HYDRAULIC LAUNCH", "TIRE DRIVE", "FRICTION WHEELS", 
+        "BRAKE RUN", "TRIM BRAKE", "TRANSFER TRACK", "MAINTENANCE SHED", "CATWALK", 
+        "ANTI ROLLBACK", "UPSTOP WHEELS", "GUIDE WHEELS", "RUNNING WHEELS", "BOGIE", 
+        "CHASSIS", "VEST RESTRAINT", "SEATBELT", "QUEUE LINE", "FAST PASS", "SINGLE RIDER", 
+        "ON RIDE PHOTO", "DISPATCH", "OPERATIONS", "CAPACITY", "THROUGHPUT", "G FORCE", 
+        "EJECTOR", "FLOATER", "HANGTIME", "LATERALS", "POSITIVES", "HEADCHOPPER", "NEAR MISS", 
+        "DARK RIDE", "PRE SHOW", "FURY 325", "VELOCICOASTER", "MAVERICK", "EL TORO", 
+        "THE VOYAGE", "THE BEAST", "EEJANAIKA", "DO DODONPA", "FORMULA ROSSA", "TATSU", 
+        "NEMESIS", "THE SMILER", "WICKED CYCLONE", "TWISTED COLOSSUS", "ZADRA", "WILDFIRE", 
+        "LIGHTNING ROD", "TIME TRAVELER", "RIDE TO HAPPINESS", "TARON", "BALDER", "COLOSSOS", 
+        "EXPEDITION GEFORCE", "SHAMBHALA", "LEVIATHAN", "BEHEMOTH", "ORION", "DIAMONDBACK", 
+        "BANSHEE", "GATEKEEPER", "VALRAVN", "RAPTOR", "ALPENGEIST", "GRIFFON", "MONTU", 
+        "KUMBA", "SHEIKRA", "CHEETAH HUNT", "PANTHEON", "IRON RATTLER", "NEW TEXAS GIANT", 
+        "GOLIATH", "TITAN", "RAGING BULL", "SUPERMAN", "BATMAN THE RIDE", "MR FREEZE", 
+        "POLTERGEIST", "FLIGHT OF FEAR", "SPACE MOUNTAIN", "BIG THUNDER MOUNTAIN", 
+        "MATTERHORN", "EXPEDITION EVEREST", "TRON LIGHTCYCLE RUN", "GUARDIANS OF THE GALAXY", 
+        "HAGRIDS ADVENTURE",
+        // ADDITIONAL 100+ TERMS FOR MAXIMUM VARIETY
+        "AXIS COASTER", "FREE SPIN", "SKY ROCKET", "SKY LOOP", "EL LOCO", "BIG DIPPER", 
+        "MEGA COASTER", "HYPER GTX", "FAMILY BOOMERANG", "SUSPENDED LOOPING", "STC", "TREX", 
+        "TITAN TRACK", "PREFABRICATED", "INTAMIN PREFAB", "WOODIE", "STEELIE", "GIGA", "STRATA", 
+        "POLAR COASTER", "ALPINE COASTER", "MOUNTAIN COASTER", "SIDE FRICTION", "FLYING TURNS", 
+        "PIPELINE", "TOGO STAND UP", "INTAMIN BLITZ", "MULTI LAUNCH", "SWING LAUNCH", "SPIKE", 
+        "VERTICAL SPIKE", "TWISTED HORSESHOE", "ROLL OUT", "SEA SERPENT ROLL", "COBRA LOOP", 
+        "BUTTERFLY", "PRETZEL KNOT", "WRAP AROUND CORKSCREW", "INTERLOCKING LOOPS", 
+        "INTERLOCKING CORKSCREWS", "NON INVERTING LOOP", "NON INVERTING COBRA ROLL", "LAG PHASE", 
+        "STALL", "OUTWARD BANKED AIRTIME", "WAVE TURN", "TRICK TRACK", "DOUBLE DOWN", "TRIPLE DOWN", 
+        "QUADRUPLE DOWN", "DOUBLE UP", "SPEED HILL", "CAMELBACK", "BUNNY HOP", "STENGEL DIVE", 
+        "OVERBANK", "HIGH FIVE", "DIVE DROP", "IMMELMANN TURN", "JR IMMELMANN", "INCLINED DIVE LOOP", 
+        "REVERSE SIDEWINDER", "DEMONIC KNOT", "DRAGON FLIPPER", "SCORPION TAIL", "TWISTED AIRTIME", 
+        "OFF AXIS AIRTIME", "LATERAL AIRTIME", "EJECTOR AIRTIME", "FLOATER AIRTIME", "POSITIVE GS", 
+        "NEGATIVE GS", "LATERAL GS", "JERK", "PACE", "RATTLE", "HEADBANGING", "ROUGHNESS", 
+        "SMOOTHNESS", "INTENSITY", "AGGRESSIVE", "GRACEFUL", "THEMING", "STATION", "FAST LANE", 
+        "FLASH PASS", "QUICK QUEUE", "SKIP THE LINE", "SINGLE RIDER LINE", "DISPATCH INTERVAL", 
+        "BLOCK BRAKE", "MAGNETIC BRAKE", "FRICTION BRAKE", "SKID BRAKE", "CHAIN DOG", 
+        "ANTI ROLLBACK DOG", "LIFT MOTOR", "ELEVATOR LIFT", "FERRIS WHEEL LIFT", "TILT TRACK", 
+        "DROP TRACK", "SWITCH TRACK", "TRANSFER TABLE", "MAINTENANCE BAY", "STORAGE SHED", "TRAIN", 
+        "CAR", "ROW", "ZERO CAR", "WHEEL ASSEMBLY", "ROAD WHEEL", "POLYURETHANE", "NYLON", 
+        "STEEL WHEELS", "WOODEN STRUCTURE", "STEEL STRUCTURE", "FOOTER", "SUPPORT", "CROSS TIE", 
+        "LEDGER", "NETTING", "LOOSE ARTICLES", "BIN", "LOCKER", "EXIT", "GIFT SHOP", "POV", 
+        "TRIP REPORT", "CREDIT COUNT"
     ];
 
     const [word, setWord] = useState('');
@@ -202,619 +312,184 @@ const WordGuessGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
         setWrongs(0);
     };
 
-    const handleGuess = (char: string) => {
-        if (guessed.has(char) || wrongs >= MAX_WRONGS) return;
+    const handleGuess = (letter: string) => {
+        if (guessed.has(letter) || wrongs >= MAX_WRONGS || isWinner) return;
+
         triggerHaptic('light');
-        
         const newGuessed = new Set(guessed);
-        newGuessed.add(char);
+        newGuessed.add(letter);
         setGuessed(newGuessed);
 
-        if (!word.includes(char)) {
-            setWrongs(w => w + 1);
+        if (!word.includes(letter)) {
             triggerHaptic('error');
+            setWrongs(w => w + 1);
+        } else {
+            triggerHaptic('success');
         }
     };
 
-    const isWin = word.split('').every(c => c === ' ' || guessed.has(c));
-    const isLose = wrongs >= MAX_WRONGS;
+    const isWinner = word && word.split('').filter(l => l !== ' ').every(l => guessed.has(l));
+    const isLoser = wrongs >= MAX_WRONGS;
 
-    // Keyboard layout
-    const ROWS = [
-        "QWERTYUIOP".split(''),
-        "ASDFGHJKL".split(''),
-        "ZXCVBNM".split('')
-    ];
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split('');
 
     return (
-        <div className="h-full flex flex-col animate-fade-in relative">
+        <div className="h-full flex flex-col relative animate-fade-in">
              <div className="flex items-center justify-between mb-2 shrink-0">
                  <button onClick={onExit} className="bg-slate-800 p-2 rounded-full border border-slate-700 text-slate-400"><ArrowLeft size={20}/></button>
-                 <div className="text-xs font-bold text-slate-500 uppercase">Don't Crash the Train!</div>
-             </div>
-
-             {/* Visual Progress: Coaster Train approaching a cliff */}
-             <div className="w-full h-24 bg-slate-800/50 rounded-xl mb-4 relative overflow-hidden border border-slate-700">
-                 {/* Track Line */}
-                 <div className="absolute top-1/2 left-4 right-4 h-1 bg-slate-600 rounded-full" />
-                 {/* Danger Zone */}
-                 <div className="absolute top-1/2 right-4 w-4 h-4 bg-red-500/20 -translate-y-1/2 rounded-full animate-pulse" />
-                 <div className="absolute top-1/2 right-4 -translate-y-1/2 text-red-500 text-xs font-bold">X</div>
-                 
-                 {/* Moving Train */}
-                 <div 
-                    className="absolute top-1/2 -translate-y-1/2 transition-all duration-500 ease-out"
-                    style={{ 
-                        left: `${(wrongs / MAX_WRONGS) * 80 + 5}%`, // 5% to 85%
-                    }}
-                 >
-                     <div className="flex gap-0.5">
-                         {[1,2,3].map(i => (
-                             <div key={i} className={clsx("w-6 h-4 rounded-t-md relative", isLose ? "bg-red-500 animate-bounce" : "bg-primary")}>
-                                 <div className="absolute -bottom-1 left-1 w-1.5 h-1.5 bg-black rounded-full" />
-                                 <div className="absolute -bottom-1 right-1 w-1.5 h-1.5 bg-black rounded-full" />
-                             </div>
-                         ))}
-                     </div>
+                 <div className="flex items-center gap-2 bg-slate-800 px-3 py-1 rounded-full border border-slate-700">
+                     {[...Array(MAX_WRONGS)].map((_, i) => (
+                         <div key={i} className={clsx("w-2 h-2 rounded-full transition-all", i < wrongs ? "bg-red-500" : "bg-slate-600")} />
+                     ))}
                  </div>
+                 <button onClick={startNewGame} className="bg-slate-800 p-2 rounded-full border border-slate-700 text-primary"><RefreshCw size={20}/></button>
              </div>
 
-             <div className="flex-1 flex flex-col justify-center items-center gap-8">
-                 {/* Word Display */}
-                 <div className="flex flex-wrap justify-center gap-2 px-2">
-                     {word.split('').map((char, idx) => (
-                         <div key={idx} className={clsx(
-                             "w-8 h-10 sm:w-10 sm:h-12 border-b-4 flex items-center justify-center text-xl sm:text-2xl font-black uppercase",
-                             char === ' ' ? "border-transparent" : "border-slate-600 bg-slate-900/50 rounded-t-lg",
-                             (isLose && !guessed.has(char)) ? "text-red-400" : "text-white"
+             {/* The Coaster Visual */}
+             <CoasterCrashVisual wrongs={wrongs} maxWrongs={MAX_WRONGS} isLoser={isLoser} />
+
+             {/* Word Display */}
+             <div className="flex-1 flex flex-col items-center justify-center">
+                 <div className="flex flex-wrap justify-center gap-2 px-4 mb-8">
+                     {word.split('').map((char, i) => (
+                         <div key={i} className={clsx(
+                             "w-8 h-10 sm:w-10 sm:h-12 flex items-center justify-center text-xl sm:text-2xl font-black rounded-lg transition-all",
+                             char === ' ' ? "bg-transparent w-4" : 
+                             guessed.has(char) || isLoser ? "bg-slate-700 text-white shadow-sm" : "bg-slate-800 border-b-4 border-slate-700 text-transparent"
                          )}>
-                             {char === ' ' ? '' : (guessed.has(char) || isLose ? char : '')}
+                             {char === ' ' ? '' : (guessed.has(char) || isLoser ? char : '_')}
                          </div>
                      ))}
                  </div>
-
-                 {/* Keyboard */}
-                 <div className="w-full max-w-sm">
-                     {ROWS.map((row, rIdx) => (
-                         <div key={rIdx} className="flex justify-center gap-1.5 mb-1.5">
-                             {row.map(char => {
-                                 const isGuessed = guessed.has(char);
-                                 const isWrong = isGuessed && !word.includes(char);
-                                 const isRight = isGuessed && word.includes(char);
-                                 
-                                 return (
-                                     <button
-                                        key={char}
-                                        onClick={() => handleGuess(char)}
-                                        disabled={isGuessed || isWin || isLose}
-                                        className={clsx(
-                                            "w-8 h-10 sm:w-9 sm:h-12 rounded-lg font-bold text-sm transition-all shadow-sm",
-                                            isWrong ? "bg-slate-800 text-slate-600 border border-slate-700" :
-                                            isRight ? "bg-emerald-600 text-white border-emerald-500" :
-                                            "bg-slate-700 text-white hover:bg-slate-600 border-b-4 border-slate-900 active:border-b-0 active:translate-y-1"
-                                        )}
-                                     >
-                                         {char}
-                                     </button>
-                                 );
-                             })}
-                         </div>
-                     ))}
-                 </div>
+                 
+                 {isLoser && <div className="text-red-400 font-bold animate-pulse mb-4 text-xl">CRASHED!</div>}
+                 {isWinner && <div className="text-emerald-400 font-bold animate-bounce mb-4 text-xl">SURVIVED!</div>}
              </div>
 
-             {(isWin || isLose) && (
-                 <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center rounded-2xl z-20 animate-fade-in-up">
-                     {isWin ? <Trophy size={64} className="text-yellow-400 mb-4 animate-bounce" /> : <X size={64} className="text-red-500 mb-4" />}
-                     <h2 className="text-3xl font-black text-white italic">{isWin ? 'YOU WON!' : 'GAME OVER'}</h2>
-                     <p className="text-slate-400 mb-6">{isWin ? 'Great knowledge!' : `The word was: ${word}`}</p>
-                     <button onClick={startNewGame} className="bg-primary text-white px-6 py-3 rounded-xl font-bold">Play Again</button>
-                 </div>
-             )}
-        </div>
-    );
-};
-
-// --- TRIVIA GAME ---
-const TriviaGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
-    // Massive Question Database - Now over 100 questions!
-    const ALL_QUESTIONS = [
-        // --- HISTORY & RECORDS ---
-        { q: "Which park is known as the 'Roller Coaster Capital of the World'?", a: ["Cedar Point", "Six Flags Magic Mountain", "Energylandia", "Europa Park"], correct: 0 },
-        { q: "What was the first tubular steel roller coaster?", a: ["Matterhorn Bobsleds", "Magnum XL-200", "Corkscrew", "Revolution"], correct: 0 },
-        { q: "What is the fastest roller coaster in the world (as of 2024)?", a: ["Formula Rossa", "Kingda Ka", "Red Force", "Top Thrill 2"], correct: 0 },
-        { q: "Which coaster has the most inversions in the world (14)?", a: ["The Smiler", "Altair", "Colossus", "Sik"], correct: 0 },
-        { q: "Which park has the most roller coasters in the world?", a: ["Six Flags Magic Mountain", "Cedar Point", "Energylandia", "Canada's Wonderland"], correct: 0 },
-        { q: "What year did Cedar Point open?", a: ["1870", "1905", "1950", "1920"], correct: 0 },
-        { q: "What is the steepest coaster drop (approx)?", a: ["121.5 degrees (TMNT Shellraiser)", "100 degrees", "90 degrees", "110 degrees"], correct: 0 },
-        { q: "Millennium Force (Cedar Point) was the first ever...?", a: ["Giga Coaster", "Hyper Coaster", "Strata Coaster", "Terra Coaster"], correct: 0 },
-        { q: "The Beast at Kings Island is famous for being the longest...", a: ["Wooden Coaster", "Steel Coaster", "Inverted Coaster", "Flying Coaster"], correct: 0 },
-        { q: "Which coaster was the first to break the 100mph barrier?", a: ["Tower of Terror II", "Superman: The Escape", "Millennium Force", "Steel Phantom"], correct: 0 },
-        { q: "What was the first roller coaster to go upside down (modern era)?", a: ["Corkscrew (Knott's)", "Revolution (SFMM)", "The Bat", "Matterhorn"], correct: 0 },
-        { q: "Magnum XL-200 is credited with starting which era?", a: ["The Coaster Wars", "The Golden Age", "The Loop Era", "The RMC Era"], correct: 0 },
-        { q: "Which coaster held the height record before Top Thrill Dragster?", a: ["Steel Dragon 2000", "Millennium Force", "Superman: The Escape", "Fujiyama"], correct: 0 },
-        { q: "Where is the oldest operating roller coaster, Leap-The-Dips, located?", a: ["Lakemont Park", "Kennywood", "Dorney Park", "Knoebels"], correct: 0 },
-        { q: "Which coaster features a record-breaking 7 inversions for a wooden coaster?", a: ["Outlaw Run", "Wildfire", "Steel Vengeance", "Goliath"], correct: 0 },
-
-        // --- MANUFACTURERS & TECH ---
-        { q: "What does 'RMC' stand for?", a: ["Rocky Mountain Construction", "Ride Maintenance Corp", "Real Metal Coasters", "Rapid Motion Coasters"], correct: 0 },
-        { q: "Which manufacturer is known for B&M?", a: ["Bolliger & Mabillard", "Barnes & Miller", "Big & Massive", "Black & Mack"], correct: 0 },
-        { q: "What is the name of the track used by RMC to convert wooden coasters?", a: ["I-Box Track", "Topper Track", "T-Rex Track", "Box Track"], correct: 0 },
-        { q: "Intamin is a manufacturer based in which country?", a: ["Switzerland", "Germany", "USA", "Italy"], correct: 0 },
-        { q: "Which manufacturer created the '4D' coaster (X2)?", a: ["Arrow Dynamics", "B&M", "Intamin", "Vekoma"], correct: 0 },
-        { q: "What does 'LSM' stand for?", a: ["Linear Synchronous Motor", "Linear Standard Motor", "Launch Speed Mechanism", "Lift System Magnetic"], correct: 0 },
-        { q: "Who designed 'The Beast' at Kings Island?", a: ["Al Collins & Jeff Gramke", "Ron Toomer", "Werner Stengel", "Alan Schilke"], correct: 0 },
-        { q: "What does 'LIM' stand for?", a: ["Linear Induction Motor", "Linear Impulse Motor", "Launch Induction Mechanism", "Lift Induction Magnet"], correct: 0 },
-        { q: "Which manufacturer is famous for the 'SLC' model?", a: ["Vekoma", "Arrow", "B&M", "Intamin"], correct: 0 },
-        { q: "Who invented the tubular steel track?", a: ["Arrow Dynamics", "Schwarzkopf", "B&M", "Intamin"], correct: 0 },
-        { q: "Which company manufactures the 'Raptor' single-rail track?", a: ["RMC", "Intamin", "Mack Rides", "S&S"], correct: 0 },
-        { q: "Gerstlauer is famous for which coaster model?", a: ["Eurofighter", "Hypercoaster", "Dive Coaster", "4D Coaster"], correct: 0 },
-        { q: "Which manufacturer built 'Steel Dragon 2000'?", a: ["Morgan", "Arrow", "B&M", "Intamin"], correct: 0 },
-        { q: "Great Coasters International (GCI) is known for building what type of coasters?", a: ["Wooden", "Steel", "Hybrid", "Inverted"], correct: 0 },
-        { q: "Who is considered the father of the modern vertical loop?", a: ["Anton Schwarzkopf", "Ron Toomer", "John Miller", "Walter Bolliger"], correct: 0 },
-        { q: "Which company bought Arrow Dynamics?", a: ["S&S", "Vekoma", "Intamin", "Mack Rides"], correct: 0 },
-
-        // --- ELEMENTS & TERMINOLOGY ---
-        { q: "What is a 'Block Zone'?", a: ["A section of track where only 1 train can be", "The waiting area for the ride", "The brake run at the end", "A restricted area for staff"], correct: 0 },
-        { q: "What is 'Airtime'?", a: ["Negative G-force feeling weightless", "Positive G-force pushing you down", "Lateral G-force pushing side to side", "Time spent in the queue"], correct: 0 },
-        { q: "What distinguishes a 'Floorless' coaster?", a: ["Trains ride above track with no floor", "Trains hang below the track", "Riders stand up", "There are no restraints"], correct: 0 },
-        { q: "What is a 'Pre-Drop'?", a: ["A small dip before the main drop", "The brake run before the station", "The queue line area", "A safety check"], correct: 0 },
-        { q: "What is a 'Zero-G Roll'?", a: ["An inversion providing weightlessness", "A loop that pulls high Gs", "A flat turn", "A launch section"], correct: 0 },
-        { q: "What is a 'Cobra Roll'?", a: ["A double inversion element", "A snake themed train", "A type of barrel roll", "A vertical loop"], correct: 0 },
-        { q: "What does 'MCBR' stand for?", a: ["Mid-Course Brake Run", "Main Computer Brake Release", "Maximum Coaster Brake Rate", "Manual Coaster Brake Release"], correct: 0 },
-        { q: "What is a 'Dive Coaster' known for?", a: ["A vertical hold before the drop", "Going underwater", "Being very short", "Having stand-up trains"], correct: 0 },
-        { q: "What is the 'Unlock' sound on a B&M coaster?", a: ["The floor dropping/pins releasing", "The brakes opening", "The restraints locking", "The launch motor charging"], correct: 0 },
-        { q: "What is a 'Chain Lift'?", a: ["Mechanism to pull train up hill", "Safety restraint type", "The track connector", "A type of inversion"], correct: 0 },
-        { q: "What is an 'Inverted' coaster?", a: ["Train hangs below the track", "You ride backwards", "The track is upside down", "You lay flat"], correct: 0 },
-        { q: "What is a 'Flying' coaster?", a: ["You lay flat facing the ground", "You hang below the track seated", "You stand up", "The track is invisible"], correct: 0 },
-        { q: "What is a 'Wing' coaster?", a: ["Seats are on either side of track", "It has wings on the train", "It flies through the air", "It only turns left"], correct: 0 },
-        { q: "What is a 'Hypercoaster'?", a: ["A coaster between 200-299ft", "A coaster over 300ft", "A coaster with a launch", "A coaster with 5+ inversions"], correct: 0 },
-        { q: "What is a 'Giga Coaster'?", a: ["A coaster between 300-399ft", "A coaster over 400ft", "A coaster over 200ft", "A coaster with 10 inversions"], correct: 0 },
-        { q: "What is a 'Strata Coaster'?", a: ["A coaster over 400ft", "A coaster over 500ft", "A coaster over 300ft", "A wooden coaster"], correct: 0 },
-        { q: "What is a 'Mobius Loop' coaster?", a: ["One track, two stations (racing)", "An infinite loop", "A coaster that never stops", "A shuttle coaster"], correct: 0 },
-        { q: "What is 'Ejector Airtime'?", a: ["Strong negative Gs (-1g or less)", "Floating sensation (0g)", "Positive Gs", "Lateral forces"], correct: 0 },
-        { q: "What is 'Floater Airtime'?", a: ["Weightlessness (~0g)", "Strong negative forces", "Being pushed into seat", "Side-to-side forces"], correct: 0 },
-
-        // --- SPECIFIC RIDES & PARKS ---
-        { q: "Kingda Ka is located in which state?", a: ["New Jersey", "Ohio", "California", "Florida"], correct: 0 },
-        { q: "Where is 'Expedition GeForce' located?", a: ["Holiday Park", "Europa Park", "Heide Park", "Hansa Park"], correct: 0 },
-        { q: "Which coaster features a 'Top Hat' element?", a: ["VelociCoaster", "Fury 325", "Iron Gwazi", "Maverick"], correct: 0 },
-        { q: "Which park opened 'Galaxy's Edge'?", a: ["Disneyland / Disney World", "Universal Studios", "Six Flags", "SeaWorld"], correct: 0 },
-        { q: "Steel Vengeance was formerly known as...?", a: ["Mean Streak", "Disaster Transport", "Mantis", "Wicked Twister"], correct: 0 },
-        { q: "Which coaster is known for its 'Banana Roll'?", a: ["Steel Curtain", "Hydra The Revenge", "Skyrush", "Mystic Timbers"], correct: 0 },
-        { q: "Which country is Phantasialand located in?", a: ["Germany", "Netherlands", "France", "Belgium"], correct: 0 },
-        { q: "What is the name of the dragon coaster at Islands of Adventure?", a: ["Hagrid's Magical Creatures", "Dragon Challenge", "Iron Dragon", "Dueling Dragons"], correct: 0 },
-        { q: "The Voyage is located at which park?", a: ["Holiday World", "Dollywood", "Silver Dollar City", "Kentucky Kingdom"], correct: 0 },
-        { q: "Which park is home to 'Fury 325'?", a: ["Carowinds", "Kings Island", "Cedar Point", "Canada's Wonderland"], correct: 0 },
-        { q: "Where can you ride 'Taron'?", a: ["Phantasialand", "Europa Park", "Efteling", "PortAventura"], correct: 0 },
-        { q: "Which coaster has a 'Mosasaurus Roll'?", a: ["VelociCoaster", "Iron Gwazi", "Pantheon", "Maverick"], correct: 0 },
-        { q: "El Toro is famous for being a...", a: ["Prefabricated Wooden Coaster", "Hybrid Coaster", "Steel Coaster", "Launched Woodie"], correct: 0 },
-        { q: "Which park is home to 'Formula Rossa'?", a: ["Ferrari World Abu Dhabi", "Ferrari Land Spain", "Dubai Parks", "Motiongate"], correct: 0 },
-        { q: "What theme park resort is 'Efteling' in?", a: ["Netherlands", "Germany", "Belgium", "Denmark"], correct: 0 },
-        { q: "Which Six Flags park has the 'Golden Kingdom' area?", a: ["Great Adventure", "Magic Mountain", "Great America", "Over Texas"], correct: 0 },
-        { q: "Where is 'Do-Dodonpa' located?", a: ["Fuji-Q Highland", "Tokyo Dome City", "Nagashima Spa Land", "Universal Japan"], correct: 0 },
-        { q: "What park features 'Leviathan'?", a: ["Canada's Wonderland", "SeaWorld Orlando", "Six Flags Darien Lake", "Marineland"], correct: 0 },
-        { q: "Which coaster replaced 'Son of Beast'?", a: ["Banshee", "Mystic Timbers", "Orion", "Diamondback"], correct: 0 },
-        { q: "Where is 'Nemesis' located?", a: ["Alton Towers", "Thorpe Park", "Blackpool Pleasure Beach", "Drayton Manor"], correct: 0 },
-        { q: "What type of coaster is 'Time Traveler' at Silver Dollar City?", a: ["Spinning Coaster", "Flying Coaster", "Dive Coaster", "Inverted Coaster"], correct: 0 },
-        { q: "Which Disney park has 'Tron Lightcycle Power Run' (Original)?", a: ["Shanghai Disneyland", "Magic Kingdom", "Disneyland", "Tokyo Disneyland"], correct: 0 },
-        { q: "Which coaster is known as the 'Golden Horse' clone often?", a: ["SLC", "Boomerang", "Big Apple", "Wild Mouse"], correct: 0 },
-        { q: "Where is 'Shambhala' located?", a: ["PortAventura", "Parque Warner", "Terra Mitica", "Tibidabo"], correct: 0 },
-        { q: "Which UK park has 'The Big One'?", a: ["Blackpool Pleasure Beach", "Alton Towers", "Thorpe Park", "Fantasy Island"], correct: 0 },
-        { q: "What is the name of the RMC at Busch Gardens Tampa?", a: ["Iron Gwazi", "Steel Vengeance", "Twisted Timbers", "Wicked Cyclone"], correct: 0 },
-        { q: "Which coaster has a 'Stall' element that holds you upside down?", a: ["Goliath (SFGam)", "Raging Bull", "Batman", "Viper"], correct: 0 },
-        { q: "Where is 'Kärnan' located?", a: ["Hansa Park", "Heide Park", "Phantasialand", "Movie Park Germany"], correct: 0 },
-        { q: "What coaster was the first to use a vertical lift hill?", a: ["Fahrenheit", "Euro-Mir", "Rip Ride Rockit", "Smiler"], correct: 0 },
-        { q: "Which park has a coaster named 'Cannibal'?", a: ["Lagoon", "Lake Compounce", "Knoebels", "Waldameer"], correct: 0 },
-        
-        // --- OBSCURE & FUN ---
-        { q: "Which coaster appears in the movie 'Final Destination 3'?", a: ["Corkscrew (Playland)", "Viper (SFMM)", "Colossus (SFMM)", "Revolution"], correct: 0 },
-        { q: "What is a 'Credit'?", a: ["A ridden coaster count", "Money for the park", "A pass to skip lines", "A type of ticket"], correct: 0 },
-        { q: "What does 'GP' stand for in enthusiast slang?", a: ["General Public", "Great Park", "Good Point", "Grand Prix"], correct: 0 },
-        { q: "What is 'Stapling'?", a: ["Pushing restraints down too tight", "Connecting track pieces", "Scanning a ticket", "Staying in your seat for another ride"], correct: 0 },
-        { q: "What is a 'Zen Ride'?", a: ["Riding a train alone", "Riding with eyes closed", "Riding in the back row", "Riding at night"], correct: 0 },
-        { q: "What is 'Marathoning'?", a: ["Riding a coaster repeatedly", "Running to the queue", "Staying at the park all day", "Walking the track"], correct: 0 },
-        { q: "Which coaster has a 'Holding Brake' on the vertical drop?", a: ["Griffon/SheiKra", "Valravn", "Oblivion", "Yukon Striker"], correct: 0 },
-        { q: "What is the 'Point of No Return'?", a: ["Cresting the lift hill", "Entering the queue", "Leaving the station", "The final brake run"], correct: 0 },
-        { q: "Which coaster is themed to a country music star?", a: ["Mystery Mine (Dolly)", "FireChaser Express", "Lightning Rod", "Tennessee Tornado"], correct: 0 }, 
-        { q: "What color is the track of 'Nitro' at SFGAdv?", a: ["Yellow/Pink", "Blue/Orange", "Red/White", "Green/Black"], correct: 0 },
-        { q: "What is a 'Boomerang' coaster?", a: ["Goes forward then backward", "A spinning coaster", "A wooden coaster", "A continuously looping coaster"], correct: 0 },
-        { q: "Who built 'Big Thunder Mountain'?", a: ["Vekoma/Arrow", "Intamin", "B&M", "Mack"], correct: 0 },
-        { q: "Which coaster is nicknamed 'Intimidator'?", a: ["Intimidator 305", "Fury 325", "Leviathan", "Millennium Force"], correct: 0 },
-        { q: "What is the 'Butter' smoothness scale?", a: ["Smooth as butter", "Rough as gravel", "Shaky", "Painful"], correct: 0 },
-        { q: "What is a 'Dark Ride'?", a: ["Indoor ride with scenes", "Night time ride", "Ride with lights off", "Scary ride"], correct: 0 },
-        { q: "Which park has a coaster jumping over the entrance?", a: ["Cedar Point (GateKeeper)", "Six Flags Magic Mountain", "Kings Island", "Dollywood"], correct: 0 },
-        { q: "What is 'ERT'?", a: ["Exclusive Ride Time", "Early Ride Ticket", "Emergency Ride Termination", "Extra Ride Time"], correct: 0 },
-        { q: "What is 'Rope Drop'?", a: ["Park opening time", "A ride element", "Restraint release", "Closing time"], correct: 0 },
-        { q: "Which coaster is famous for the 'Quad Down'?", a: ["Lightning Rod", "Steel Vengeance", "Twisted Timbers", "Storm Chaser"], correct: 0 },
-        { q: "What is a 'Terrain Coaster'?", a: ["Uses the ground's topography", "Built on flat concrete", "Goes underground only", "Made of dirt"], correct: 0 },
-        { q: "Which park is built in a quarry?", a: ["Six Flags Fiesta Texas", "Six Flags Over Texas", "Dollywood", "Silver Dollar City"], correct: 0 },
-        { q: "What is the 'ACE'?", a: ["American Coaster Enthusiasts", "Association of Coaster Engineers", "All Coaster Events", "American Coaster Establishment"], correct: 0 },
-        { q: "Which coaster has a 'Jojo Roll' right out of the station?", a: ["Hydra The Revenge", "Copperhead Strike", "Time Traveler", "Ride to Happiness"], correct: 0 },
-        { q: "What represents '1 G'?", a: ["Normal gravity", "Weightlessness", "Double weight", "Freefall"], correct: 0 },
-        { q: "Which coaster has trains shaped like a motorbike?", a: ["Hagrid's / TRON", "VelociCoaster", "Taron", "Blue Fire"], correct: 0 },
-        { q: "What does 'POV' stand for?", a: ["Point of View", "Point of Velocity", "Park of Value", "Position of Vehicle"], correct: 0 },
-        { q: "Which country has the most roller coasters?", a: ["China", "USA", "Japan", "Germany"], correct: 0 },
-        { q: "What is the 'B&M Roar'?", a: ["Sound of the wheels on track", "The screams of riders", "The chain lift motor", "The brakes"], correct: 0 },
-        { q: "Which coaster is themed to the band Aerosmith?", a: ["Rock 'n' Roller Coaster", "Hollywood Rip Ride Rockit", "Led Zeppelin: The Ride", "Hard Rock Park"], correct: 0 },
-        { q: "What is a 'Rollback'?", a: ["Train fails to crest hill and falls back", "Train completes circuit twice", "Price reduction", "Restraints opening"], correct: 0 },
-        { q: "Which park has a coaster named 'Batman: The Ride'?", a: ["Multiple Six Flags Parks", "Cedar Fair Parks", "Disney Parks", "Universal Parks"], correct: 0 },
-        { q: "What is 'Theme Park Review'?", a: ["A famous enthusiast site/group", "A magazine", "A government agency", "A ride manufacturer"], correct: 0 },
-    ];
-
-    // State to hold the randomized subset of questions
-    const [activeQuestions, setActiveQuestions] = useState<typeof ALL_QUESTIONS>([]);
-    
-    const [currentQIndex, setCurrentQIndex] = useState(0);
-    const [score, setScore] = useState(0);
-    const [showResult, setShowResult] = useState(false);
-    const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
-    const [shuffledAnswers, setShuffledAnswers] = useState<{text: string, originalIndex: number, disabled?: boolean}[]>([]);
-    const [lifelineUsed, setLifelineUsed] = useState(false);
-
-    // Initialize Game on Mount
-    useEffect(() => {
-        // Shuffle ALL questions and pick 10
-        const shuffled = [...ALL_QUESTIONS].sort(() => Math.random() - 0.5).slice(0, 10);
-        setActiveQuestions(shuffled);
-    }, []);
-
-    // Shuffle answers when question changes
-    useEffect(() => {
-        if (activeQuestions.length > 0 && currentQIndex < activeQuestions.length) {
-            const q = activeQuestions[currentQIndex];
-            const answersWithIndex = q.a.map((ans, idx) => ({ text: ans, originalIndex: idx }));
-            setShuffledAnswers(answersWithIndex.sort(() => Math.random() - 0.5));
-            setLifelineUsed(false); // Reset lifeline for new question
-        }
-    }, [currentQIndex, activeQuestions]);
-
-    const handleAnswer = (originalIndex: number) => {
-        triggerHaptic('light');
-        setSelectedAnswer(originalIndex);
-        const isCorrect = originalIndex === activeQuestions[currentQIndex].correct;
-        
-        if (isCorrect) {
-            setScore(s => s + 1);
-            triggerHaptic('success');
-        } else {
-            triggerHaptic('error');
-        }
-
-        setTimeout(() => {
-            if (currentQIndex < activeQuestions.length - 1) {
-                setCurrentQIndex(q => q + 1);
-                setSelectedAnswer(null);
-            } else {
-                setShowResult(true);
-            }
-        }, 1500);
-    };
-
-    const handleLifeline = () => {
-        if (lifelineUsed) return;
-        triggerHaptic('light');
-        const q = activeQuestions[currentQIndex];
-        const correctIndex = q.correct;
-        
-        // Find wrong indices currently in shuffled list
-        const wrongIndices = shuffledAnswers
-            .filter(a => a.originalIndex !== correctIndex)
-            .map(a => a.originalIndex);
-        
-        // Pick 2 wrong to remove (or disable)
-        const indicesToRemove = wrongIndices.sort(() => Math.random() - 0.5).slice(0, 2);
-        
-        setShuffledAnswers(prev => prev.map(a => ({
-            ...a,
-            disabled: indicesToRemove.includes(a.originalIndex)
-        })));
-        
-        setLifelineUsed(true);
-    };
-
-    const reset = () => {
-        // Reshuffle for a new game
-        const shuffled = [...ALL_QUESTIONS].sort(() => Math.random() - 0.5).slice(0, 10);
-        setActiveQuestions(shuffled);
-        setCurrentQIndex(0);
-        setScore(0);
-        setShowResult(false);
-        setSelectedAnswer(null);
-        setLifelineUsed(false);
-    };
-
-    if (activeQuestions.length === 0) return <div className="flex items-center justify-center h-full"><Loader2 className="animate-spin text-primary"/></div>;
-
-    const currentQuestion = activeQuestions[currentQIndex];
-
-    return (
-        <div className="h-full flex flex-col animate-fade-in">
-             <div className="flex items-center justify-between mb-8 shrink-0">
-                 <button onClick={onExit} className="bg-slate-800 p-2 rounded-full border border-slate-700 text-slate-400"><ArrowLeft size={20}/></button>
-                 <span className="font-mono text-primary font-bold">Q{currentQIndex + 1} / {activeQuestions.length}</span>
-             </div>
-
-             {!showResult ? (
-                 <div className="flex-1 flex flex-col justify-center">
-                     <div className="min-h-[100px] flex items-center justify-center mb-6">
-                        <h3 className="text-xl font-bold text-white text-center leading-relaxed">{currentQuestion.q}</h3>
-                     </div>
-                     
-                     <div className="flex justify-end mb-4">
-                         <button 
-                            onClick={handleLifeline} 
-                            disabled={lifelineUsed}
+             {/* Keyboard */}
+             <div className="grid grid-cols-7 gap-1.5 sm:gap-2 shrink-0 pb-4">
+                 {alphabet.map((char) => {
+                     const isGuessed = guessed.has(char);
+                     const isCorrect = word.includes(char);
+                     return (
+                         <button
+                            key={char}
+                            onClick={() => handleGuess(char)}
+                            disabled={isGuessed || isLoser || isWinner}
                             className={clsx(
-                                "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase transition-all border",
-                                lifelineUsed ? "bg-slate-800 text-slate-500 border-slate-700 opacity-50" : "bg-purple-600 text-white border-purple-500 shadow-lg shadow-purple-500/20 active:scale-95"
+                                "aspect-square rounded-lg font-bold text-sm sm:text-base transition-all",
+                                isGuessed 
+                                    ? (isCorrect ? "bg-emerald-600 text-white" : "bg-slate-800 text-slate-600")
+                                    : "bg-slate-700 text-white hover:bg-slate-600 active:scale-95"
                             )}
                          >
-                             <Percent size={12} /> 50/50 Lifeline
+                             {char}
                          </button>
-                     </div>
-
-                     <div className="space-y-3">
-                         {shuffledAnswers.map((ansObj, idx) => {
-                             if (ansObj.disabled) {
-                                 // Render a placeholder or invisible block to keep layout stable but hide text
-                                 return (
-                                     <div key={idx} className="w-full p-4 rounded-xl border border-transparent bg-slate-900/30 opacity-30 pointer-events-none" />
-                                 );
-                             }
-
-                             let stateClass = "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 active:scale-[0.98]";
-                             const isSelected = selectedAnswer !== null;
-                             
-                             if (isSelected) {
-                                 // If this specific button was the correct answer
-                                 if (ansObj.originalIndex === currentQuestion.correct) {
-                                     stateClass = "bg-emerald-500/20 border-emerald-500 text-emerald-400";
-                                 } 
-                                 // If this button was clicked but wrong
-                                 else if (ansObj.originalIndex === selectedAnswer) {
-                                     stateClass = "bg-red-500/20 border-red-500 text-red-400";
-                                 } 
-                                 else {
-                                     stateClass = "opacity-40 bg-slate-800 border-slate-700";
-                                 }
-                             }
-                             
-                             return (
-                                 <button
-                                    key={idx}
-                                    onClick={() => !isSelected && handleAnswer(ansObj.originalIndex)}
-                                    className={clsx(
-                                        "w-full p-4 rounded-xl border font-bold text-left transition-all relative overflow-hidden shadow-sm", 
-                                        stateClass
-                                    )}
-                                    disabled={isSelected}
-                                 >
-                                     <span className="relative z-10">{ansObj.text}</span>
-                                     {isSelected && ansObj.originalIndex === currentQuestion.correct && (
-                                         <div className="absolute right-4 top-1/2 -translate-y-1/2 text-emerald-500"><CheckCircle2 size={20} /></div>
-                                     )}
-                                     {isSelected && ansObj.originalIndex === selectedAnswer && ansObj.originalIndex !== currentQuestion.correct && (
-                                         <div className="absolute right-4 top-1/2 -translate-y-1/2 text-red-500"><AlertCircle size={20} /></div>
-                                     )}
-                                 </button>
-                             );
-                         })}
-                     </div>
-                 </div>
-             ) : (
-                 <div className="flex-1 flex flex-col items-center justify-center text-center animate-fade-in-up">
-                     <div className="relative mb-6">
-                         <Trophy size={80} className="text-yellow-400" />
-                         <div className="absolute -top-2 -right-2 bg-primary text-white font-bold px-2 py-1 rounded-lg border border-slate-900 shadow-xl">
-                             {Math.round((score / activeQuestions.length) * 100)}%
-                         </div>
-                     </div>
-                     <h2 className="text-3xl font-black text-white italic mb-2">QUIZ COMPLETE</h2>
-                     <p className="text-slate-400 mb-8 text-lg">You scored <span className="text-white font-bold">{score}</span> out of {activeQuestions.length}</p>
-                     
-                     <div className="flex flex-col gap-3 w-full max-w-xs">
-                         <button onClick={reset} className="bg-primary text-white px-6 py-4 rounded-xl font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2">
-                             <RefreshCw size={20} /> Play New Round
-                         </button>
-                         <button onClick={onExit} className="bg-slate-800 text-slate-300 px-6 py-4 rounded-xl font-bold border border-slate-700">
-                             Back to Hub
-                         </button>
-                     </div>
-                 </div>
-             )}
+                     );
+                 })}
+             </div>
         </div>
     );
 };
 
-// --- JOKE GENERATOR ---
-const JokeGenerator: React.FC<{ onExit: () => void }> = ({ onExit }) => {
-    const [joke, setJoke] = useState<string>("Why did the roller coaster break up? It had too many ups and downs.");
-    const [topic, setTopic] = useState<string>('');
-    const [isLoading, setIsLoading] = useState(false);
-    const [copied, setCopied] = useState(false);
-
-    const generateJoke = async () => {
-        setIsLoading(true);
-        setCopied(false);
-        try {
-            if (process.env.API_KEY) {
-                const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-                
-                const prompt = topic.trim() 
-                    ? `Tell me a short, funny, clean joke about roller coasters specifically related to "${topic}". Try to be clever. Keep it under 2 sentences.`
-                    : "Tell me a short, funny, clean joke about roller coasters or theme parks. Try to use enthusiast terms like 'airtime', 'hang time', 'stapling', 'block zones', or 'operations'. Keep it under 2 sentences.";
-
-                const response = await ai.models.generateContent({
-                    model: 'gemini-3-flash-preview',
-                    contents: prompt,
-                });
-                if (response.text) {
-                    setJoke(response.text);
-                }
-            } else {
-                setJoke("API Key missing. Why was the computer cold? It left its Windows open.");
-            }
-        } catch (e) {
-            setJoke("What's a coaster's favorite meal? Fast food!");
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const handleCopy = () => {
-        navigator.clipboard.writeText(joke);
-        setCopied(true);
-        triggerHaptic('success');
-        setTimeout(() => setCopied(false), 2000);
-    };
-
+// --- TRIVIA GAME (Placeholder) ---
+const TriviaGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
     return (
-        <div className="h-full flex flex-col animate-fade-in">
-             <div className="flex items-center justify-between mb-8 shrink-0">
-                 <button onClick={onExit} className="bg-slate-800 p-2 rounded-full border border-slate-700 text-slate-400"><ArrowLeft size={20}/></button>
-             </div>
-
-             <div className="flex-1 flex flex-col items-center px-4">
-                 
-                 {/* Input for specific topic */}
-                 <div className="w-full max-w-sm mb-6 relative">
-                     <input 
-                        type="text" 
-                        placeholder="Topic (e.g. 'Bank Turn', 'RMC', 'Line Jumping')" 
-                        value={topic}
-                        onChange={(e) => setTopic(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 pl-10 text-white text-sm focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-all placeholder:text-slate-600"
-                     />
-                     <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
-                         <Search size={16} />
-                     </div>
-                     {topic && (
-                         <button onClick={() => setTopic('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">
-                             <X size={16} />
-                         </button>
-                     )}
-                 </div>
-
-                 <div className="w-full max-w-sm bg-slate-800 p-8 rounded-3xl border border-slate-700 shadow-2xl relative mb-8 group">
-                     <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-purple-500 text-white p-3 rounded-full shadow-lg">
-                         <Mic2 size={24} />
-                     </div>
-                     <p className="text-xl font-medium text-white leading-relaxed italic text-center">
-                         "{joke}"
-                     </p>
-                     
-                     <button 
-                        onClick={handleCopy} 
-                        className="absolute bottom-4 right-4 p-2 text-slate-500 hover:text-white transition-colors"
-                        title="Copy Joke"
-                     >
-                         {copied ? <CheckCircle2 size={18} className="text-emerald-500" /> : <Copy size={18} />}
-                     </button>
-                 </div>
-                 
-                 <button 
-                    onClick={generateJoke} 
-                    disabled={isLoading}
-                    className="w-full max-w-sm bg-purple-600 hover:bg-purple-500 text-white px-8 py-4 rounded-2xl font-bold shadow-lg shadow-purple-500/20 flex items-center justify-center gap-2 transition-transform active:scale-95"
-                 >
-                     {isLoading ? <Loader2 size={20} className="animate-spin" /> : <Sparkles size={20} />}
-                     {topic ? `Roast "${topic}"` : 'Tell Another'}
-                 </button>
-             </div>
+        <div className="h-full flex flex-col items-center justify-center text-center p-6 animate-fade-in">
+            <BrainCircuit size={64} className="text-slate-600 mb-6" />
+            <h2 className="text-2xl font-bold text-white mb-2">Coming Soon</h2>
+            <p className="text-slate-400 mb-8">Trivia mode is currently being refurbished.</p>
+            <button onClick={onExit} className="bg-slate-800 text-white px-6 py-3 rounded-xl font-bold">Back to Hub</button>
         </div>
     );
 };
 
 
-// --- MAIN HUB ---
 const QueueHub: React.FC = () => {
   const { changeView } = useAppContext();
-  const [activeActivity, setActiveActivity] = useState<'MENU' | 'MEMORY' | 'TRIVIA' | 'JOKES' | 'HANGMAN'>('MENU');
+  const [activeGame, setActiveGame] = useState<'NONE' | 'MEMORY' | 'GUESS' | 'TRIVIA'>('NONE');
 
-  if (activeActivity === 'MEMORY') return <MemoryGame onExit={() => setActiveActivity('MENU')} />;
-  if (activeActivity === 'TRIVIA') return <TriviaGame onExit={() => setActiveActivity('MENU')} />;
-  if (activeActivity === 'JOKES') return <JokeGenerator onExit={() => setActiveActivity('MENU')} />;
-  if (activeActivity === 'HANGMAN') return <WordGuessGame onExit={() => setActiveActivity('MENU')} />;
-
-  const MenuItem = ({ title, desc, icon: Icon, color, onClick }: any) => (
-      <button 
-        onClick={() => { triggerHaptic('light'); onClick(); }}
-        className="w-full bg-slate-800 hover:bg-slate-750 p-5 rounded-2xl border border-slate-700 flex items-center gap-4 group transition-all active:scale-[0.98] text-left"
-      >
-          <div className={`p-4 rounded-xl bg-gradient-to-br ${color} text-white shadow-lg shrink-0 group-hover:scale-110 transition-transform`}>
-              <Icon size={28} />
-          </div>
-          <div className="flex-1">
-              <h3 className="text-lg font-bold text-white leading-tight">{title}</h3>
-              <p className="text-xs text-slate-400 mt-1">{desc}</p>
-          </div>
-      </button>
-  );
+  if (activeGame === 'MEMORY') return <MemoryGame onExit={() => setActiveGame('NONE')} />;
+  if (activeGame === 'GUESS') return <WordGuessGame onExit={() => setActiveGame('NONE')} />;
+  if (activeGame === 'TRIVIA') return <TriviaGame onExit={() => setActiveGame('NONE')} />;
 
   return (
-    <div className="animate-fade-in pb-12 space-y-6">
-      <div className="flex items-center gap-3">
+    <div className="animate-fade-in h-full flex flex-col">
+       {/* Header */}
+      <div className="flex items-center gap-4 mb-6">
           <button 
-            onClick={() => changeView('DASHBOARD')}
-            className="bg-slate-800 p-3 rounded-2xl border border-slate-700 text-slate-400 hover:text-white transition-all active:scale-95"
+            onClick={() => changeView('PROFILE')}
+            className="bg-slate-800 p-3 rounded-2xl border border-slate-700 text-slate-400 hover:text-white transition-all active:scale-95 shadow-lg"
           >
             <ArrowLeft size={20} />
           </button>
           <div>
-             <h2 className="text-2xl font-black text-white italic tracking-tight uppercase">Queue Line</h2>
-             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Entertainment Hub</p>
+            <h2 className="text-2xl font-black text-white italic tracking-tight">QUEUE HUB</h2>
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Kill time while you wait</p>
           </div>
       </div>
 
-      <div className="grid gap-4">
-          <MenuItem 
-             title="Coaster Dash" 
-             desc="Retro infinite runner arcade game." 
-             icon={Gamepad2} 
-             color="from-pink-500 to-rose-600"
-             onClick={() => changeView('GAME')}
-          />
-          <MenuItem 
-             title="Coaster Hangman" 
-             desc="Guess the term before you crash!" 
-             icon={Hash} 
-             color="from-orange-500 to-red-600"
-             onClick={() => setActiveActivity('HANGMAN')}
-          />
-          <MenuItem 
-             title="Track Match" 
-             desc="5x5 Manufacturer Memory Challenge." 
-             icon={BrainCircuit} 
-             color="from-indigo-500 to-blue-600"
-             onClick={() => setActiveActivity('MEMORY')}
-          />
-          <MenuItem 
-             title="Queue Trivia" 
-             desc="Test your knowledge (100+ Questions)." 
-             icon={HelpCircle} 
-             color="from-emerald-500 to-teal-600"
-             onClick={() => setActiveActivity('TRIVIA')}
-          />
-           <MenuItem 
-             title="Ride Roasts" 
-             desc="AI-generated jokes to kill time." 
-             icon={Mic2} 
-             color="from-purple-500 to-violet-600"
-             onClick={() => setActiveActivity('JOKES')}
-          />
+      <div className="grid grid-cols-1 gap-4">
+          <button onClick={() => changeView('GAME')} className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 rounded-[32px] border border-blue-400/30 relative overflow-hidden group text-left shadow-lg shadow-blue-900/20 active:scale-[0.98] transition-transform">
+              <div className="absolute right-[-20px] top-[-20px] bg-white/10 w-32 h-32 rounded-full blur-2xl group-hover:bg-white/20 transition-colors" />
+              <Gamepad2 size={48} className="text-white mb-3 relative z-10" />
+              <h3 className="text-2xl font-black text-white italic relative z-10">COASTER DASH</h3>
+              <p className="text-blue-100 text-xs font-medium mt-1 relative z-10">Endless runner minigame</p>
+          </button>
+
+          <button onClick={() => setActiveGame('MEMORY')} className="bg-slate-800 p-6 rounded-[28px] border border-slate-700 relative overflow-hidden group text-left hover:bg-slate-750 active:scale-[0.98] transition-all">
+              <div className="flex justify-between items-start mb-2">
+                  <div className="bg-emerald-500/10 p-3 rounded-xl text-emerald-500"><GridIcon /></div>
+                  <Trophy size={20} className="text-slate-600" />
+              </div>
+              <h3 className="text-xl font-bold text-white">Logo Match</h3>
+              <p className="text-slate-400 text-xs mt-1">Test your memory with industry brands</p>
+          </button>
+
+          <button onClick={() => setActiveGame('GUESS')} className="bg-slate-800 p-6 rounded-[28px] border border-slate-700 relative overflow-hidden group text-left hover:bg-slate-750 active:scale-[0.98] transition-all">
+              <div className="flex justify-between items-start mb-2">
+                  <div className="bg-amber-500/10 p-3 rounded-xl text-amber-500"><TypeIcon /></div>
+                  <HelpCircle size={20} className="text-slate-600" />
+              </div>
+              <h3 className="text-xl font-bold text-white">Word Guess</h3>
+              <p className="text-slate-400 text-xs mt-1">Hangman style coaster trivia</p>
+          </button>
+
+          <button onClick={() => setActiveGame('TRIVIA')} className="bg-slate-800 p-6 rounded-[28px] border border-slate-700 relative overflow-hidden group text-left hover:bg-slate-750 active:scale-[0.98] transition-all opacity-60">
+               <div className="flex justify-between items-start mb-2">
+                  <div className="bg-purple-500/10 p-3 rounded-xl text-purple-500"><BrainCircuit size={24} /></div>
+                  <div className="bg-slate-900 text-[10px] font-bold px-2 py-1 rounded text-slate-500">SOON</div>
+              </div>
+              <h3 className="text-xl font-bold text-white">Daily Trivia</h3>
+              <p className="text-slate-400 text-xs mt-1">AI Powered Quiz</p>
+          </button>
       </div>
-      
-      <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800 text-center">
-          <div className="flex justify-center mb-2 text-primary">
-              <Ticket size={24} />
-          </div>
-          <p className="text-xs text-slate-500">
-              Stuck in a long line? These activities are designed to help pass the time while you wait for your next ride.
+
+      <div className="mt-auto pt-8 pb-4 text-center">
+          <p className="text-[10px] text-slate-600 font-bold uppercase tracking-widest">
+              More minigames coming soon
           </p>
       </div>
     </div>
   );
 };
+
+// Icons
+const GridIcon = () => (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="3" width="7" height="7"></rect>
+        <rect x="14" y="3" width="7" height="7"></rect>
+        <rect x="14" y="14" width="7" height="7"></rect>
+        <rect x="3" y="14" width="7" height="7"></rect>
+    </svg>
+);
+
+const TypeIcon = () => (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="4 7 4 4 20 4 20 7"></polyline>
+        <line x1="9" y1="20" x2="15" y2="20"></line>
+        <line x1="12" y1="4" x2="12" y2="20"></line>
+    </svg>
+);
 
 export default QueueHub;

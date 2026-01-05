@@ -22,8 +22,6 @@ const RetroGame: React.FC = () => {
   const [highScore, setHighScore] = useState(activeUser.highScore || 0);
   const [isNewRecord, setIsNewRecord] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-  const [audioReady, setAudioReady] = useState(false);
-  const [needsInteraction, setNeedsInteraction] = useState(false);
   
   // Game State for UI
   const [boostValue, setBoostValue] = useState(0);
@@ -31,10 +29,7 @@ const RetroGame: React.FC = () => {
 
   // Audio Context Refs
   const audioCtxRef = useRef<AudioContext | null>(null);
-  const nextNoteTimeRef = useRef<number>(0);
-  const musicTimerRef = useRef<number | null>(null);
-  const melodyIndexRef = useRef(0);
-  const lastChainTimeRef = useRef(0);
+  const musicIntervalRef = useRef<number | null>(null);
 
   // Game Constants
   const LANE_HEIGHT = 320; 
@@ -77,13 +72,13 @@ const RetroGame: React.FC = () => {
     slope: 0
   });
 
-  // --- AUDIO SYSTEM (RANDOMIZED & ROBUST) ---
+  // --- AUDIO SYSTEM (REFACTORED) ---
   
   const initAudio = () => {
       if (!audioCtxRef.current) {
           const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
           if (AudioContext) {
-              audioCtxRef.current = new AudioContext({ latencyHint: 'interactive' });
+              audioCtxRef.current = new AudioContext();
           }
       }
       return audioCtxRef.current;
@@ -92,173 +87,67 @@ const RetroGame: React.FC = () => {
   const unlockAudio = async () => {
       const ctx = initAudio();
       if (!ctx) return;
-
       if (ctx.state === 'suspended') {
-          try {
-              await ctx.resume();
-          } catch (e) {
-              console.error("Resume failed", e);
-          }
-      }
-      
-      if (ctx.state === 'running') {
-          setAudioReady(true);
-          setNeedsInteraction(false);
-          // Play silent buffer to warm up iOS audio
-          const buffer = ctx.createBuffer(1, 1, 22050);
-          const source = ctx.createBufferSource();
-          source.buffer = buffer;
-          source.connect(ctx.destination);
-          source.start(0);
-      } else {
-          setNeedsInteraction(true);
+          await ctx.resume();
       }
   };
 
-  const randomRange = (min: number, max: number) => Math.random() * (max - min) + min;
-
-  const playTone = (baseFreq: number, type: OscillatorType, duration: number, vol: number = 0.3, randomize: boolean = true) => {
-      const ctx = audioCtxRef.current;
-      if (!ctx || isMuted || ctx.state !== 'running') return;
+  const playTone = (freq: number, type: OscillatorType, duration: number, vol: number = 0.5) => {
+      if (isMuted) return;
+      const ctx = initAudio();
+      if (!ctx || ctx.state !== 'running') return;
 
       try {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
-        
-        // Enhanced Randomization for "Organic" feel
-        const freq = randomize ? baseFreq * randomRange(0.85, 1.15) : baseFreq;
-        const volume = randomize ? Math.min(vol * randomRange(0.5, 1.5), 1.0) : vol;
-
         osc.type = type;
         osc.frequency.setValueAtTime(freq, ctx.currentTime);
         
-        // Linear Ramp Envelope (Robust for mobile)
-        gain.gain.setValueAtTime(0, ctx.currentTime);
-        gain.gain.linearRampToValueAtTime(volume, ctx.currentTime + 0.005); // Fast attack
-        gain.gain.linearRampToValueAtTime(0, ctx.currentTime + duration); // Decay
-        
+        gain.gain.setValueAtTime(vol, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
+
         osc.connect(gain);
         gain.connect(ctx.destination);
-        
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + duration + 0.05);
+        osc.start();
+        osc.stop(ctx.currentTime + duration + 0.1);
       } catch (e) {
-          // Ignore
+          console.error(e);
       }
+  };
+
+  const playMusicNote = () => {
+      if (isMuted || !gameRef.current.isRunning || gameRef.current.isLiftHill) return;
+      
+      const ctx = initAudio();
+      if (!ctx || ctx.state !== 'running') return;
+
+      const baseFreq = 110; // A2
+      const notes = [1, 1.5, 2, 2.5]; // Simple scale
+      const note = notes[Math.floor(Math.random() * notes.length)] * baseFreq;
+      
+      // Increased Volume
+      playTone(note, 'triangle', 0.15, 0.25);
   };
 
   useEffect(() => {
-      const handleUserGesture = () => unlockAudio();
-      window.addEventListener('touchstart', handleUserGesture, { passive: true });
-      window.addEventListener('click', handleUserGesture, { passive: true });
-      window.addEventListener('keydown', handleUserGesture, { passive: true });
-
+      const handleInteraction = () => unlockAudio();
+      window.addEventListener('touchstart', handleInteraction);
+      window.addEventListener('click', handleInteraction);
       return () => {
-          stopMusic();
-          if (gameRef.current.animationId) cancelAnimationFrame(gameRef.current.animationId);
-          if (audioCtxRef.current) {
-              audioCtxRef.current.close();
-              audioCtxRef.current = null;
-          }
-          window.removeEventListener('touchstart', handleUserGesture);
-          window.removeEventListener('click', handleUserGesture);
-          window.removeEventListener('keydown', handleUserGesture);
+          if (musicIntervalRef.current) clearInterval(musicIntervalRef.current);
+          if (audioCtxRef.current) audioCtxRef.current.close();
+          window.removeEventListener('touchstart', handleInteraction);
+          window.removeEventListener('click', handleInteraction);
       };
   }, []);
 
-  const playChainClick = () => {
-      // "Clacky" Sound: High pitch, square wave, short duration
-      playTone(600, 'square', 0.04, 0.15, true); 
+  const startMusicLoop = () => {
+      if (musicIntervalRef.current) clearInterval(musicIntervalRef.current);
+      musicIntervalRef.current = window.setInterval(playMusicNote, 150);
   };
 
-  const scheduleMusic = () => {
-      const ctx = audioCtxRef.current;
-      if (!ctx || isMuted || ctx.state !== 'running') return;
-
-      if (gameRef.current.isLiftHill) {
-          musicTimerRef.current = requestAnimationFrame(scheduleMusic);
-          return;
-      }
-
-      const isBoost = gameRef.current.boosting;
-      const momentumMultiplier = Math.max(0.8, Math.min(gameRef.current.speed / gameRef.current.baseSpeed, 1.5));
-      const baseTempo = difficulty === 'ADVANCED' ? 0.12 : difficulty === 'MEDIUM' ? 0.15 : 0.18;
-      const tempo = baseTempo / momentumMultiplier; 
-      const lookahead = 0.1; 
-
-      if (nextNoteTimeRef.current < ctx.currentTime) {
-          nextNoteTimeRef.current = ctx.currentTime;
-      }
-
-      while (nextNoteTimeRef.current < ctx.currentTime + lookahead) {
-          const bassSequence = [110, 110, 164, 110, 146, 110, 196, 164]; 
-          const melodySequence = [440, 0, 523, 0, 659, 523, 0, 440]; 
-
-          const beat = melodyIndexRef.current % 8;
-          const noteTime = nextNoteTimeRef.current;
-
-          if (bassSequence[beat]) {
-              try {
-                  const osc = ctx.createOscillator();
-                  const gain = ctx.createGain();
-                  osc.type = 'square';
-                  const freq = bassSequence[beat] * (isBoost ? 1.5 : 1) * randomRange(0.99, 1.01);
-                  osc.frequency.setValueAtTime(freq, noteTime);
-                  gain.gain.setValueAtTime(0, noteTime);
-                  gain.gain.linearRampToValueAtTime(0.15, noteTime + 0.01);
-                  gain.gain.linearRampToValueAtTime(0, noteTime + tempo * 0.8);
-                  osc.connect(gain);
-                  gain.connect(ctx.destination);
-                  osc.start(noteTime);
-                  osc.stop(noteTime + tempo);
-              } catch(e) {}
-          }
-          if (melodySequence[beat] && Math.floor(melodyIndexRef.current / 8) % 2 === 0) {
-               try {
-                  const osc = ctx.createOscillator();
-                  const gain = ctx.createGain();
-                  osc.type = 'sawtooth';
-                  const freq = melodySequence[beat] * (isBoost ? 1.5 : 1);
-                  osc.frequency.setValueAtTime(freq, noteTime);
-                  gain.gain.setValueAtTime(0, noteTime);
-                  gain.gain.linearRampToValueAtTime(0.1, noteTime + 0.01);
-                  gain.gain.linearRampToValueAtTime(0, noteTime + tempo * 0.5);
-                  osc.connect(gain);
-                  gain.connect(ctx.destination);
-                  osc.start(noteTime);
-                  osc.stop(noteTime + tempo);
-              } catch(e) {}
-          }
-          nextNoteTimeRef.current += tempo;
-          melodyIndexRef.current++;
-      }
-      musicTimerRef.current = requestAnimationFrame(scheduleMusic);
-  };
-
-  const startMusic = () => {
-      const ctx = audioCtxRef.current;
-      if (ctx && !musicTimerRef.current && !isMuted) {
-          nextNoteTimeRef.current = ctx.currentTime + 0.05; 
-          scheduleMusic();
-      }
-  };
-
-  const stopMusic = () => {
-      if (musicTimerRef.current) {
-          cancelAnimationFrame(musicTimerRef.current);
-          musicTimerRef.current = null;
-      }
-  };
-
-  const toggleMute = (e: React.SyntheticEvent) => {
-      e.stopPropagation();
-      unlockAudio(); 
-      setIsMuted(prev => {
-          const next = !prev;
-          if (next) stopMusic();
-          else if (gameState === 'PLAYING') startMusic();
-          return next;
-      });
+  const stopMusicLoop = () => {
+      if (musicIntervalRef.current) clearInterval(musicIntervalRef.current);
   };
 
   // --- GAME LOGIC ---
@@ -284,10 +173,10 @@ const RetroGame: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const startGame = (e: React.SyntheticEvent | Event) => {
+  const startGame = async (e: React.SyntheticEvent | Event) => {
     e.preventDefault();
     e.stopPropagation();
-    unlockAudio();
+    await unlockAudio();
 
     if (!containerRef.current) return;
 
@@ -338,27 +227,25 @@ const RetroGame: React.FC = () => {
     setIsNewRecord(false);
     setGameState('PLAYING');
     
-    startMusic();
+    startMusicLoop();
     loop();
   };
 
   const jump = () => {
-      unlockAudio(); 
       const { player, settings } = gameRef.current;
       if (player.grounded) {
           player.dy = -settings.jump * player.gravityDirection;
           player.grounded = false;
-          playTone(300, 'square', 0.1, 0.4, true);
+          playTone(400, 'square', 0.1, 0.4);
       }
   };
 
   const toggleGravity = () => {
-      unlockAudio();
       const { player } = gameRef.current;
       player.gravityDirection *= -1;
       player.grounded = false;
       createExplosion(player.x + player.width/2, player.y + player.height/2, '#8b5cf6', 5);
-      playTone(150, 'sawtooth', 0.15, 0.4, true);
+      playTone(200, 'sawtooth', 0.15, 0.4);
   };
 
   const activateBoost = (e?: React.SyntheticEvent) => {
@@ -370,7 +257,7 @@ const RetroGame: React.FC = () => {
           gameRef.current.boosting = true;
           gameRef.current.shake = 15; 
           setIsBoosting(true);
-          playTone(600, 'sawtooth', 0.5, 0.5, true);
+          playTone(600, 'sawtooth', 0.5, 0.5);
           createExplosion(gameRef.current.player.x, gameRef.current.player.y, '#0ea5e9', 20);
       }
   };
@@ -454,18 +341,17 @@ const RetroGame: React.FC = () => {
     gameRef.current.isRunning = false;
     gameRef.current.shake = 20; 
     setGameState('GAMEOVER');
-    stopMusic();
+    stopMusicLoop();
 
     const currentScore = gameRef.current.score;
     if (currentScore > highScore) {
         setHighScore(currentScore);
         saveHighScore(currentScore);
         setIsNewRecord(true);
-        playTone(523.25, 'square', 0.1, 0.4, true);
-        setTimeout(() => playTone(659.25, 'square', 0.1, 0.4, true), 100);
-        setTimeout(() => playTone(783.99, 'square', 0.4, 0.4, true), 200);
+        playTone(600, 'square', 0.2, 0.4);
+        setTimeout(() => playTone(800, 'square', 0.4, 0.4), 200);
     } else {
-        playTone(100, 'sawtooth', 0.5, 0.5, true);
+        playTone(100, 'sawtooth', 0.5, 0.5);
     }
   };
 
@@ -555,13 +441,9 @@ const RetroGame: React.FC = () => {
 
     if (game.isLiftHill) {
         game.liftHillTimer--;
-        const now = Date.now();
-        // Slower Paced Click: ~4-5 times per second depending on speed
-        const clackInterval = 1000 / (game.speed * 1.5);
-        if (now - lastChainTimeRef.current > clackInterval) {
-            playChainClick();
-            lastChainTimeRef.current = now;
-        }
+        // Click-Clack Sound
+        if (game.frame % 15 === 0) playTone(800, 'square', 0.05, 0.2);
+
         if (game.liftHillTimer <= 0) game.isLiftHill = false;
     } 
 
@@ -619,7 +501,7 @@ const RetroGame: React.FC = () => {
                 game.score += 5; 
                 setScore(game.score);
                 game.shake = 5; 
-                playTone(100, 'square', 0.1, 0.5, true);
+                playTone(100, 'square', 0.1, 0.5);
                 continue;
             } else {
                 gameOver();
@@ -644,7 +526,7 @@ const RetroGame: React.FC = () => {
                 setBoostValue(game.boost);
             }
             createExplosion(col.x, col.y, '#facc15', 8);
-            playTone(800, 'square', 0.1, 0.3, true);
+            playTone(800, 'square', 0.1, 0.3);
         }
         if (col.x < -50) game.collectibles.splice(i, 1);
     }
@@ -733,8 +615,7 @@ const RetroGame: React.FC = () => {
     if (game.isLiftHill) {
         ctx.save();
         ctx.translate(width/2, height/2 - 100);
-        ctx.rotate(-game.slope); // Counter-rotate text so it stays readable? Or keep it with track? 
-        // Actually, keep it readable
+        ctx.rotate(-game.slope);
         ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
         ctx.font = '900 48px sans-serif';
         ctx.textAlign = 'center';
@@ -760,13 +641,10 @@ const RetroGame: React.FC = () => {
     gameRef.current.animationId = requestAnimationFrame(loop);
   };
 
-  const handleTestAudio = () => {
-      unlockAudio().then(() => {
-          if (audioReady || !needsInteraction) {
-              createExplosion(window.innerWidth / 2, window.innerHeight / 2, '#4ade80', 20);
-              playTone(440, 'sine', 0.1, 0.5, false);
-          }
-      });
+  const forceAudioUnlock = () => {
+      unlockAudio();
+      // Play a quick sound to prove it works
+      playTone(440, 'sine', 0.1, 0.5);
   };
 
   return (
@@ -777,7 +655,7 @@ const RetroGame: React.FC = () => {
     >
         <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-start pointer-events-none z-10">
             <div className="flex items-center gap-3 pointer-events-auto">
-                <button onClick={(e) => { e.preventDefault(); stopMusic(); changeView('QUEUE_HUB'); }} className="bg-slate-800/80 backdrop-blur p-2 rounded-full border border-slate-700 text-slate-400"><ArrowLeft size={20} /></button>
+                <button onClick={(e) => { e.preventDefault(); stopMusicLoop(); changeView('QUEUE_HUB'); }} className="bg-slate-800/80 backdrop-blur p-2 rounded-full border border-slate-700 text-slate-400"><ArrowLeft size={20} /></button>
                 <div className="bg-slate-800/80 backdrop-blur px-4 py-2 rounded-xl border border-slate-700 flex flex-col">
                     <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Score</span>
                     <span className="text-2xl font-black text-white leading-none font-mono">{score.toString().padStart(4, '0')}</span>
@@ -806,7 +684,7 @@ const RetroGame: React.FC = () => {
             )}
 
             <div className="flex gap-2 pointer-events-auto">
-                <button onClick={toggleMute} className="bg-slate-800/80 backdrop-blur p-2 rounded-xl border border-slate-700 text-slate-400 hover:text-white">
+                <button onClick={(e) => { e.stopPropagation(); setIsMuted(!isMuted); }} className="bg-slate-800/80 backdrop-blur p-2 rounded-xl border border-slate-700 text-slate-400 hover:text-white">
                     {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
                 </button>
                 <div className="bg-slate-800/80 backdrop-blur px-4 py-2 rounded-xl border border-slate-700 flex flex-col items-end">
@@ -823,12 +701,6 @@ const RetroGame: React.FC = () => {
                     <span className="text-4xl font-black text-slate-500 italic">{Math.round(gameRef.current.speed * 10)}</span>
                     <span className="text-xs font-bold text-slate-600 mb-1">MPH</span>
                 </div>
-            </div>
-        )}
-
-        {needsInteraction && gameState !== 'START' && (
-            <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-amber-500/90 text-white text-xs font-bold px-4 py-2 rounded-full z-50 animate-bounce pointer-events-auto" onClick={handleTestAudio}>
-                Tap here to enable audio
             </div>
         )}
 
@@ -861,17 +733,16 @@ const RetroGame: React.FC = () => {
                     <button 
                         onClick={startGame}
                         onTouchEnd={startGame} 
-                        className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 touch-manipulation cursor-pointer mb-2"
+                        className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 touch-manipulation cursor-pointer"
                     >
                         <Play size={20} fill="currentColor" /> START RIDE
                     </button>
                     
-                    <button 
-                        onClick={handleTestAudio}
-                        className={`text-xs flex items-center justify-center gap-1 mx-auto transition-colors p-2 rounded-lg ${audioReady ? 'text-emerald-500 font-bold' : 'text-slate-500 hover:text-white bg-slate-800/50'}`}
-                    >
-                       <Volume2 size={12} /> {audioReady ? 'Audio Ready' : 'Tap to Test Audio'}
-                    </button>
+                    <div className="mt-4 pt-4 border-t border-slate-800">
+                        <button onClick={forceAudioUnlock} className="text-[10px] text-slate-500 hover:text-white uppercase font-bold tracking-widest flex items-center justify-center gap-2 w-full">
+                            <Volume2 size={12} /> Test Audio
+                        </button>
+                    </div>
                 </div>
             </div>
         )}
