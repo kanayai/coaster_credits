@@ -20,7 +20,7 @@ const RetroGame: React.FC = () => {
   const OBSTACLE_GAP_MIN = 400; 
   const OBSTACLE_GAP_MAX = 800;
 
-  // Game Refs
+  // Game Refs (Mutable state for loop)
   const gameRef = useRef({
     player: { 
         x: 100, 
@@ -42,6 +42,7 @@ const RetroGame: React.FC = () => {
     pixelRatio: 1
   });
 
+  // Handle Resize & Init Canvas
   useEffect(() => {
     const handleResize = () => {
         if (canvasRef.current && containerRef.current) {
@@ -63,7 +64,8 @@ const RetroGame: React.FC = () => {
     };
 
     window.addEventListener('resize', handleResize);
-    handleResize();
+    // Slight delay to ensure DOM is ready if transitioning views
+    setTimeout(handleResize, 50);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
@@ -71,6 +73,7 @@ const RetroGame: React.FC = () => {
     if (!containerRef.current) return;
     const logicalHeight = containerRef.current.clientHeight;
 
+    // Reset State
     gameRef.current = {
         ...gameRef.current,
         player: { 
@@ -88,8 +91,7 @@ const RetroGame: React.FC = () => {
         particles: [],
         speed: SPEED_INITIAL,
         frame: 0,
-        score: 0,
-        animationId: 0
+        score: 0
     };
 
     setScore(0);
@@ -101,7 +103,6 @@ const RetroGame: React.FC = () => {
   const jump = () => {
       const { player } = gameRef.current;
       if (player.grounded) {
-          // Jump direction depends on gravity
           player.dy = -JUMP_FORCE * player.gravityDirection;
           player.grounded = false;
       }
@@ -132,18 +133,20 @@ const RetroGame: React.FC = () => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
     const ctx = canvas?.getContext('2d');
-    if (!canvas || !ctx || !container) return;
+    if (!canvas || !ctx || !container) {
+        gameRef.current.animationId = requestAnimationFrame(loop);
+        return;
+    }
 
     const game = gameRef.current;
     const width = container.clientWidth;
     const height = container.clientHeight;
     
-    // Bounds
     const FLOOR_Y = height - 80;
     const CEILING_Y = 80;
 
-    // --- Update Logic ---
-    game.speed += 0.0005; // Slowly increase speed
+    // Logic
+    game.speed += 0.0005;
     game.frame++;
 
     const p = game.player;
@@ -152,39 +155,34 @@ const RetroGame: React.FC = () => {
     p.dy += GRAVITY_MAGNITUDE * p.gravityDirection;
     p.y += p.dy;
 
-    // Constraints & Landing
+    // Constraints
     if (p.gravityDirection === 1) {
-        // Normal Gravity (Falling Down)
         if (p.y + p.height > FLOOR_Y) {
              p.y = FLOOR_Y - p.height;
              p.dy = 0;
              p.grounded = true;
         }
-        // Hit Ceiling while normal gravity?
         if (p.y < CEILING_Y) {
             p.y = CEILING_Y;
             p.dy = 0;
         }
     } else {
-        // Inverted Gravity (Falling Up)
         if (p.y < CEILING_Y) {
             p.y = CEILING_Y;
             p.dy = 0;
             p.grounded = true;
         }
-        // Hit Floor while inverted?
         if (p.y + p.height > FLOOR_Y) {
              p.y = FLOOR_Y - p.height;
              p.dy = 0;
         }
     }
 
-    // Rotation Animation
+    // Rotation
     const targetRotation = p.gravityDirection === 1 ? 0 : Math.PI;
-    // Lerp rotation
     p.rotation += (targetRotation - p.rotation) * 0.2;
 
-    // Spawning logic
+    // Spawning
     const lastItemX = Math.max(
         game.obstacles.length > 0 ? game.obstacles[game.obstacles.length - 1].x : 0,
         game.collectibles.length > 0 ? game.collectibles[game.collectibles.length - 1].x : 0
@@ -194,15 +192,13 @@ const RetroGame: React.FC = () => {
         const rand = Math.random();
         const spawnX = width + 50;
 
-        // 30% Chance of Collectible group
         if (rand > 0.7) {
-            const yPos = (FLOOR_Y + CEILING_Y) / 2; // Middle
+            const yPos = (FLOOR_Y + CEILING_Y) / 2;
             game.collectibles.push({ x: spawnX, y: yPos, collected: false, size: 25 });
         } 
-        // 70% Chance of Obstacle
         else {
             const type = Math.random() > 0.5 ? 'FLOOR' : 'CEILING';
-            const obsHeight = Math.random() * 40 + 40; // 40 to 80px tall
+            const obsHeight = Math.random() * 40 + 40;
             
             game.obstacles.push({
                 x: spawnX,
@@ -214,26 +210,19 @@ const RetroGame: React.FC = () => {
         }
     }
 
-    // Update Entities
-    // Obstacles
+    // Entities Update
     for (let i = game.obstacles.length - 1; i >= 0; i--) {
         const obs = game.obstacles[i];
         obs.x -= game.speed;
 
-        // Collision Detect
-        // Hitbox slightly smaller than visual
         const pPadding = 4;
         const obsPadding = 2;
-
         const pLeft = p.x + pPadding;
         const pRight = p.x + p.width - pPadding;
         const pTop = p.y + pPadding;
         const pBottom = p.y + p.height - pPadding;
 
-        // Obstacle Y calc
-        let obsY = 0;
-        if (obs.type === 'FLOOR') obsY = FLOOR_Y - obs.height;
-        else obsY = CEILING_Y;
+        let obsY = obs.type === 'FLOOR' ? FLOOR_Y - obs.height : CEILING_Y;
 
         const oLeft = obs.x + obsPadding;
         const oRight = obs.x + obs.width - obsPadding;
@@ -245,29 +234,26 @@ const RetroGame: React.FC = () => {
             return;
         }
 
-        // Score update
         if (!obs.passed && obs.x + obs.width < p.x) {
             obs.passed = true;
-            game.score += 1; // Distance score
+            game.score += 1;
             setScore(game.score);
         }
 
         if (obs.x + obs.width < -100) game.obstacles.splice(i, 1);
     }
 
-    // Collectibles
     for (let i = game.collectibles.length - 1; i >= 0; i--) {
         const col = game.collectibles[i];
         col.x -= game.speed;
 
-        // Simple circle collision
         const dx = (p.x + p.width/2) - (col.x + col.size/2);
         const dy = (p.y + p.height/2) - (col.y + col.size/2);
         const dist = Math.sqrt(dx*dx + dy*dy);
 
         if (!col.collected && dist < (p.width/2 + col.size/2)) {
             col.collected = true;
-            game.score += 10; // Bonus score
+            game.score += 10;
             setScore(game.score);
             createExplosion(col.x, col.y, '#facc15', 8);
         }
@@ -275,7 +261,6 @@ const RetroGame: React.FC = () => {
         if (col.x < -50) game.collectibles.splice(i, 1);
     }
 
-    // Particles
     for (let i = game.particles.length - 1; i >= 0; i--) {
         const part = game.particles[i];
         part.x += part.vx;
@@ -284,38 +269,29 @@ const RetroGame: React.FC = () => {
         if (part.life <= 0) game.particles.splice(i, 1);
     }
 
-    // --- Draw ---
+    // Draw
     ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, 0, width, height);
 
-    // Draw Tracks (Floor & Ceiling)
     ctx.lineWidth = 4;
     ctx.strokeStyle = '#334155';
     ctx.beginPath();
-    // Ceiling Track
     ctx.moveTo(0, CEILING_Y); ctx.lineTo(width, CEILING_Y);
-    // Floor Track
     ctx.moveTo(0, FLOOR_Y); ctx.lineTo(width, FLOOR_Y);
     ctx.stroke();
 
-    // Ties
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = '#1e293b';
     const tieSpacing = 50;
     const tieOffset = (game.frame * game.speed) % tieSpacing;
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#1e293b';
     for(let x = -tieOffset; x < width; x+=tieSpacing) {
-        // Ceiling Ties
         ctx.beginPath(); ctx.moveTo(x, CEILING_Y - 10); ctx.lineTo(x, CEILING_Y); ctx.stroke();
-        // Floor Ties
         ctx.beginPath(); ctx.moveTo(x, FLOOR_Y); ctx.lineTo(x, FLOOR_Y + 10); ctx.stroke();
     }
 
-    // Obstacles
     for (const obs of game.obstacles) {
         ctx.fillStyle = '#f43f5e';
         const y = obs.type === 'FLOOR' ? FLOOR_Y - obs.height : CEILING_Y;
-        
-        // Draw Warning Stripes
         ctx.fillRect(obs.x, y, obs.width, obs.height);
         
         ctx.fillStyle = 'rgba(0,0,0,0.2)';
@@ -326,7 +302,6 @@ const RetroGame: React.FC = () => {
         ctx.fill();
     }
 
-    // Collectibles
     for (const col of game.collectibles) {
         if (col.collected) continue;
         const pulse = Math.sin(game.frame * 0.1) * 2;
@@ -335,7 +310,6 @@ const RetroGame: React.FC = () => {
         ctx.arc(col.x + col.size/2, col.y + col.size/2, (col.size/2) + pulse, 0, Math.PI * 2);
         ctx.fill();
         
-        // Inner detail (Camera Lens look)
         ctx.fillStyle = '#000';
         ctx.beginPath();
         ctx.arc(col.x + col.size/2, col.y + col.size/2, (col.size/4), 0, Math.PI * 2);
@@ -346,7 +320,6 @@ const RetroGame: React.FC = () => {
         ctx.fill();
     }
 
-    // Particles
     for (const part of game.particles) {
         ctx.globalAlpha = part.life;
         ctx.fillStyle = part.color;
@@ -356,25 +329,19 @@ const RetroGame: React.FC = () => {
         ctx.globalAlpha = 1.0;
     }
 
-    // Player
     ctx.save();
     ctx.translate(p.x + p.width/2, p.y + p.height/2);
     ctx.rotate(p.rotation);
-    
-    // Car Body
-    ctx.fillStyle = p.gravityDirection === 1 ? '#0ea5e9' : '#8b5cf6'; // Blue normal, Purple inverted
+    ctx.fillStyle = p.gravityDirection === 1 ? '#0ea5e9' : '#8b5cf6';
     ctx.shadowBlur = 15;
     ctx.shadowColor = ctx.fillStyle;
     ctx.fillRect(-p.width/2, -p.height/2, p.width, p.height);
-    
-    // Wheels
     ctx.fillStyle = '#cbd5e1';
     ctx.shadowBlur = 0;
     ctx.beginPath();
-    ctx.arc(-p.width/2 + 5, p.height/2, 4, 0, Math.PI*2); // Back Wheel
-    ctx.arc(p.width/2 - 5, p.height/2, 4, 0, Math.PI*2); // Front Wheel
+    ctx.arc(-p.width/2 + 5, p.height/2, 4, 0, Math.PI*2);
+    ctx.arc(p.width/2 - 5, p.height/2, 4, 0, Math.PI*2);
     ctx.fill();
-
     ctx.restore();
 
     gameRef.current.animationId = requestAnimationFrame(loop);
@@ -392,13 +359,15 @@ const RetroGame: React.FC = () => {
       }
   };
 
-  // Input Handling
+  // Robust Input Handling
   const handleJumpAction = (e: React.SyntheticEvent) => {
-      e.stopPropagation(); // Prevent bubbling
+      e.preventDefault(); 
+      e.stopPropagation();
       if (gameState === 'PLAYING') jump();
   };
 
   const handleInvertAction = (e: React.SyntheticEvent) => {
+      e.preventDefault();
       e.stopPropagation();
       if (gameState === 'PLAYING') toggleGravity();
   };
@@ -420,13 +389,14 @@ const RetroGame: React.FC = () => {
   return (
     <div 
         ref={containerRef} 
-        className="absolute inset-0 z-50 bg-slate-950 flex flex-col overflow-hidden select-none touch-none"
+        // Using fixed to ensure it captures full viewport on mobile without parent scrolling issues
+        className="fixed inset-0 z-[100] bg-slate-950 flex flex-col overflow-hidden select-none touch-none"
     >
         {/* HUD */}
         <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-start pointer-events-none z-10">
             <div className="flex items-center gap-3">
                 <button 
-                  onClick={(e) => { e.stopPropagation(); changeView('QUEUE_HUB'); }} 
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); changeView('QUEUE_HUB'); }} 
                   className="bg-slate-800/80 backdrop-blur p-2 rounded-full border border-slate-700 text-slate-400 hover:text-white pointer-events-auto"
                 >
                     <ArrowLeft size={20} />
@@ -451,35 +421,35 @@ const RetroGame: React.FC = () => {
         {/* Game Canvas */}
         <canvas ref={canvasRef} className="block w-full h-full" />
 
-        {/* Touch Controls Overlay */}
+        {/* Touch Controls Overlay - Explicitly separated and sized for easy tapping */}
         {gameState === 'PLAYING' && (
             <div className="absolute inset-x-0 bottom-0 p-6 z-30 flex gap-4 pointer-events-none">
                 <button 
                     onPointerDown={handleInvertAction}
-                    className="flex-1 h-24 bg-purple-600/20 border-2 border-purple-500/50 rounded-2xl backdrop-blur-sm flex flex-col items-center justify-center text-purple-300 pointer-events-auto active:bg-purple-600/40 active:scale-95 transition-all"
+                    className="flex-1 h-32 bg-purple-600/10 border-2 border-purple-500/30 rounded-3xl backdrop-blur-sm flex flex-col items-center justify-center text-purple-300 pointer-events-auto active:bg-purple-600/30 active:scale-95 transition-all touch-manipulation"
                 >
-                    <ArrowDown size={32} />
-                    <span className="text-xs font-bold uppercase mt-1">Gravity</span>
+                    <ArrowDown size={40} />
+                    <span className="text-sm font-bold uppercase mt-2">Gravity</span>
                 </button>
                 <button 
                     onPointerDown={handleJumpAction}
-                    className="flex-1 h-24 bg-blue-600/20 border-2 border-blue-500/50 rounded-2xl backdrop-blur-sm flex flex-col items-center justify-center text-blue-300 pointer-events-auto active:bg-blue-600/40 active:scale-95 transition-all"
+                    className="flex-1 h-32 bg-blue-600/10 border-2 border-blue-500/30 rounded-3xl backdrop-blur-sm flex flex-col items-center justify-center text-blue-300 pointer-events-auto active:bg-blue-600/30 active:scale-95 transition-all touch-manipulation"
                 >
-                    <ArrowUp size={32} />
-                    <span className="text-xs font-bold uppercase mt-1">Jump</span>
+                    <ArrowUp size={40} />
+                    <span className="text-sm font-bold uppercase mt-2">Jump</span>
                 </button>
             </div>
         )}
 
         {/* Start Screen */}
         {gameState === 'START' && (
-            <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
-                <div className="bg-slate-900 p-8 rounded-3xl border border-slate-700 shadow-2xl text-center max-w-xs">
+            <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in p-4">
+                <div className="bg-slate-900 p-8 rounded-3xl border border-slate-700 shadow-2xl text-center max-w-sm w-full">
                     <Gamepad2 size={48} className="text-primary mx-auto mb-4" />
                     <h2 className="text-3xl font-black text-white italic tracking-tighter mb-2">COASTER DASH</h2>
                     <p className="text-sm text-slate-400 mb-6">Avoid obstacles. Collect coins. Don't crash.</p>
                     
-                    <button onClick={startGame} className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-xl font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2 transition-transform active:scale-95">
+                    <button onClick={startGame} className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-xl font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2 transition-transform active:scale-95 touch-manipulation">
                         <Play size={20} fill="currentColor" /> START RIDE
                     </button>
                     
@@ -493,8 +463,8 @@ const RetroGame: React.FC = () => {
 
         {/* Game Over Screen */}
         {gameState === 'GAMEOVER' && (
-            <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in">
-                <div className="bg-slate-900 p-8 rounded-3xl border border-slate-700 shadow-2xl text-center max-w-xs relative overflow-hidden">
+            <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in p-4">
+                <div className="bg-slate-900 p-8 rounded-3xl border border-slate-700 shadow-2xl text-center max-w-sm w-full relative overflow-hidden">
                     {isNewRecord && (
                         <div className="absolute top-0 right-0 p-4">
                             <PartyPopper size={32} className="text-yellow-400 animate-bounce" />
@@ -508,10 +478,10 @@ const RetroGame: React.FC = () => {
                         {isNewRecord && <div className="text-xs font-bold text-yellow-400 mt-1">NEW HIGH SCORE!</div>}
                     </div>
                     
-                    <button onClick={startGame} className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-xl font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2 transition-transform active:scale-95">
+                    <button onClick={startGame} className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-xl font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2 transition-transform active:scale-95 touch-manipulation">
                         <RotateCcw size={20} /> RIDE AGAIN
                     </button>
-                    <button onClick={() => changeView('QUEUE_HUB')} className="mt-3 w-full bg-slate-800 text-slate-400 py-3 rounded-xl font-bold text-xs hover:text-white transition-colors">
+                    <button onClick={() => changeView('QUEUE_HUB')} className="mt-3 w-full bg-slate-800 text-slate-400 py-3 rounded-xl font-bold text-xs hover:text-white transition-colors touch-manipulation">
                         EXIT TO HUB
                     </button>
                 </div>
