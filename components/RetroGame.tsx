@@ -55,54 +55,60 @@ const RetroGame: React.FC = () => {
 
   // --- AUDIO SYSTEM (Mobile Optimized) ---
   
-  // 1. Initialize Context Once on Mount
+  // Clean up on unmount
   useEffect(() => {
-      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-      if (AudioContext) {
-          audioCtxRef.current = new AudioContext();
-      }
-
-      // 2. Global Unlock Listener (Best for iOS)
-      const unlockAudio = () => {
-          const ctx = audioCtxRef.current;
-          if (ctx && ctx.state !== 'running') {
-              ctx.resume().then(() => {
-                  // Play silent sound to force audio session active
-                  const osc = ctx.createOscillator();
-                  const gain = ctx.createGain();
-                  gain.gain.value = 0; // Silent
-                  osc.connect(gain);
-                  gain.connect(ctx.destination);
-                  osc.start(0);
-                  osc.stop(0.001);
-              }).catch(e => console.error("Audio resume failed", e));
-          }
-      };
-
-      // Listen to multiple interaction types
-      document.addEventListener('touchstart', unlockAudio, { passive: true });
-      document.addEventListener('touchend', unlockAudio, { passive: true });
-      document.addEventListener('click', unlockAudio);
-      document.addEventListener('keydown', unlockAudio);
-
       return () => {
-          document.removeEventListener('touchstart', unlockAudio);
-          document.removeEventListener('touchend', unlockAudio);
-          document.removeEventListener('click', unlockAudio);
-          document.removeEventListener('keydown', unlockAudio);
-          
           stopMusic();
           if (gameRef.current.animationId) cancelAnimationFrame(gameRef.current.animationId);
           if (audioCtxRef.current) {
               audioCtxRef.current.close().catch(() => {});
+              audioCtxRef.current = null;
           }
       };
   }, []);
 
+  const initAudio = () => {
+      // 1. Create Context lazily ONLY on user interaction
+      if (!audioCtxRef.current) {
+          const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+          if (AudioContext) {
+              audioCtxRef.current = new AudioContext();
+          }
+      }
+
+      const ctx = audioCtxRef.current;
+      if (!ctx) return;
+
+      // 2. Always try to resume
+      if (ctx.state === 'suspended') {
+          ctx.resume().catch(e => console.warn("Audio resume failed", e));
+      }
+
+      // 3. Play a silent "unlock" buffer immediately
+      // This forces the audio clock to start ticking on iOS
+      try {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          gain.gain.value = 0.001; // Tiny audible amount to ensure mixer engagement
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(0);
+          osc.stop(0.1);
+      } catch (e) {
+          console.error("Audio unlock buffer failed", e);
+      }
+  };
+
   const playTone = (freq: number, type: OscillatorType, duration: number, startTime: number, vol: number = 0.3) => {
       const ctx = audioCtxRef.current;
-      if (!ctx || isMuted || ctx.state !== 'running') return;
+      if (!ctx || isMuted) return;
       
+      // Safety check for suspended state during gameplay
+      if (ctx.state === 'suspended') {
+          ctx.resume().catch(() => {});
+          return; 
+      }
+
       try {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
@@ -110,17 +116,17 @@ const RetroGame: React.FC = () => {
         osc.type = type;
         osc.frequency.setValueAtTime(freq, startTime);
         
-        // Simple Envelope (No Ramps that might fail)
+        // Simple linear ramp for mobile stability
         gain.gain.setValueAtTime(vol, startTime);
-        gain.gain.setTargetAtTime(0, startTime + (duration * 0.8), 0.05);
+        gain.gain.linearRampToValueAtTime(0.01, startTime + duration);
         
         osc.connect(gain);
         gain.connect(ctx.destination);
         
         osc.start(startTime);
-        osc.stop(startTime + duration + 0.1);
+        osc.stop(startTime + duration + 0.05);
       } catch (e) {
-          // Ignore
+          // Ignore audio errors
       }
   };
 
@@ -157,8 +163,9 @@ const RetroGame: React.FC = () => {
 
   const startMusic = () => {
       const ctx = audioCtxRef.current;
-      if (ctx && !musicTimerRef.current && !isMuted && ctx.state === 'running') {
-          nextNoteTimeRef.current = ctx.currentTime + 0.1; // Start slightly in future
+      if (ctx && !musicTimerRef.current && !isMuted) {
+          // Ensure we are in the future to avoid "start time in past" glitches
+          nextNoteTimeRef.current = ctx.currentTime + 0.05; 
           scheduleMusic();
       }
   };
@@ -173,6 +180,9 @@ const RetroGame: React.FC = () => {
   const toggleMute = (e: React.SyntheticEvent) => {
       e.stopPropagation();
       e.preventDefault();
+      // Ensure context is initialized/resumed when toggling mute off
+      if (isMuted) initAudio();
+      
       setIsMuted(prev => {
           const next = !prev;
           if (next) stopMusic();
@@ -237,10 +247,8 @@ const RetroGame: React.FC = () => {
     e.preventDefault();
     e.stopPropagation();
     
-    // Explicit unlock attempt on button click
-    if (audioCtxRef.current && audioCtxRef.current.state !== 'running') {
-        audioCtxRef.current.resume();
-    }
+    // CRITICAL: Initialize Audio directly in the event handler
+    initAudio();
 
     if (!containerRef.current) return;
 
@@ -506,7 +514,8 @@ const RetroGame: React.FC = () => {
                     <p className="text-sm text-slate-400 mb-6">Avoid obstacles. Collect coins. Don't crash.</p>
                     <button 
                         onClick={startGame}
-                        className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 touch-manipulation"
+                        onTouchEnd={startGame} 
+                        className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 touch-manipulation cursor-pointer"
                     >
                         <Play size={20} fill="currentColor" /> START RIDE
                     </button>
@@ -526,7 +535,8 @@ const RetroGame: React.FC = () => {
                     <div className="space-y-3">
                         <button 
                             onClick={startGame}
-                            className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 touch-manipulation"
+                            onTouchEnd={startGame}
+                            className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 touch-manipulation cursor-pointer"
                         >
                             <RotateCcw size={20} /> RIDE AGAIN
                         </button>
