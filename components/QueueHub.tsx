@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { ArrowLeft, Gamepad2, BrainCircuit, Mic2, HelpCircle, Trophy, RefreshCw, Zap, Ticket, Loader2, Sparkles, AlertCircle, CheckCircle2, Timer, X, Search, Hash, Copy, Percent } from 'lucide-react';
+import { ArrowLeft, Gamepad2, BrainCircuit, Mic2, HelpCircle, Trophy, RefreshCw, Zap, Ticket, Loader2, Sparkles, AlertCircle, CheckCircle2, Timer, X, Search, Hash, Copy, Percent, Play } from 'lucide-react';
 import clsx from 'clsx';
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 
 // --- UX HELPERS ---
 const triggerHaptic = (type: 'success' | 'error' | 'light' = 'light') => {
@@ -415,14 +415,198 @@ const WordGuessGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
     );
 };
 
-// --- TRIVIA GAME (Placeholder) ---
+// --- TRIVIA GAME ---
+interface TriviaQuestion {
+    question: string;
+    options: string[];
+    correctIndex: number;
+    fact: string;
+}
+
 const TriviaGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
+    const [gameState, setGameState] = useState<'LOADING' | 'PLAYING' | 'FINISHED'>('LOADING');
+    const [questions, setQuestions] = useState<TriviaQuestion[]>([]);
+    const [currentIdx, setCurrentIdx] = useState(0);
+    const [score, setScore] = useState(0);
+    const [selectedOption, setSelectedOption] = useState<number | null>(null);
+    const [isAnswered, setIsAnswered] = useState(false);
+
+    // Fallback data in case API fails
+    const FALLBACK_QUESTIONS: TriviaQuestion[] = [
+        { question: "Which roller coaster is known as the 'Golden Ticket' winner for Best Steel Coaster for many years?", options: ["Millennium Force", "Fury 325", "Steel Vengeance", "Maverick"], correctIndex: 1, fact: "Fury 325 at Carowinds has consistently topped the charts." },
+        { question: "What was the first tubular steel roller coaster?", options: ["Matterhorn Bobsleds", "Revolution", "Corkscrew", "Magnum XL-200"], correctIndex: 0, fact: "Disney's Matterhorn Bobsleds (1959) pioneered tubular steel track." },
+        { question: "Which manufacturer is famous for the 'B&M Roar'?", options: ["Intamin", "Bolliger & Mabillard", "RMC", "Vekoma"], correctIndex: 1, fact: "The roar comes from hollow box track filled with sand (or lack thereof)." },
+        { question: "What is a 'Hyper Coaster' defined as?", options: ["200-299 ft", "300-399 ft", "400+ ft", "Launched"], correctIndex: 0, fact: "Hyper coasters are defined by a height or drop between 200 and 299 feet." },
+        { question: "Where is the world's fastest roller coaster located?", options: ["Six Flags Great Adventure", "Ferrari World Abu Dhabi", "Cedar Point", "Fuji-Q Highland"], correctIndex: 1, fact: "Formula Rossa hits 149 mph (240 km/h) in Abu Dhabi." }
+    ];
+
+    useEffect(() => {
+        const loadQuestions = async () => {
+            if (!process.env.API_KEY) {
+                setQuestions(FALLBACK_QUESTIONS);
+                setGameState('PLAYING');
+                return;
+            }
+
+            try {
+                const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+                const response = await ai.models.generateContent({
+                    model: 'gemini-3-flash-preview',
+                    contents: "Generate 5 difficult multiple-choice trivia questions about roller coasters, theme parks, and manufacturers. Return JSON.",
+                    config: {
+                        responseMimeType: "application/json",
+                        responseSchema: {
+                            type: Type.ARRAY,
+                            items: {
+                                type: Type.OBJECT,
+                                properties: {
+                                    question: { type: Type.STRING },
+                                    options: { type: Type.ARRAY, items: { type: Type.STRING } },
+                                    correctIndex: { type: Type.INTEGER },
+                                    fact: { type: Type.STRING }
+                                }
+                            }
+                        }
+                    }
+                });
+
+                const data = JSON.parse(response.text || '[]');
+                if (data && data.length > 0) {
+                    setQuestions(data);
+                } else {
+                    setQuestions(FALLBACK_QUESTIONS);
+                }
+            } catch (e) {
+                console.error("Trivia Gen Error", e);
+                setQuestions(FALLBACK_QUESTIONS);
+            } finally {
+                setGameState('PLAYING');
+            }
+        };
+        loadQuestions();
+    }, []);
+
+    const handleAnswer = (idx: number) => {
+        if (isAnswered) return;
+        
+        setSelectedOption(idx);
+        setIsAnswered(true);
+        const isCorrect = idx === questions[currentIdx].correctIndex;
+        
+        if (isCorrect) {
+            triggerHaptic('success');
+            setScore(s => s + 1);
+        } else {
+            triggerHaptic('error');
+        }
+    };
+
+    const nextQuestion = () => {
+        if (currentIdx < questions.length - 1) {
+            setCurrentIdx(c => c + 1);
+            setSelectedOption(null);
+            setIsAnswered(false);
+        } else {
+            setGameState('FINISHED');
+        }
+    };
+
+    if (gameState === 'LOADING') {
+        return (
+            <div className="h-full flex flex-col items-center justify-center animate-fade-in">
+                <Loader2 size={48} className="text-primary animate-spin mb-4" />
+                <h3 className="text-xl font-bold text-white">Generating Quiz...</h3>
+                <p className="text-slate-400 text-sm">Consulting the coaster gods</p>
+            </div>
+        );
+    }
+
+    if (gameState === 'FINISHED') {
+        return (
+            <div className="h-full flex flex-col items-center justify-center animate-fade-in text-center p-6">
+                <Trophy size={80} className="text-yellow-400 mb-6 animate-bounce" />
+                <h2 className="text-3xl font-black text-white italic mb-2">QUIZ COMPLETE!</h2>
+                <div className="text-6xl font-black text-primary mb-6">{score}/{questions.length}</div>
+                <p className="text-slate-400 mb-8 max-w-xs">
+                    {score === questions.length ? "Perfect score! You are a true thoosie!" : 
+                     score > questions.length / 2 ? "Great job! Solid knowledge." : 
+                     "Keep riding and learning!"}
+                </p>
+                <div className="flex gap-3 w-full">
+                    <button onClick={onExit} className="flex-1 bg-slate-800 text-slate-300 py-3 rounded-xl font-bold border border-slate-700">Exit</button>
+                    <button onClick={() => { setGameState('LOADING'); setScore(0); setCurrentIdx(0); setIsAnswered(false); setSelectedOption(null); }} className="flex-1 bg-primary text-white py-3 rounded-xl font-bold">Play Again</button>
+                </div>
+            </div>
+        );
+    }
+
+    const currentQ = questions[currentIdx];
+
     return (
-        <div className="h-full flex flex-col items-center justify-center text-center p-6 animate-fade-in">
-            <BrainCircuit size={64} className="text-slate-600 mb-6" />
-            <h2 className="text-2xl font-bold text-white mb-2">Coming Soon</h2>
-            <p className="text-slate-400 mb-8">Trivia mode is currently being refurbished.</p>
-            <button onClick={onExit} className="bg-slate-800 text-white px-6 py-3 rounded-xl font-bold">Back to Hub</button>
+        <div className="h-full flex flex-col animate-fade-in relative pb-4">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4 shrink-0">
+                <button onClick={onExit} className="bg-slate-800 p-2 rounded-full border border-slate-700 text-slate-400"><ArrowLeft size={20}/></button>
+                <div className="text-sm font-bold text-slate-400">Question {currentIdx + 1} of {questions.length}</div>
+                <div className="w-10"></div>
+            </div>
+
+            {/* Progress Bar */}
+            <div className="w-full h-1.5 bg-slate-800 rounded-full mb-6 overflow-hidden">
+                <div 
+                    className="h-full bg-primary transition-all duration-500 ease-out" 
+                    style={{ width: `${((currentIdx) / questions.length) * 100}%` }} 
+                />
+            </div>
+
+            {/* Question Card */}
+            <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl mb-6 flex-1 flex flex-col justify-center min-h-[200px]">
+                <h3 className="text-xl font-bold text-white leading-relaxed">{currentQ.question}</h3>
+            </div>
+
+            {/* Options */}
+            <div className="space-y-3 flex-1">
+                {currentQ.options.map((opt, idx) => {
+                    let btnClass = "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-750";
+                    if (isAnswered) {
+                        if (idx === currentQ.correctIndex) btnClass = "bg-emerald-600 border-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.4)]";
+                        else if (idx === selectedOption) btnClass = "bg-red-600 border-red-500 text-white";
+                        else btnClass = "bg-slate-800/50 border-slate-700/50 text-slate-500";
+                    }
+
+                    return (
+                        <button
+                            key={idx}
+                            onClick={() => handleAnswer(idx)}
+                            disabled={isAnswered}
+                            className={clsx(
+                                "w-full p-4 rounded-xl border text-left font-bold transition-all flex items-center justify-between group active:scale-[0.98]",
+                                btnClass
+                            )}
+                        >
+                            <span>{opt}</span>
+                            {isAnswered && idx === currentQ.correctIndex && <CheckCircle2 size={18} className="animate-in zoom-in spin-in duration-300" />}
+                            {isAnswered && idx === selectedOption && idx !== currentQ.correctIndex && <X size={18} />}
+                        </button>
+                    );
+                })}
+            </div>
+
+            {/* Fact & Next Button */}
+            {isAnswered && (
+                <div className="mt-6 animate-fade-in-up space-y-4">
+                    <div className="bg-blue-500/10 border border-blue-500/20 p-3 rounded-xl flex gap-3 items-start">
+                        <Sparkles size={18} className="text-blue-400 shrink-0 mt-0.5" />
+                        <p className="text-xs text-blue-200 leading-relaxed"><span className="font-bold text-blue-400 uppercase tracking-wider">Did you know?</span> {currentQ.fact}</p>
+                    </div>
+                    <button 
+                        onClick={nextQuestion}
+                        className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-xl font-bold text-lg shadow-lg flex items-center justify-center gap-2"
+                    >
+                        {currentIdx < questions.length - 1 ? "Next Question" : "Finish Quiz"} <Play size={18} fill="currentColor" />
+                    </button>
+                </div>
+            )}
         </div>
     );
 };
@@ -478,13 +662,13 @@ const QueueHub: React.FC = () => {
               <p className="text-slate-400 text-xs mt-1">Hangman style coaster trivia</p>
           </button>
 
-          <button onClick={() => setActiveGame('TRIVIA')} className="bg-slate-800 p-6 rounded-[28px] border border-slate-700 relative overflow-hidden group text-left hover:bg-slate-750 active:scale-[0.98] transition-all opacity-60">
+          <button onClick={() => setActiveGame('TRIVIA')} className="bg-slate-800 p-6 rounded-[28px] border border-slate-700 relative overflow-hidden group text-left hover:bg-slate-750 active:scale-[0.98] transition-all">
                <div className="flex justify-between items-start mb-2">
                   <div className="bg-purple-500/10 p-3 rounded-xl text-purple-500"><BrainCircuit size={24} /></div>
-                  <div className="bg-slate-900 text-[10px] font-bold px-2 py-1 rounded text-slate-500">SOON</div>
+                  <div className="bg-purple-500/20 text-[10px] font-bold px-2 py-1 rounded text-purple-300 border border-purple-500/30">AI POWERED</div>
               </div>
               <h3 className="text-xl font-bold text-white">Daily Trivia</h3>
-              <p className="text-slate-400 text-xs mt-1">AI Powered Quiz</p>
+              <p className="text-slate-400 text-xs mt-1">Challenge your knowledge</p>
           </button>
       </div>
 
