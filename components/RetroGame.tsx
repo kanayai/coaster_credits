@@ -54,45 +54,61 @@ const RetroGame: React.FC = () => {
   });
 
   // --- AUDIO SYSTEM ---
-  const unlockAudio = () => {
-      // 1. Create Context if missing
-      if (!audioCtxRef.current) {
-          const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-          if (AudioContext) {
-              audioCtxRef.current = new AudioContext();
+  
+  // Robust Audio Initialization (Must be called on user interaction)
+  const initAudio = () => {
+      try {
+          // 1. Create if missing
+          if (!audioCtxRef.current) {
+              const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+              if (AudioContext) {
+                  audioCtxRef.current = new AudioContext();
+              }
           }
-      }
 
-      // 2. Resume & Play Silent Buffer (iOS Hack)
-      const ctx = audioCtxRef.current;
-      if (ctx) {
-          if (ctx.state === 'suspended') {
-              ctx.resume().catch(e => console.warn("Audio resume failed:", e));
-          }
-          try {
+          // 2. Resume if suspended (Critical for Mobile)
+          const ctx = audioCtxRef.current;
+          if (ctx) {
+              if (ctx.state === 'suspended') {
+                  ctx.resume().catch(e => console.error("Audio resume failed:", e));
+              }
+
+              // 3. Play Silent Buffer (The "iOS Unlock" Trick)
+              // This forces the audio thread to wake up even if we don't hear anything yet
               const buffer = ctx.createBuffer(1, 1, 22050);
               const source = ctx.createBufferSource();
               source.buffer = buffer;
               source.connect(ctx.destination);
               source.start(0);
-          } catch (e) {
-              console.warn("Silent buffer failed:", e);
           }
+      } catch (e) {
+          console.error("Audio init error:", e);
       }
   };
 
   useEffect(() => {
-      return () => {
-          stopMusic();
-          if (gameRef.current.animationId) cancelAnimationFrame(gameRef.current.animationId);
-          audioCtxRef.current?.close();
-      };
+    // Attempt to unlock on any global touch, just in case
+    const handleGlobalUnlock = () => initAudio();
+    document.addEventListener('touchstart', handleGlobalUnlock, { once: true, passive: true });
+    document.addEventListener('click', handleGlobalUnlock, { once: true });
+
+    return () => {
+        document.removeEventListener('touchstart', handleGlobalUnlock);
+        document.removeEventListener('click', handleGlobalUnlock);
+        stopMusic();
+        if (gameRef.current.animationId) cancelAnimationFrame(gameRef.current.animationId);
+        audioCtxRef.current?.close();
+    };
   }, []);
 
-  const playTone = (freq: number, type: OscillatorType, duration: number, startTime: number, vol: number = 0.1) => {
+  const playTone = (freq: number, type: OscillatorType, duration: number, startTime: number, vol: number = 0.3) => {
       if (!audioCtxRef.current || isMuted) return;
+      
       const ctx = audioCtxRef.current;
       
+      // Safety resume check
+      if (ctx.state === 'suspended') ctx.resume();
+
       try {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
@@ -100,6 +116,7 @@ const RetroGame: React.FC = () => {
         osc.type = type;
         osc.frequency.setValueAtTime(freq, startTime);
         
+        // Louder volumes for mobile
         gain.gain.setValueAtTime(vol, startTime);
         gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration - 0.05);
         
@@ -109,7 +126,7 @@ const RetroGame: React.FC = () => {
         osc.start(startTime);
         osc.stop(startTime + duration);
       } catch (e) {
-          // Ignore audio errors if context is weird
+          // Ignore audio errors during rapid play
       }
   };
 
@@ -121,6 +138,11 @@ const RetroGame: React.FC = () => {
 
       if (ctx.state !== 'running') return;
 
+      // Reset cursor if it fell behind (e.g. tab switch) to prevent "fast forward" effect
+      if (nextNoteTimeRef.current < ctx.currentTime) {
+          nextNoteTimeRef.current = ctx.currentTime;
+      }
+
       while (nextNoteTimeRef.current < ctx.currentTime + lookahead) {
           const bassSequence = [110, 110, 164, 110, 146, 110, 196, 164]; 
           const melodySequence = [440, 0, 523, 0, 659, 523, 0, 440]; 
@@ -128,10 +150,10 @@ const RetroGame: React.FC = () => {
           const beat = melodyIndexRef.current % 8;
           
           if (bassSequence[beat]) {
-              playTone(bassSequence[beat], 'square', tempo, nextNoteTimeRef.current, 0.05);
+              playTone(bassSequence[beat], 'square', tempo, nextNoteTimeRef.current, 0.15);
           }
           if (melodySequence[beat] && Math.floor(melodyIndexRef.current / 8) % 2 === 0) {
-              playTone(melodySequence[beat], 'sawtooth', tempo, nextNoteTimeRef.current, 0.03);
+              playTone(melodySequence[beat], 'sawtooth', tempo, nextNoteTimeRef.current, 0.12);
           }
 
           nextNoteTimeRef.current += tempo;
@@ -142,8 +164,10 @@ const RetroGame: React.FC = () => {
   };
 
   const startMusic = () => {
-      unlockAudio();
+      initAudio(); // Ensure active
+      
       if (!musicTimerRef.current && !isMuted) {
+          // Reset timing to now
           nextNoteTimeRef.current = audioCtxRef.current?.currentTime || 0;
           scheduleMusic();
       }
@@ -159,13 +183,12 @@ const RetroGame: React.FC = () => {
   const toggleMute = (e: React.SyntheticEvent) => {
       e.stopPropagation();
       e.preventDefault();
-      setIsMuted(!isMuted);
-      if (!isMuted) { 
-          stopMusic();
-      } else { 
-          // Only restart music if we are in game
-          if (gameState === 'PLAYING') startMusic();
-      }
+      setIsMuted(prev => {
+          const next = !prev;
+          if (next) stopMusic();
+          else if (gameState === 'PLAYING') startMusic();
+          return next;
+      });
   };
 
   // --- GAME LOGIC ---
@@ -226,11 +249,11 @@ const RetroGame: React.FC = () => {
   }, []);
 
   const startGame = (e: React.SyntheticEvent | Event) => {
-    // Explicitly unlock audio on user gesture
-    unlockAudio();
+    // CRITICAL: Initialize audio on direct user interaction
+    initAudio();
 
     if (!containerRef.current) return;
-    
+
     // Recalculate dimensions just in case
     const height = containerRef.current.clientHeight;
     const centerY = height / 2;
@@ -253,7 +276,7 @@ const RetroGame: React.FC = () => {
             height: 20, 
             dy: 0, 
             grounded: true, 
-            gravityDirection: 1,
+            gravityDirection: 1, // Start Normal
             rotation: 0
         },
         obstacles: [],
@@ -267,8 +290,12 @@ const RetroGame: React.FC = () => {
     setScore(0);
     setIsNewRecord(false);
     setGameState('PLAYING');
-    startMusic();
-    loop();
+    
+    // Slight delay to ensure audio context is ready if it was just created
+    setTimeout(() => {
+        startMusic();
+        loop();
+    }, 10);
   };
 
   const jump = () => {
@@ -276,7 +303,11 @@ const RetroGame: React.FC = () => {
       if (player.grounded) {
           player.dy = -JUMP_FORCE * player.gravityDirection;
           player.grounded = false;
-          if (!isMuted) playTone(300, 'square', 0.1, audioCtxRef.current!.currentTime, 0.1);
+          // Trigger tone if audio is active
+          if (!isMuted) {
+              const ctx = audioCtxRef.current;
+              if (ctx) playTone(300, 'square', 0.1, ctx.currentTime, 0.3);
+          }
       }
   };
 
@@ -288,7 +319,10 @@ const RetroGame: React.FC = () => {
       const cy = player.y + player.height/2;
       createExplosion(player.x + player.width/2, cy, '#8b5cf6', 5);
       
-      if (!isMuted) playTone(150, 'sawtooth', 0.15, audioCtxRef.current!.currentTime, 0.1);
+      if (!isMuted) {
+          const ctx = audioCtxRef.current;
+          if (ctx) playTone(150, 'sawtooth', 0.15, ctx.currentTime, 0.3);
+      }
   };
 
   const createExplosion = (x: number, y: number, color: string, count: number) => {
@@ -358,12 +392,13 @@ const RetroGame: React.FC = () => {
     const targetRotation = p.gravityDirection === 1 ? 0 : Math.PI;
     p.rotation += (targetRotation - p.rotation) * 0.2;
 
-    // Spawning
-    // FIX: Ensure lastItemX is very negative if empty, so first item spawns immediately even on narrow screens
+    // Spawning Fix: 
+    // Check if we have ANY obstacles or collectibles. If not, use a very negative number so the math forces a spawn immediately.
     const lastObsX = game.obstacles.length > 0 ? game.obstacles[game.obstacles.length - 1].x : -99999;
     const lastColX = game.collectibles.length > 0 ? game.collectibles[game.collectibles.length - 1].x : -99999;
     const lastItemX = Math.max(lastObsX, lastColX);
 
+    // If (Screen Width - Last Item Position) > Random Gap, Spawn New
     if (width - lastItemX > Math.random() * (OBSTACLE_GAP_MAX - OBSTACLE_GAP_MIN) + OBSTACLE_GAP_MIN) {
         const rand = Math.random();
         const spawnX = width + 50;
@@ -432,7 +467,10 @@ const RetroGame: React.FC = () => {
             game.score += 10;
             setScore(game.score);
             createExplosion(col.x, col.y, '#facc15', 8);
-            if (!isMuted) playTone(800, 'square', 0.1, audioCtxRef.current!.currentTime, 0.05);
+            if (!isMuted) {
+                const ctx = audioCtxRef.current;
+                if(ctx) playTone(800, 'square', 0.1, ctx.currentTime, 0.2);
+            }
         }
 
         if (col.x < -50) game.collectibles.splice(i, 1);
@@ -537,7 +575,10 @@ const RetroGame: React.FC = () => {
       setGameState('GAMEOVER');
       stopMusic();
       
-      if (!isMuted) playTone(100, 'sawtooth', 0.5, audioCtxRef.current!.currentTime, 0.2);
+      if (!isMuted) {
+          const ctx = audioCtxRef.current;
+          if(ctx) playTone(100, 'sawtooth', 0.5, ctx.currentTime, 0.4);
+      }
 
       const finalScore = gameRef.current.score;
       if (finalScore > highScore) {
