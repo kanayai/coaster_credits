@@ -17,11 +17,9 @@ const AppContent: React.FC = () => {
 
   const renderView = () => {
     switch (currentView) {
-      // Force Dashboard to remount when user changes to ensure fresh data visualization
       case 'DASHBOARD': return <Dashboard key={`dash-${activeUser.id}-${credits.length}`} />;
       case 'ADD_CREDIT': return <AddCredit />;
       case 'COASTER_LIST': return <CoasterList />;
-      // Force ProfileManager to remount on user switch to fix Heatmap reactivity
       case 'PROFILE': return <ProfileManager key={`profile-${activeUser.id}`} />;
       case 'PARK_STATS': return <ParkStats />;
       case 'RANKINGS': return <Rankings />;
