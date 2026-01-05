@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { UserPlus, CheckCircle2, Smartphone, Share2, QrCode, Edit2, Save, X, FileSpreadsheet, Database, Download, Cloud, PaintBucket, Sparkles, Loader2, Copy, ExternalLink, Camera, ImageDown, Upload, Wrench, Share, FileJson, Trophy, FileText, Code2, Calendar, Gamepad2 } from 'lucide-react';
+import { UserPlus, CheckCircle2, Smartphone, Share2, QrCode, Edit2, Save, X, FileSpreadsheet, Database, Download, Cloud, PaintBucket, Sparkles, Loader2, Copy, ExternalLink, Camera, ImageDown, Upload, Wrench, Share, FileJson, Trophy, FileText, Code2, Calendar, Gamepad2, Ticket } from 'lucide-react';
 import { User } from '../types';
 import { AppTheme } from '../context/AppContext';
 import clsx from 'clsx';
@@ -212,32 +212,32 @@ const ProfileManager: React.FC = () => {
         )}
       </div>
 
-      {/* Arcade / Retro Game Section */}
-      <div onClick={() => changeView('GAME')} className="bg-gradient-to-r from-purple-900 to-pink-900 rounded-[24px] p-6 border border-pink-500/30 relative overflow-hidden group cursor-pointer shadow-xl">
+      {/* Queue Line Entertainment Section */}
+      <div onClick={() => changeView('QUEUE_HUB')} className="bg-gradient-to-r from-purple-900 to-pink-900 rounded-[24px] p-6 border border-pink-500/30 relative overflow-hidden group cursor-pointer shadow-xl">
           <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_4px,3px_100%] opacity-20 pointer-events-none"></div>
           <div className="absolute top-0 right-0 p-8 opacity-20 group-hover:opacity-40 transition-opacity">
-              <Gamepad2 size={100} />
+              <Ticket size={100} />
           </div>
           <div className="relative z-10">
               <div className="flex items-center gap-2 mb-2">
                   <div className="bg-white/20 p-1.5 rounded-lg text-white backdrop-blur">
                       <Gamepad2 size={16} />
                   </div>
-                  <span className="text-[10px] font-bold text-pink-300 uppercase tracking-widest">Arcade</span>
+                  <span className="text-[10px] font-bold text-pink-300 uppercase tracking-widest">Queue Hub</span>
               </div>
-              <h3 className="text-2xl font-black text-white italic tracking-tight drop-shadow-md">COASTER DASH</h3>
-              <p className="text-xs text-pink-200 mt-1 max-w-[200px]">Retro infinite runner. Avoid the broken tracks!</p>
+              <h3 className="text-2xl font-black text-white italic tracking-tight drop-shadow-md">WAITING IN LINE?</h3>
+              <p className="text-xs text-pink-200 mt-1 max-w-[200px]">Kill time with games, trivia & jokes!</p>
               
               <div className="mt-4 flex items-center gap-3">
                   <div className="bg-black/30 backdrop-blur px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-2">
                       <Trophy size={14} className="text-yellow-400" />
                       <div className="flex flex-col">
-                          <span className="text-[8px] text-slate-400 font-bold uppercase">High Score</span>
+                          <span className="text-[8px] text-slate-400 font-bold uppercase">Game Score</span>
                           <span className="text-sm font-bold text-white leading-none font-mono">{activeUser.highScore || 0}</span>
                       </div>
                   </div>
                   <button className="bg-white text-purple-900 px-4 py-2 rounded-lg text-xs font-bold uppercase hover:bg-pink-100 transition-colors">
-                      Play Now
+                      Enter Hub
                   </button>
               </div>
           </div>

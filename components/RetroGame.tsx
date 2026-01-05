@@ -271,15 +271,18 @@ const RetroGame: React.FC = () => {
         }
     };
     
-    const handleTouch = () => {
+    const handleTouch = (e: TouchEvent | MouseEvent) => {
+         // iOS Fix: preventDefault stops double-firing/scrolling/zooming on rapid taps
+         if (e.cancelable && gameState === 'PLAYING') e.preventDefault();
+         
          if (gameState === 'PLAYING') jump();
          else if (gameState !== 'PLAYING') startGame();
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    // Add listener to container instead of window to prevent scrolling issues? 
-    // Actually window is better for a "fullscreen" feel game.
-    window.addEventListener('touchstart', handleTouch);
+    
+    // Add non-passive listener for iOS to allow preventDefault
+    window.addEventListener('touchstart', handleTouch, { passive: false });
     window.addEventListener('mousedown', handleTouch);
 
     return () => {
@@ -296,7 +299,7 @@ const RetroGame: React.FC = () => {
         <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-start pointer-events-none z-10">
             <div className="flex items-center gap-3">
                 <button 
-                  onClick={() => changeView('PROFILE')} 
+                  onClick={() => changeView('QUEUE_HUB')} 
                   className="bg-slate-800/80 backdrop-blur p-2 rounded-full border border-slate-700 text-slate-400 hover:text-white pointer-events-auto"
                 >
                     <ArrowLeft size={20} />
