@@ -53,33 +53,38 @@ const RetroGame: React.FC = () => {
     ceilingY: 0
   });
 
-  // --- ROBUST MOBILE AUDIO SYSTEM ---
+  // --- AUDIO SYSTEM (Mobile Optimized) ---
   
-  const createAudioContext = () => {
-    if (!audioCtxRef.current) {
-        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-        if (AudioContext) {
-            audioCtxRef.current = new AudioContext();
-        }
-    }
+  const initAudioContext = () => {
+      if (!audioCtxRef.current) {
+          const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+          if (AudioContext) {
+              audioCtxRef.current = new AudioContext();
+          }
+      }
+      return audioCtxRef.current;
   };
 
-  const resumeAudioContext = async () => {
-    createAudioContext();
-    const ctx = audioCtxRef.current;
-    if (ctx && ctx.state === 'suspended') {
-        await ctx.resume();
-    }
-    // iOS Unlock Trick: Play a very short silent note
-    if (ctx && ctx.state === 'running') {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(0);
-        osc.stop(0.01);
-    }
+  // Called strictly on user interaction (Click/Tap)
+  const unlockAudio = async () => {
+      const ctx = initAudioContext();
+      if (!ctx) return;
+
+      // 1. Resume Context (Required for iOS/Chrome autoplay policy)
+      if (ctx.state === 'suspended') {
+          await ctx.resume();
+      }
+
+      // 2. Play Silent Buffer (Forces audio mixer to wake up)
+      try {
+          const buffer = ctx.createBuffer(1, 1, 22050);
+          const source = ctx.createBufferSource();
+          source.buffer = buffer;
+          source.connect(ctx.destination);
+          source.start(0);
+      } catch (e) {
+          console.warn("Audio unlock buffer failed", e);
+      }
   };
 
   useEffect(() => {
@@ -103,16 +108,17 @@ const RetroGame: React.FC = () => {
         osc.type = type;
         osc.frequency.setValueAtTime(freq, startTime);
         
+        // Use linearRamp for better stability on mobile
         gain.gain.setValueAtTime(vol, startTime);
-        gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+        gain.gain.linearRampToValueAtTime(0.001, startTime + duration);
         
         osc.connect(gain);
         gain.connect(ctx.destination);
         
         osc.start(startTime);
-        osc.stop(startTime + duration);
+        osc.stop(startTime + duration + 0.1); // Stop slightly after to prevent clicking
       } catch (e) {
-          // Swallow audio errors during rapid playback
+          // Ignore
       }
   };
 
@@ -134,10 +140,10 @@ const RetroGame: React.FC = () => {
           const beat = melodyIndexRef.current % 8;
           
           if (bassSequence[beat]) {
-              playTone(bassSequence[beat], 'square', tempo, nextNoteTimeRef.current, 0.1);
+              playTone(bassSequence[beat], 'square', tempo, nextNoteTimeRef.current, 0.15);
           }
           if (melodySequence[beat] && Math.floor(melodyIndexRef.current / 8) % 2 === 0) {
-              playTone(melodySequence[beat], 'sawtooth', tempo, nextNoteTimeRef.current, 0.08);
+              playTone(melodySequence[beat], 'sawtooth', tempo, nextNoteTimeRef.current, 0.1);
           }
 
           nextNoteTimeRef.current += tempo;
@@ -150,7 +156,7 @@ const RetroGame: React.FC = () => {
   const startMusic = () => {
       const ctx = audioCtxRef.current;
       if (ctx && !musicTimerRef.current && !isMuted && ctx.state === 'running') {
-          nextNoteTimeRef.current = ctx.currentTime;
+          nextNoteTimeRef.current = ctx.currentTime + 0.1; // Start slightly in future
           scheduleMusic();
       }
   };
@@ -208,6 +214,7 @@ const RetroGame: React.FC = () => {
     const container = containerRef.current;
     if (!container) return;
     
+    // Prevent scrolling/zooming while playing
     const preventDefault = (e: TouchEvent) => { 
         const target = e.target as HTMLElement;
         if (target.closest('button')) return;
@@ -228,8 +235,8 @@ const RetroGame: React.FC = () => {
     e.preventDefault();
     e.stopPropagation();
     
-    // CRITICAL: Unlocking Audio context must happen inside a click event handler
-    await resumeAudioContext();
+    // CRITICAL: Must be awaited within the click handler to unlock iOS audio
+    await unlockAudio();
 
     if (!containerRef.current) return;
 
@@ -493,7 +500,10 @@ const RetroGame: React.FC = () => {
                     <Gamepad2 size={48} className="text-primary mx-auto mb-4" />
                     <h2 className="text-3xl font-black text-white italic tracking-tighter mb-2">COASTER DASH</h2>
                     <p className="text-sm text-slate-400 mb-6">Avoid obstacles. Collect coins. Don't crash.</p>
-                    <button onPointerDown={startGame} className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2">
+                    <button 
+                        onClick={startGame}
+                        className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 touch-manipulation"
+                    >
                         <Play size={20} fill="currentColor" /> START RIDE
                     </button>
                 </div>
@@ -510,7 +520,10 @@ const RetroGame: React.FC = () => {
                         <div className="text-5xl font-black text-white font-mono">{score}</div>
                     </div>
                     <div className="space-y-3">
-                        <button onPointerDown={startGame} className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2">
+                        <button 
+                            onClick={startGame}
+                            className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 touch-manipulation"
+                        >
                             <RotateCcw size={20} /> RIDE AGAIN
                         </button>
                         <button onClick={() => changeView('QUEUE_HUB')} className="w-full bg-slate-800 text-slate-400 py-3 rounded-xl font-bold text-xs">EXIT TO HUB</button>
