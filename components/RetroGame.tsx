@@ -55,46 +55,48 @@ const RetroGame: React.FC = () => {
 
   // --- AUDIO SYSTEM (Mobile Optimized) ---
   
-  const initAudioContext = () => {
-      if (!audioCtxRef.current) {
-          const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-          if (AudioContext) {
-              audioCtxRef.current = new AudioContext();
-          }
-      }
-      return audioCtxRef.current;
-  };
-
-  // Called strictly on user interaction (Click/Tap)
-  const unlockAudio = async () => {
-      const ctx = initAudioContext();
-      if (!ctx) return;
-
-      // 1. Resume Context (Required for iOS/Chrome autoplay policy)
-      if (ctx.state === 'suspended') {
-          await ctx.resume();
-      }
-
-      // 2. Play Silent Buffer (Forces audio mixer to wake up)
-      try {
-          const buffer = ctx.createBuffer(1, 1, 22050);
-          const source = ctx.createBufferSource();
-          source.buffer = buffer;
-          source.connect(ctx.destination);
-          source.start(0);
-      } catch (e) {
-          console.warn("Audio unlock buffer failed", e);
-      }
-  };
-
+  // 1. Initialize Context Once on Mount
   useEffect(() => {
-    return () => {
-        stopMusic();
-        if (gameRef.current.animationId) cancelAnimationFrame(gameRef.current.animationId);
-        if (audioCtxRef.current) {
-            audioCtxRef.current.close().catch(() => {});
-        }
-    };
+      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioContext) {
+          audioCtxRef.current = new AudioContext();
+      }
+
+      // 2. Global Unlock Listener (Best for iOS)
+      const unlockAudio = () => {
+          const ctx = audioCtxRef.current;
+          if (ctx && ctx.state !== 'running') {
+              ctx.resume().then(() => {
+                  // Play silent sound to force audio session active
+                  const osc = ctx.createOscillator();
+                  const gain = ctx.createGain();
+                  gain.gain.value = 0; // Silent
+                  osc.connect(gain);
+                  gain.connect(ctx.destination);
+                  osc.start(0);
+                  osc.stop(0.001);
+              }).catch(e => console.error("Audio resume failed", e));
+          }
+      };
+
+      // Listen to multiple interaction types
+      document.addEventListener('touchstart', unlockAudio, { passive: true });
+      document.addEventListener('touchend', unlockAudio, { passive: true });
+      document.addEventListener('click', unlockAudio);
+      document.addEventListener('keydown', unlockAudio);
+
+      return () => {
+          document.removeEventListener('touchstart', unlockAudio);
+          document.removeEventListener('touchend', unlockAudio);
+          document.removeEventListener('click', unlockAudio);
+          document.removeEventListener('keydown', unlockAudio);
+          
+          stopMusic();
+          if (gameRef.current.animationId) cancelAnimationFrame(gameRef.current.animationId);
+          if (audioCtxRef.current) {
+              audioCtxRef.current.close().catch(() => {});
+          }
+      };
   }, []);
 
   const playTone = (freq: number, type: OscillatorType, duration: number, startTime: number, vol: number = 0.3) => {
@@ -108,15 +110,15 @@ const RetroGame: React.FC = () => {
         osc.type = type;
         osc.frequency.setValueAtTime(freq, startTime);
         
-        // Use linearRamp for better stability on mobile
+        // Simple Envelope (No Ramps that might fail)
         gain.gain.setValueAtTime(vol, startTime);
-        gain.gain.linearRampToValueAtTime(0.001, startTime + duration);
+        gain.gain.setTargetAtTime(0, startTime + (duration * 0.8), 0.05);
         
         osc.connect(gain);
         gain.connect(ctx.destination);
         
         osc.start(startTime);
-        osc.stop(startTime + duration + 0.1); // Stop slightly after to prevent clicking
+        osc.stop(startTime + duration + 0.1);
       } catch (e) {
           // Ignore
       }
@@ -231,12 +233,14 @@ const RetroGame: React.FC = () => {
     };
   }, []);
 
-  const startGame = async (e: React.SyntheticEvent | Event) => {
+  const startGame = (e: React.SyntheticEvent | Event) => {
     e.preventDefault();
     e.stopPropagation();
     
-    // CRITICAL: Must be awaited within the click handler to unlock iOS audio
-    await unlockAudio();
+    // Explicit unlock attempt on button click
+    if (audioCtxRef.current && audioCtxRef.current.state !== 'running') {
+        audioCtxRef.current.resume();
+    }
 
     if (!containerRef.current) return;
 
