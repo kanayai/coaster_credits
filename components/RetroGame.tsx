@@ -23,6 +23,7 @@ const RetroGame: React.FC = () => {
   const [isNewRecord, setIsNewRecord] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [audioReady, setAudioReady] = useState(false);
+  const [needsInteraction, setNeedsInteraction] = useState(false);
   
   // Game State for UI
   const [boostValue, setBoostValue] = useState(0);
@@ -72,107 +73,106 @@ const RetroGame: React.FC = () => {
     shake: 0,
     boost: 0,
     boosting: false,
-    trackOffset: 0, // Vertical shift for hills
-    slope: 0 // Current slope angle
+    trackOffset: 0,
+    slope: 0
   });
 
-  // --- AUDIO SYSTEM (Robust Fix) ---
+  // --- AUDIO SYSTEM (RANDOMIZED & ROBUST) ---
   
-  const getAudioContext = () => {
+  const initAudio = () => {
       if (!audioCtxRef.current) {
           const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
           if (AudioContext) {
-              audioCtxRef.current = new AudioContext({ 
-                  latencyHint: 'interactive',
-                  sampleRate: 44100 
-              });
+              audioCtxRef.current = new AudioContext({ latencyHint: 'interactive' });
           }
       }
       return audioCtxRef.current;
   };
 
-  const unlockAudioEngine = () => {
-      const ctx = getAudioContext();
+  const unlockAudio = async () => {
+      const ctx = initAudio();
       if (!ctx) return;
 
-      // Always try to resume
       if (ctx.state === 'suspended') {
-          ctx.resume().then(() => {
-              setAudioReady(true);
-          }).catch(console.error);
-      } else if (ctx.state === 'running') {
-          setAudioReady(true);
+          try {
+              await ctx.resume();
+          } catch (e) {
+              console.error("Resume failed", e);
+          }
       }
-
-      // Play silent buffer to force unlock on iOS
-      try {
+      
+      if (ctx.state === 'running') {
+          setAudioReady(true);
+          setNeedsInteraction(false);
+          // Play silent buffer to warm up iOS audio
           const buffer = ctx.createBuffer(1, 1, 22050);
           const source = ctx.createBufferSource();
           source.buffer = buffer;
           source.connect(ctx.destination);
           source.start(0);
+      } else {
+          setNeedsInteraction(true);
+      }
+  };
+
+  const randomRange = (min: number, max: number) => Math.random() * (max - min) + min;
+
+  const playTone = (baseFreq: number, type: OscillatorType, duration: number, vol: number = 0.3, randomize: boolean = true) => {
+      const ctx = audioCtxRef.current;
+      if (!ctx || isMuted || ctx.state !== 'running') return;
+
+      try {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        
+        // Enhanced Randomization for "Organic" feel
+        const freq = randomize ? baseFreq * randomRange(0.85, 1.15) : baseFreq;
+        const volume = randomize ? Math.min(vol * randomRange(0.5, 1.5), 1.0) : vol;
+
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, ctx.currentTime);
+        
+        // Linear Ramp Envelope (Robust for mobile)
+        gain.gain.setValueAtTime(0, ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(volume, ctx.currentTime + 0.005); // Fast attack
+        gain.gain.linearRampToValueAtTime(0, ctx.currentTime + duration); // Decay
+        
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + duration + 0.05);
       } catch (e) {
           // Ignore
       }
   };
 
   useEffect(() => {
-      // Force unlock on ANY interaction on the page
-      const handleUserGesture = () => unlockAudioEngine();
-      ['touchstart', 'click', 'keydown'].forEach(evt => 
-          document.addEventListener(evt, handleUserGesture, { passive: true })
-      );
+      const handleUserGesture = () => unlockAudio();
+      window.addEventListener('touchstart', handleUserGesture, { passive: true });
+      window.addEventListener('click', handleUserGesture, { passive: true });
+      window.addEventListener('keydown', handleUserGesture, { passive: true });
 
       return () => {
           stopMusic();
           if (gameRef.current.animationId) cancelAnimationFrame(gameRef.current.animationId);
           if (audioCtxRef.current) {
-              audioCtxRef.current.close().catch(() => {});
+              audioCtxRef.current.close();
               audioCtxRef.current = null;
           }
-          ['touchstart', 'click', 'keydown'].forEach(evt => 
-              document.removeEventListener(evt, handleUserGesture)
-          );
+          window.removeEventListener('touchstart', handleUserGesture);
+          window.removeEventListener('click', handleUserGesture);
+          window.removeEventListener('keydown', handleUserGesture);
       };
   }, []);
 
-  const playTone = (freq: number, type: OscillatorType, duration: number, startTime: number, vol: number = 0.3) => {
-      const ctx = getAudioContext();
-      if (!ctx || isMuted) return;
-      
-      // Aggressive Resume Check
-      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
-
-      try {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        
-        osc.type = type;
-        osc.frequency.setValueAtTime(freq, ctx.currentTime); // Use currentTime for immediate effects
-        
-        const volume = Math.min(vol, 0.8); 
-
-        // Simplified Linear Ramp (Robust on mobile)
-        gain.gain.setValueAtTime(0, ctx.currentTime);
-        gain.gain.linearRampToValueAtTime(volume, ctx.currentTime + 0.01);
-        gain.gain.linearRampToValueAtTime(0, ctx.currentTime + duration);
-        
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + duration + 0.1);
-      } catch (e) {
-          console.error("Sound Error", e);
-      }
-  };
-
   const playChainClick = () => {
-      playTone(100, 'sawtooth', 0.05, 0, 0.1);
+      // "Clacky" Sound: High pitch, square wave, short duration
+      playTone(600, 'square', 0.04, 0.15, true); 
   };
 
   const scheduleMusic = () => {
-      const ctx = getAudioContext();
+      const ctx = audioCtxRef.current;
       if (!ctx || isMuted || ctx.state !== 'running') return;
 
       if (gameRef.current.isLiftHill) {
@@ -181,9 +181,7 @@ const RetroGame: React.FC = () => {
       }
 
       const isBoost = gameRef.current.boosting;
-      // Physics-based tempo: faster when going downhill
-      const momentumMultiplier = gameRef.current.speed / gameRef.current.baseSpeed;
-      
+      const momentumMultiplier = Math.max(0.8, Math.min(gameRef.current.speed / gameRef.current.baseSpeed, 1.5));
       const baseTempo = difficulty === 'ADVANCED' ? 0.12 : difficulty === 'MEDIUM' ? 0.15 : 0.18;
       const tempo = baseTempo / momentumMultiplier; 
       const lookahead = 0.1; 
@@ -197,54 +195,49 @@ const RetroGame: React.FC = () => {
           const melodySequence = [440, 0, 523, 0, 659, 523, 0, 440]; 
 
           const beat = melodyIndexRef.current % 8;
-          
-          // Use a future timestamp for music to keep rhythm
           const noteTime = nextNoteTimeRef.current;
 
           if (bassSequence[beat]) {
-              // Custom playTone logic for scheduled music (uses future time)
               try {
                   const osc = ctx.createOscillator();
                   const gain = ctx.createGain();
                   osc.type = 'square';
-                  osc.frequency.setValueAtTime(bassSequence[beat] * (isBoost ? 1.5 : 1), noteTime);
+                  const freq = bassSequence[beat] * (isBoost ? 1.5 : 1) * randomRange(0.99, 1.01);
+                  osc.frequency.setValueAtTime(freq, noteTime);
                   gain.gain.setValueAtTime(0, noteTime);
-                  gain.gain.linearRampToValueAtTime(0.15, noteTime + 0.02);
-                  gain.gain.linearRampToValueAtTime(0, noteTime + tempo);
+                  gain.gain.linearRampToValueAtTime(0.15, noteTime + 0.01);
+                  gain.gain.linearRampToValueAtTime(0, noteTime + tempo * 0.8);
                   osc.connect(gain);
                   gain.connect(ctx.destination);
                   osc.start(noteTime);
-                  osc.stop(noteTime + tempo + 0.1);
+                  osc.stop(noteTime + tempo);
               } catch(e) {}
           }
-          
           if (melodySequence[beat] && Math.floor(melodyIndexRef.current / 8) % 2 === 0) {
                try {
                   const osc = ctx.createOscillator();
                   const gain = ctx.createGain();
                   osc.type = 'sawtooth';
-                  osc.frequency.setValueAtTime(melodySequence[beat] * (isBoost ? 1.5 : 1), noteTime);
+                  const freq = melodySequence[beat] * (isBoost ? 1.5 : 1);
+                  osc.frequency.setValueAtTime(freq, noteTime);
                   gain.gain.setValueAtTime(0, noteTime);
-                  gain.gain.linearRampToValueAtTime(0.1, noteTime + 0.02);
-                  gain.gain.linearRampToValueAtTime(0, noteTime + tempo);
+                  gain.gain.linearRampToValueAtTime(0.1, noteTime + 0.01);
+                  gain.gain.linearRampToValueAtTime(0, noteTime + tempo * 0.5);
                   osc.connect(gain);
                   gain.connect(ctx.destination);
                   osc.start(noteTime);
-                  osc.stop(noteTime + tempo + 0.1);
+                  osc.stop(noteTime + tempo);
               } catch(e) {}
           }
-
           nextNoteTimeRef.current += tempo;
           melodyIndexRef.current++;
       }
-      
       musicTimerRef.current = requestAnimationFrame(scheduleMusic);
   };
 
   const startMusic = () => {
-      const ctx = getAudioContext();
+      const ctx = audioCtxRef.current;
       if (ctx && !musicTimerRef.current && !isMuted) {
-          if (ctx.state === 'suspended') ctx.resume();
           nextNoteTimeRef.current = ctx.currentTime + 0.05; 
           scheduleMusic();
       }
@@ -259,7 +252,7 @@ const RetroGame: React.FC = () => {
 
   const toggleMute = (e: React.SyntheticEvent) => {
       e.stopPropagation();
-      unlockAudioEngine(); 
+      unlockAudio(); 
       setIsMuted(prev => {
           const next = !prev;
           if (next) stopMusic();
@@ -294,7 +287,7 @@ const RetroGame: React.FC = () => {
   const startGame = (e: React.SyntheticEvent | Event) => {
     e.preventDefault();
     e.stopPropagation();
-    unlockAudioEngine(); // Force audio unlock
+    unlockAudio();
 
     if (!containerRef.current) return;
 
@@ -350,22 +343,22 @@ const RetroGame: React.FC = () => {
   };
 
   const jump = () => {
-      unlockAudioEngine(); // Ensure audio is alive
+      unlockAudio(); 
       const { player, settings } = gameRef.current;
       if (player.grounded) {
           player.dy = -settings.jump * player.gravityDirection;
           player.grounded = false;
-          playTone(300, 'square', 0.1, 0, 0.4);
+          playTone(300, 'square', 0.1, 0.4, true);
       }
   };
 
   const toggleGravity = () => {
-      unlockAudioEngine(); // Ensure audio is alive
+      unlockAudio();
       const { player } = gameRef.current;
       player.gravityDirection *= -1;
       player.grounded = false;
       createExplosion(player.x + player.width/2, player.y + player.height/2, '#8b5cf6', 5);
-      playTone(150, 'sawtooth', 0.15, 0, 0.4);
+      playTone(150, 'sawtooth', 0.15, 0.4, true);
   };
 
   const activateBoost = (e?: React.SyntheticEvent) => {
@@ -377,14 +370,13 @@ const RetroGame: React.FC = () => {
           gameRef.current.boosting = true;
           gameRef.current.shake = 15; 
           setIsBoosting(true);
-          playTone(600, 'sawtooth', 0.5, 0, 0.5);
+          playTone(600, 'sawtooth', 0.5, 0.5, true);
           createExplosion(gameRef.current.player.x, gameRef.current.player.y, '#0ea5e9', 20);
       }
   };
 
   const handleGameInteraction = (e: React.TouchEvent | React.MouseEvent) => {
       if (!gameRef.current.isRunning) return;
-      
       let clientX;
       if ('touches' in e) {
           if (e.touches.length > 0) clientX = e.touches[0].clientX;
@@ -392,9 +384,7 @@ const RetroGame: React.FC = () => {
       } else {
           clientX = (e as React.MouseEvent).clientX;
       }
-
       const screenWidth = window.innerWidth;
-      // Split Screen Logic
       if (clientX < screenWidth / 2) {
           toggleGravity();
       } else {
@@ -417,8 +407,11 @@ const RetroGame: React.FC = () => {
   const drawTrainCar = (ctx: CanvasRenderingContext2D, p: typeof gameRef.current.player, isBoosting: boolean) => {
     ctx.save();
     ctx.translate(p.x + p.width/2, p.y + p.height/2);
-    // Add slope rotation to player rotation
-    const visualRotation = p.rotation + (gameRef.current.slope * 0.5); 
+    // Visual Rotation Logic
+    // If lift hill, snap to -45 deg (0.78 rad) approximately, else use calculated slope
+    const targetVisualRot = gameRef.current.isLiftHill ? -0.4 : gameRef.current.slope * 0.5;
+    const visualRotation = p.rotation + targetVisualRot; 
+    
     ctx.rotate(visualRotation);
     
     const h = p.height;
@@ -432,7 +425,6 @@ const RetroGame: React.FC = () => {
         const xOffset = startX + i * (carW + CAR_GAP);
         ctx.translate(xOffset, 0);
         
-        // Boost Flame
         if (isBoosting) {
             ctx.fillStyle = Math.random() > 0.5 ? '#3b82f6' : '#60a5fa';
             ctx.beginPath();
@@ -442,16 +434,13 @@ const RetroGame: React.FC = () => {
             ctx.fill();
         }
 
-        // Car Body
         ctx.fillStyle = isBoosting ? '#0ea5e9' : color;
         ctx.beginPath(); ctx.roundRect(-carW/2, -h/2, carW, h, 6); ctx.fill();
         
-        // Detail: Seat
         ctx.fillStyle = '#1e293b'; 
         ctx.fillRect(-carW/2 + 4, -h/2 - 6, 8, 6); 
         ctx.fillRect(-carW/2 + 18, -h/2 - 6, 8, 6); 
 
-        // Wheels
         ctx.fillStyle = '#64748b'; 
         ctx.beginPath(); ctx.arc(-carW/2 + 8, h/2, 6, 0, Math.PI*2); ctx.fill(); 
         ctx.beginPath(); ctx.arc(carW/2 - 8, h/2, 6, 0, Math.PI*2); ctx.fill(); 
@@ -472,11 +461,11 @@ const RetroGame: React.FC = () => {
         setHighScore(currentScore);
         saveHighScore(currentScore);
         setIsNewRecord(true);
-        playTone(523.25, 'square', 0.1, 0, 0.4);
-        setTimeout(() => playTone(659.25, 'square', 0.1, 0, 0.4), 100);
-        setTimeout(() => playTone(783.99, 'square', 0.4, 0, 0.4), 200);
+        playTone(523.25, 'square', 0.1, 0.4, true);
+        setTimeout(() => playTone(659.25, 'square', 0.1, 0.4, true), 100);
+        setTimeout(() => playTone(783.99, 'square', 0.4, 0.4, true), 200);
     } else {
-        playTone(100, 'sawtooth', 0.5, 0, 0.5);
+        playTone(100, 'sawtooth', 0.5, 0.5, true);
     }
   };
 
@@ -499,37 +488,53 @@ const RetroGame: React.FC = () => {
     // --- PHYSICS ENGINE UPDATES ---
     
     // 1. Calculate Hill Physics
-    // Use a sine wave to determine vertical offset
+    // Normal Hill Logic: Sine wave
     const hillFrequency = 0.005;
     const hillAmplitude = 80;
     
-    // Calculate slope (derivative) to affect speed
-    const prevOffset = Math.sin((game.frame - 1) * hillFrequency) * hillAmplitude;
-    game.trackOffset = Math.sin(game.frame * hillFrequency) * hillAmplitude;
-    
-    const slope = game.trackOffset - prevOffset;
-    game.slope = slope * 0.1; // Store for visual rotation
+    // Target Slope Calculation
+    let targetSlope = 0;
+    if (game.isLiftHill) {
+        // Force Steep Diagonal Upwards
+        targetSlope = -0.5; // Negative = Up in canvas rotation terms
+    } else if (game.boosting) {
+        targetSlope = 0; // Flat
+    } else {
+        // Sine wave derivative
+        const prevOffset = Math.sin((game.frame - 1) * hillFrequency) * hillAmplitude;
+        const currentOffset = Math.sin(game.frame * hillFrequency) * hillAmplitude;
+        targetSlope = (currentOffset - prevOffset) * 0.1;
+    }
 
-    // 2. Momentum Logic
-    if (!game.isLiftHill && !game.boosting) {
-        // Going down (slope > 0 in this coordinate system where Y down is positive? No, Y up is negative offset)
-        // Actually, if trackOffset increases, y increases (goes down screen). So slope > 0 is downhill.
-        if (slope > 0) {
-            game.speed += 0.02; // Gravity assist
+    // Interpolate Slope for smoothness
+    game.slope += (targetSlope - game.slope) * 0.05;
+
+    // 2. Momentum Logic & Anti-Rollback
+    if (game.isLiftHill) {
+        // Locked Speed for Lift
+        const liftSpeed = game.baseSpeed * 0.6;
+        game.speed += (liftSpeed - game.speed) * 0.1;
+    } else if (!game.boosting) {
+        if (game.slope > 0) {
+            game.speed += 0.03; // Gravity assist
         } else {
-            game.speed -= 0.01; // Uphill struggle
+            game.speed -= 0.015; // Uphill struggle
         }
-        // Clamp speed based on difficulty
-        const minSpeed = game.baseSpeed * 0.5;
+        
+        // Anti-Rollback: Clamp Min Speed to 2.0
+        const minSpeed = Math.max(2.0, game.baseSpeed * 0.5);
         const maxSpeed = game.baseSpeed * 2.5;
         game.speed = Math.max(minSpeed, Math.min(game.speed, maxSpeed));
     }
 
-    // Update dynamic floor positions
-    const DY_FLOOR_Y = game.floorY + game.trackOffset;
-    const DY_CEILING_Y = game.ceilingY + game.trackOffset;
+    // Calculate dynamic vertical offset based on slope
+    // Note: In rotated camera view, Y stays relative, but we adjust for hills
+    game.trackOffset = game.slope * 100;
 
-    // --- BOOST LOGIC ---
+    const DY_FLOOR_Y = game.floorY; // We rely on rotation for the hill effect now
+    const DY_CEILING_Y = game.ceilingY;
+
+    // --- BOOST & LIFT LOGIC ---
     if (game.boosting) {
         game.boost -= 0.5;
         if (game.boost <= 0) {
@@ -542,17 +547,17 @@ const RetroGame: React.FC = () => {
         }
     }
 
-    // --- LIFT HILL LOGIC ---
-    if (!game.isLiftHill && !game.boosting && game.frame > 500 && Math.random() < 0.001) {
+    // Enter Lift Hill Chance
+    if (!game.isLiftHill && !game.boosting && game.frame > 500 && Math.random() < 0.002) {
         game.isLiftHill = true;
-        game.liftHillTimer = 400; 
+        game.liftHillTimer = 500; // Longer lift
     }
 
     if (game.isLiftHill) {
         game.liftHillTimer--;
-        game.speed += (game.baseSpeed * 0.7 - game.speed) * 0.05;
         const now = Date.now();
-        const clackInterval = 1000 / (game.speed * 10);
+        // Slower Paced Click: ~4-5 times per second depending on speed
+        const clackInterval = 1000 / (game.speed * 1.5);
         if (now - lastChainTimeRef.current > clackInterval) {
             playChainClick();
             lastChainTimeRef.current = now;
@@ -587,15 +592,12 @@ const RetroGame: React.FC = () => {
     
     if (width - Math.max(lastObsX, lastColX) > Math.random() * (settings.gapMax - settings.gapMin) + settings.gapMin) {
         const spawnX = width + 50;
-        // Adjust spawn Y to match future track position approximation
-        // This is a simplification; for perfect spawning we'd need to project sine wave at spawnX
-        const futureOffset = Math.sin((game.frame + (spawnX/game.speed)) * hillFrequency) * hillAmplitude;
         
         if (game.isLiftHill) {
-             game.collectibles.push({ x: spawnX, y: (game.floorY + game.ceilingY) / 2 + futureOffset, collected: false, size: 25 });
+             game.collectibles.push({ x: spawnX, y: (game.floorY + game.ceilingY) / 2, collected: false, size: 25 });
         } else {
             if (Math.random() > 0.7) {
-                game.collectibles.push({ x: spawnX, y: (game.floorY + game.ceilingY) / 2 + futureOffset, collected: false, size: 25 });
+                game.collectibles.push({ x: spawnX, y: (game.floorY + game.ceilingY) / 2, collected: false, size: 25 });
             } else {
                 game.obstacles.push({ x: spawnX, width: 40, height: Math.random() * 40 + 40, type: Math.random() > 0.5 ? 'FLOOR' : 'CEILING', passed: false });
             }
@@ -607,13 +609,9 @@ const RetroGame: React.FC = () => {
         const obs = game.obstacles[i];
         obs.x -= game.speed;
         
-        // Recalculate Obstacle Y based on current track position at obstacle X
-        // We cheat slightly and use current trackOffset to move obstacles with the world
-        // Ideally each obstacle would have its own Y relative to the track sine wave
-        // Simplified: obstacles move vertically with the global track offset
-        let obsBaseY = obs.type === 'FLOOR' ? game.floorY + game.trackOffset - obs.height : game.ceilingY + game.trackOffset;
+        let obsBaseY = obs.type === 'FLOOR' ? game.floorY - obs.height : game.ceilingY;
         
-        // Collision Detection
+        // Collision
         if (p.x + p.width - 4 > obs.x + 2 && p.x + 4 < obs.x + obs.width - 2 && p.y + p.height - 4 > obsBaseY + 2 && p.y + 4 < obsBaseY + obs.height - 2) {
             if (game.boosting) {
                 createExplosion(obs.x + obs.width/2, obsBaseY + obs.height/2, '#ef4444', 10);
@@ -621,7 +619,7 @@ const RetroGame: React.FC = () => {
                 game.score += 5; 
                 setScore(game.score);
                 game.shake = 5; 
-                playTone(100, 'square', 0.1, 0, 0.5);
+                playTone(100, 'square', 0.1, 0.5, true);
                 continue;
             } else {
                 gameOver();
@@ -636,10 +634,6 @@ const RetroGame: React.FC = () => {
         const col = game.collectibles[i];
         col.x -= game.speed;
         
-        // Move collectible with track roughly (visual simplification)
-        const colY = col.y + slope; // Apply slope delta to keep it relative
-        col.y = colY;
-
         const dist = Math.sqrt(Math.pow((p.x + p.width/2) - (col.x + col.size/2), 2) + Math.pow((p.y + p.height/2) - (col.y + col.size/2), 2));
         if (!col.collected && dist < (p.width/2 + col.size/2)) {
             col.collected = true; 
@@ -650,7 +644,7 @@ const RetroGame: React.FC = () => {
                 setBoostValue(game.boost);
             }
             createExplosion(col.x, col.y, '#facc15', 8);
-            playTone(800, 'square', 0.1, 0, 0.3);
+            playTone(800, 'square', 0.1, 0.3, true);
         }
         if (col.x < -50) game.collectibles.splice(i, 1);
     }
@@ -670,46 +664,53 @@ const RetroGame: React.FC = () => {
     // Apply Shake
     if (game.shake > 0) ctx.translate((Math.random() - 0.5) * game.shake, (Math.random() - 0.5) * game.shake);
     
-    // Apply Camera Tilt based on slope (Dynamic Camera)
-    const cameraRotation = -game.slope * 0.5; // Counter-rotate slightly to keep train somewhat level
+    // Apply Global Camera Rotation (This creates the diagonal lift hill effect)
+    // Rotate around center
     ctx.translate(width/2, height/2);
-    ctx.rotate(cameraRotation);
+    ctx.rotate(game.slope); 
     ctx.translate(-width/2, -height/2);
 
     // Background
     ctx.fillStyle = game.isLiftHill ? '#1e1b4b' : game.boosting ? '#0c4a6e' : '#0f172a'; 
-    ctx.fillRect(-100, -100, width + 200, height + 200); // Oversize for rotation coverage
+    // Oversize background to cover corners when rotated
+    ctx.fillRect(-width, -height, width * 3, height * 3); 
     
-    // Render Track (Dynamic Floor/Ceiling)
+    // Render Track (Tunnel)
     const trackColor = game.isLiftHill ? '#4338ca' : game.boosting ? '#0ea5e9' : '#334155';
     
     ctx.fillStyle = '#1e293b'; 
-    // Fill space between tracks with dark color? Or just below floor?
-    // Let's draw the "tunnel" effect
-    ctx.fillRect(-100, DY_CEILING_Y, width + 200, LANE_HEIGHT);
+    ctx.fillRect(-width, DY_CEILING_Y, width * 3, LANE_HEIGHT);
 
     ctx.lineWidth = 4; ctx.strokeStyle = trackColor; 
     ctx.beginPath();
-    ctx.moveTo(0, DY_CEILING_Y); ctx.lineTo(width, DY_CEILING_Y);
-    ctx.moveTo(0, DY_FLOOR_Y); ctx.lineTo(width, DY_FLOOR_Y); 
+    ctx.moveTo(-width, DY_CEILING_Y); ctx.lineTo(width * 2, DY_CEILING_Y);
+    ctx.moveTo(-width, DY_FLOOR_Y); ctx.lineTo(width * 2, DY_FLOOR_Y); 
     ctx.stroke();
 
     // Ties
     const tieOffset = (game.frame * game.speed) % 50;
     ctx.lineWidth = 2; ctx.strokeStyle = game.isLiftHill ? '#6366f1' : '#475569';
-    for(let x = -tieOffset; x < width; x+=50) {
-        // Approximate Y for ties based on slope at that X would be better, but flat is okay for speed
+    for(let x = -tieOffset - 100; x < width + 100; x+=50) {
         ctx.beginPath(); ctx.moveTo(x, DY_CEILING_Y - 10); ctx.lineTo(x, DY_CEILING_Y); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(x, DY_FLOOR_Y); ctx.lineTo(x, DY_FLOOR_Y + 10); ctx.stroke();
         
         if (game.isLiftHill) {
+             // Draw Anti-Rollback Teeth / Chain
              const trackCenterY = (DY_FLOOR_Y + DY_CEILING_Y) / 2;
              ctx.fillStyle = '#1e1b4b'; 
-             ctx.fillRect(x, trackCenterY - 2, 10, 4);
+             ctx.fillRect(x, trackCenterY - 4, 15, 8);
+             
+             // Visual teeth
+             ctx.fillStyle = '#a5b4fc';
+             ctx.beginPath();
+             ctx.moveTo(x, trackCenterY - 4);
+             ctx.lineTo(x + 10, trackCenterY);
+             ctx.lineTo(x, trackCenterY + 4);
+             ctx.fill();
         }
     }
 
-    // Render Objects (Adjusted Y)
+    // Render Objects
     for (const obs of game.obstacles) {
         const obsBaseY = obs.type === 'FLOOR' ? DY_FLOOR_Y - obs.height : DY_CEILING_Y;
         ctx.fillStyle = '#f43f5e'; ctx.fillRect(obs.x, obsBaseY, obs.width, obs.height);
@@ -730,19 +731,24 @@ const RetroGame: React.FC = () => {
     drawTrainCar(ctx, p, game.boosting);
 
     if (game.isLiftHill) {
+        ctx.save();
+        ctx.translate(width/2, height/2 - 100);
+        ctx.rotate(-game.slope); // Counter-rotate text so it stays readable? Or keep it with track? 
+        // Actually, keep it readable
         ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
         ctx.font = '900 48px sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText('LIFT HILL', width/2, height/2 + game.trackOffset);
+        ctx.fillText('LIFT HILL', 0, 0);
+        ctx.restore();
     }
 
-    // Speed Lines (Visual Physics)
+    // Speed Lines
     if (game.speed > game.baseSpeed * 1.5) {
         ctx.strokeStyle = `rgba(255, 255, 255, ${Math.min(0.5, (game.speed - game.baseSpeed) / 10)})`;
         ctx.lineWidth = 1;
         ctx.beginPath();
         for(let i=0; i<5; i++) {
-            const y = Math.random() * height;
+            const y = (Math.random() * LANE_HEIGHT) + DY_CEILING_Y;
             ctx.moveTo(width, y);
             ctx.lineTo(width - Math.random() * 200, y);
         }
@@ -754,12 +760,20 @@ const RetroGame: React.FC = () => {
     gameRef.current.animationId = requestAnimationFrame(loop);
   };
 
+  const handleTestAudio = () => {
+      unlockAudio().then(() => {
+          if (audioReady || !needsInteraction) {
+              createExplosion(window.innerWidth / 2, window.innerHeight / 2, '#4ade80', 20);
+              playTone(440, 'sine', 0.1, 0.5, false);
+          }
+      });
+  };
+
   return (
     <div 
         ref={containerRef} 
         className="fixed inset-0 z-[100] bg-slate-950 flex flex-col overflow-hidden select-none touch-none" 
         onPointerDown={handleGameInteraction} 
-        onTouchStart={unlockAudioEngine} // Force unlock on any container touch
     >
         <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-start pointer-events-none z-10">
             <div className="flex items-center gap-3 pointer-events-auto">
@@ -812,6 +826,12 @@ const RetroGame: React.FC = () => {
             </div>
         )}
 
+        {needsInteraction && gameState !== 'START' && (
+            <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-amber-500/90 text-white text-xs font-bold px-4 py-2 rounded-full z-50 animate-bounce pointer-events-auto" onClick={handleTestAudio}>
+                Tap here to enable audio
+            </div>
+        )}
+
         <canvas ref={canvasRef} className="block w-full h-full" />
 
         {gameState === 'START' && (
@@ -847,10 +867,10 @@ const RetroGame: React.FC = () => {
                     </button>
                     
                     <button 
-                        onClick={unlockAudioEngine}
-                        className={`text-xs flex items-center justify-center gap-1 mx-auto transition-colors ${audioReady ? 'text-emerald-500 font-bold' : 'text-slate-500 hover:text-white'}`}
+                        onClick={handleTestAudio}
+                        className={`text-xs flex items-center justify-center gap-1 mx-auto transition-colors p-2 rounded-lg ${audioReady ? 'text-emerald-500 font-bold' : 'text-slate-500 hover:text-white bg-slate-800/50'}`}
                     >
-                       <Volume2 size={12} /> {audioReady ? 'Audio Ready' : 'Test Audio'}
+                       <Volume2 size={12} /> {audioReady ? 'Audio Ready' : 'Tap to Test Audio'}
                     </button>
                 </div>
             </div>
