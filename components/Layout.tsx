@@ -1,7 +1,7 @@
 
 import React, { useEffect, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { LayoutDashboard, PlusCircle, UserCircle, List, Info, CheckCircle, AlertCircle, X, MapPin, Zap } from 'lucide-react';
+import { LayoutDashboard, PlusCircle, UserCircle, List, Info, CheckCircle, CheckCircle2, AlertCircle, X, MapPin, Zap } from 'lucide-react';
 import clsx from 'clsx';
 import { AppTheme } from '../context/AppContext';
 
@@ -35,6 +35,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           '--color-primary-hover': colors.hover,
       } as React.CSSProperties;
   }, [appTheme]);
+
+  const isGameView = currentView === 'GAME';
 
   return (
     <div className="relative h-screen bg-slate-950 text-white overflow-hidden font-sans selection:bg-primary/30" style={themeStyles}>
@@ -125,30 +127,32 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* Main Content Container */}
       <div className="relative z-10 flex flex-col h-full">
         {/* Compact Header */}
-        <header className="flex-none px-4 py-3 bg-slate-900/60 backdrop-blur-xl border-b border-slate-800/50 flex justify-between items-center">
-          <div className="flex items-center gap-2">
-              <div className="bg-primary/20 p-1.5 rounded-lg">
-                <Zap size={18} className="text-primary fill-primary/30" />
+        {!isGameView && (
+            <header className="flex-none px-4 py-3 bg-slate-900/60 backdrop-blur-xl border-b border-slate-800/50 flex justify-between items-center animate-fade-in-down">
+              <div className="flex items-center gap-2">
+                  <div className="bg-primary/20 p-1.5 rounded-lg">
+                    <Zap size={18} className="text-primary fill-primary/30" />
+                  </div>
+                  <h1 className="text-lg font-black tracking-tight text-white italic">
+                    COASTER<span className="text-primary">COUNT</span>
+                  </h1>
               </div>
-              <h1 className="text-lg font-black tracking-tight text-white italic">
-                COASTER<span className="text-primary">COUNT</span>
-              </h1>
-          </div>
-          
-          <button 
-            onClick={() => changeView('PROFILE')}
-            className="flex items-center gap-2 bg-slate-800/50 p-1 pr-3 rounded-full border border-slate-700/50 transition-all hover:border-primary/50 active:scale-95"
-          >
-             <div className={`w-7 h-7 rounded-full ${activeUser.avatarUrl ? 'bg-transparent' : activeUser.avatarColor} border border-slate-600 flex items-center justify-center text-[8px] font-bold shadow-inner overflow-hidden`}>
-               {activeUser.avatarUrl ? (
-                   <img src={activeUser.avatarUrl} alt="User" className="w-full h-full object-cover" />
-               ) : (
-                   activeUser.name.substring(0,2).toUpperCase()
-               )}
-             </div>
-             <span className="text-xs font-bold text-slate-300 max-w-[80px] truncate">{activeUser.name}</span>
-          </button>
-        </header>
+              
+              <button 
+                onClick={() => changeView('PROFILE')}
+                className="flex items-center gap-2 bg-slate-800/50 p-1 pr-3 rounded-full border border-slate-700/50 transition-all hover:border-primary/50 active:scale-95"
+              >
+                <div className={`w-7 h-7 rounded-full ${activeUser.avatarUrl ? 'bg-transparent' : activeUser.avatarColor} border border-slate-600 flex items-center justify-center text-[8px] font-bold shadow-inner overflow-hidden`}>
+                  {activeUser.avatarUrl ? (
+                      <img src={activeUser.avatarUrl} alt="User" className="w-full h-full object-cover" />
+                  ) : (
+                      activeUser.name.substring(0,2).toUpperCase()
+                  )}
+                </div>
+                <span className="text-xs font-bold text-slate-300 max-w-[80px] truncate">{activeUser.name}</span>
+              </button>
+            </header>
+        )}
 
         {/* Global Notification Toast */}
         <div className={clsx(
@@ -162,7 +166,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     notification.type === 'error' ? "bg-red-500/20 border-red-500/40 text-red-100" :
                     "bg-slate-800/90 border-slate-600 text-white"
                 )}>
-                    {notification.type === 'success' ? <CheckCircle size={20} className="text-emerald-400" /> : 
+                    {notification.type === 'success' ? <CheckCircle2 size={20} className="text-emerald-400" /> : 
                      notification.type === 'error' ? <AlertCircle size={20} className="text-red-400" /> : <Info size={20} />}
                     <span className="flex-1 font-bold text-sm tracking-tight">{notification.message}</span>
                     <button onClick={hideNotification} className="text-white/40 hover:text-white">
@@ -173,45 +177,47 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </div>
 
         {/* Scrollable Viewport */}
-        <main className="flex-1 overflow-y-auto no-scrollbar p-4 pb-28 relative scroll-smooth">
-          <div className="max-w-xl mx-auto min-h-full">
+        <main className={clsx("flex-1 overflow-y-auto no-scrollbar relative scroll-smooth", isGameView ? "p-0" : "p-4 pb-28")}>
+          <div className={clsx("min-h-full", !isGameView && "max-w-xl mx-auto")}>
               {children}
           </div>
         </main>
 
         {/* Native-style Floating Bottom Navigation */}
-        <nav className="fixed bottom-0 left-0 right-0 bg-slate-900/80 backdrop-blur-2xl border-t border-slate-800/50 pt-2 pb-safe z-50">
-          <div className="flex justify-around items-center h-16 max-w-xl mx-auto px-2">
-            {navItems.map((item) => {
-              const isActive = currentView === item.id;
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => changeView(item.id as any)}
-                  className={clsx(
-                    "flex flex-col items-center justify-center flex-1 transition-all relative group",
-                    isActive ? "text-primary" : "text-slate-500"
-                  )}
-                >
-                  <div className={clsx(
-                    "p-2 rounded-2xl transition-all duration-300", 
-                    isActive ? "bg-primary/10 shadow-lg shadow-primary/5" : "group-active:scale-90"
-                  )}>
-                    <Icon size={24} strokeWidth={isActive ? 2.5 : 2} className={clsx("transition-transform", isActive && "-translate-y-0.5")} />
-                  </div>
-                  <span className={clsx(
-                    "text-[10px] font-bold mt-1 tracking-widest uppercase transition-all", 
-                    isActive ? "text-white opacity-100" : "opacity-0"
-                  )}>
-                    {item.label}
-                  </span>
-                  {isActive && <div className="absolute -top-2 w-8 h-1 bg-primary rounded-full blur-[2px]" />}
-                </button>
-              );
-            })}
-          </div>
-        </nav>
+        {!isGameView && (
+            <nav className="fixed bottom-0 left-0 right-0 bg-slate-900/80 backdrop-blur-2xl border-t border-slate-800/50 pt-2 pb-safe z-50 animate-fade-in-up">
+              <div className="flex justify-around items-center h-16 max-w-xl mx-auto px-2">
+                {navItems.map((item) => {
+                  const isActive = currentView === item.id;
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => changeView(item.id as any)}
+                      className={clsx(
+                        "flex flex-col items-center justify-center flex-1 transition-all relative group",
+                        isActive ? "text-primary" : "text-slate-500"
+                      )}
+                    >
+                      <div className={clsx(
+                        "p-2 rounded-2xl transition-all duration-300", 
+                        isActive ? "bg-primary/10 shadow-lg shadow-primary/5" : "group-active:scale-90"
+                      )}>
+                        <Icon size={24} strokeWidth={isActive ? 2.5 : 2} className={clsx("transition-transform", isActive && "-translate-y-0.5")} />
+                      </div>
+                      <span className={clsx(
+                        "text-[10px] font-bold mt-1 tracking-widest uppercase transition-all", 
+                        isActive ? "text-white opacity-100" : "opacity-0"
+                      )}>
+                        {item.label}
+                      </span>
+                      {isActive && <div className="absolute -top-2 w-8 h-1 bg-primary rounded-full blur-[2px]" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </nav>
+        )}
       </div>
     </div>
   );

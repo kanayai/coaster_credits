@@ -65,6 +65,7 @@ export interface User {
   avatarColor: string;
   avatarUrl?: string;
   rankings?: RankingList;
+  highScore?: number;
 }
 
-export type ViewState = 'DASHBOARD' | 'ADD_CREDIT' | 'COASTER_LIST' | 'PROFILE' | 'PARK_STATS' | 'RANKINGS' | 'MILESTONES';
+export type ViewState = 'DASHBOARD' | 'ADD_CREDIT' | 'COASTER_LIST' | 'PROFILE' | 'PARK_STATS' | 'RANKINGS' | 'MILESTONES' | 'GAME';

@@ -37,6 +37,7 @@ interface AppContextType {
   switchUser: (userId: string) => void;
   addUser: (name: string, photo?: File) => void;
   updateUser: (userId: string, newName: string, photo?: File) => void;
+  saveHighScore: (score: number) => void;
   addCredit: (coasterId: string, date: string, notes: string, restraints: string, photos?: File[], variant?: string) => Promise<Credit | undefined>;
   updateCredit: (creditId: string, date: string, notes: string, restraints: string, mainPhotoUrl: string | undefined, gallery: string[], newPhotos?: File[], variant?: string) => Promise<void>;
   addNewCoaster: (coaster: Omit<Coaster, 'id'>) => Promise<Coaster>;
@@ -212,6 +213,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, name: newName, ...(avatarUrl ? { avatarUrl } : {}) } : u));
       showNotification("Profile updated");
+  };
+
+  const saveHighScore = (score: number) => {
+      const currentHigh = activeUser.highScore || 0;
+      if (score > currentHigh) {
+          setUsers(prev => prev.map(u => u.id === activeUserId ? { ...u, highScore: score } : u));
+      }
   };
 
   const updateRankings = (rankings: RankingList) => {
@@ -503,6 +511,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       switchUser,
       addUser,
       updateUser,
+      saveHighScore,
       addCredit,
       updateCredit,
       addNewCoaster,
