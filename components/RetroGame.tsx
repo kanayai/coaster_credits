@@ -29,6 +29,7 @@ const RetroGame: React.FC = () => {
 
   // Game Refs (Mutable state for loop)
   const gameRef = useRef({
+    isRunning: false, // Critical for loop control
     player: { 
         x: 100, 
         y: 0, 
@@ -60,6 +61,7 @@ const RetroGame: React.FC = () => {
       }
       return () => {
           stopMusic();
+          if (gameRef.current.animationId) cancelAnimationFrame(gameRef.current.animationId);
           audioCtxRef.current?.close();
       };
   }, []);
@@ -115,7 +117,7 @@ const RetroGame: React.FC = () => {
 
   const startMusic = () => {
       if (audioCtxRef.current?.state === 'suspended') {
-          audioCtxRef.current.resume();
+          audioCtxRef.current.resume().catch(e => console.log("Audio resume failed", e));
       }
       if (!musicTimerRef.current && !isMuted) {
           nextNoteTimeRef.current = audioCtxRef.current?.currentTime || 0;
@@ -166,17 +168,25 @@ const RetroGame: React.FC = () => {
 
     window.addEventListener('resize', handleResize);
     // Slight delay to ensure DOM is ready if transitioning views
-    setTimeout(handleResize, 50);
+    setTimeout(handleResize, 100);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const startGame = () => {
+  const startGame = (e?: React.SyntheticEvent) => {
+    if(e) { e.preventDefault(); e.stopPropagation(); }
+    
     if (!containerRef.current) return;
     const logicalHeight = containerRef.current.clientHeight;
+
+    // Safety: Cancel any existing loops
+    if (gameRef.current.animationId) {
+        cancelAnimationFrame(gameRef.current.animationId);
+    }
 
     // Reset State
     gameRef.current = {
         ...gameRef.current,
+        isRunning: true, // Mark game as active immediately
         player: { 
             x: 80, 
             y: logicalHeight - 100, 
@@ -234,7 +244,8 @@ const RetroGame: React.FC = () => {
   };
 
   const loop = () => {
-    if (gameState === 'GAMEOVER') return;
+    // Check the REF state, not the REACT state variable to prevent stale closure issues
+    if (!gameRef.current.isRunning) return;
     
     const canvas = canvasRef.current;
     const container = containerRef.current;
@@ -455,6 +466,7 @@ const RetroGame: React.FC = () => {
   };
 
   const gameOver = () => {
+      gameRef.current.isRunning = false; // Stop the loop logic immediately
       cancelAnimationFrame(gameRef.current.animationId);
       setGameState('GAMEOVER');
       stopMusic();
@@ -470,25 +482,27 @@ const RetroGame: React.FC = () => {
       }
   };
 
-  // Robust Input Handling for Mobile
-  const handleJumpAction = (e: React.SyntheticEvent) => {
+  // Robust Input Handling for Mobile - Using Pointer Events
+  const handleJumpAction = (e: React.PointerEvent | React.MouseEvent) => {
       e.preventDefault(); 
       e.stopPropagation();
-      if (gameState === 'PLAYING') jump();
+      if (gameRef.current.isRunning) jump();
   };
 
-  const handleInvertAction = (e: React.SyntheticEvent) => {
+  const handleInvertAction = (e: React.PointerEvent | React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      if (gameState === 'PLAYING') toggleGravity();
+      if (gameRef.current.isRunning) toggleGravity();
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
+      if (!gameRef.current.isRunning) return;
+      
       if (e.code === 'Space' || e.code === 'ArrowUp') {
-          if (gameState === 'PLAYING') jump();
+          jump();
       }
       if (e.code === 'ArrowDown' || e.code === 'KeyS') {
-          if (gameState === 'PLAYING') toggleGravity();
+          toggleGravity();
       }
   };
 
@@ -500,17 +514,13 @@ const RetroGame: React.FC = () => {
   return (
     <div 
         ref={containerRef} 
-        // Force full screen fixed overlay to ensure no scrolling/browser chrome interference
         className="fixed inset-0 z-[100] bg-slate-950 flex flex-col overflow-hidden select-none touch-none"
-        // Global touch handler to prevent default browser behaviors (like scroll)
-        onTouchStart={(e) => e.preventDefault()}
     >
         {/* HUD */}
         <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-start pointer-events-none z-10">
             <div className="flex items-center gap-3 pointer-events-auto">
                 <button 
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); stopMusic(); changeView('QUEUE_HUB'); }} 
-                  onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); stopMusic(); changeView('QUEUE_HUB'); }}
                   className="bg-slate-800/80 backdrop-blur p-2 rounded-full border border-slate-700 text-slate-400 hover:text-white"
                 >
                     <ArrowLeft size={20} />
@@ -524,7 +534,6 @@ const RetroGame: React.FC = () => {
             <div className="flex gap-2 pointer-events-auto">
                 <button 
                     onClick={toggleMute}
-                    onTouchStart={toggleMute}
                     className="bg-slate-800/80 backdrop-blur p-2 rounded-xl border border-slate-700 text-slate-400 hover:text-white"
                 >
                     {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
@@ -544,21 +553,19 @@ const RetroGame: React.FC = () => {
         {/* Game Canvas */}
         <canvas ref={canvasRef} className="block w-full h-full" />
 
-        {/* Touch Controls Overlay - Using onTouchStart/onMouseDown for instant response */}
+        {/* Touch Controls Overlay - Using PointerEvents */}
         {gameState === 'PLAYING' && (
-            <div className="absolute inset-x-0 bottom-0 p-4 pb-8 z-30 flex gap-4 pointer-events-none select-none">
+            <div className="absolute inset-x-0 bottom-0 pb-safe p-4 z-30 flex gap-4 pointer-events-none select-none">
                 <button 
-                    onTouchStart={handleInvertAction}
-                    onMouseDown={handleInvertAction}
-                    className="flex-1 h-32 bg-purple-600/10 border-2 border-purple-500/30 rounded-3xl backdrop-blur-sm flex flex-col items-center justify-center text-purple-300 pointer-events-auto active:bg-purple-600/30 active:scale-95 transition-all touch-manipulation select-none"
+                    onPointerDown={handleInvertAction}
+                    className="flex-1 h-32 bg-purple-600/10 border-2 border-purple-500/30 rounded-3xl backdrop-blur-sm flex flex-col items-center justify-center text-purple-300 pointer-events-auto active:bg-purple-600/30 active:scale-95 transition-all touch-none select-none"
                 >
                     <ArrowDown size={40} />
                     <span className="text-sm font-bold uppercase mt-2">Gravity</span>
                 </button>
                 <button 
-                    onTouchStart={handleJumpAction}
-                    onMouseDown={handleJumpAction}
-                    className="flex-1 h-32 bg-blue-600/10 border-2 border-blue-500/30 rounded-3xl backdrop-blur-sm flex flex-col items-center justify-center text-blue-300 pointer-events-auto active:bg-blue-600/30 active:scale-95 transition-all touch-manipulation select-none"
+                    onPointerDown={handleJumpAction}
+                    className="flex-1 h-32 bg-blue-600/10 border-2 border-blue-500/30 rounded-3xl backdrop-blur-sm flex flex-col items-center justify-center text-blue-300 pointer-events-auto active:bg-blue-600/30 active:scale-95 transition-all touch-none select-none"
                 >
                     <ArrowUp size={40} />
                     <span className="text-sm font-bold uppercase mt-2">Jump</span>
