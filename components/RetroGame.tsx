@@ -23,6 +23,9 @@ const RetroGame: React.FC = () => {
   const [isNewRecord, setIsNewRecord] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   
+  // Ref for mute state to ensure interval closures always see current value
+  const isMutedRef = useRef(isMuted); 
+  
   // Game State for UI
   const [boostValue, setBoostValue] = useState(0);
   const [isBoosting, setIsBoosting] = useState(false);
@@ -30,6 +33,11 @@ const RetroGame: React.FC = () => {
   // Audio Context Refs
   const audioCtxRef = useRef<AudioContext | null>(null);
   const musicIntervalRef = useRef<number | null>(null);
+
+  // Sync mute ref
+  useEffect(() => {
+      isMutedRef.current = isMuted;
+  }, [isMuted]);
 
   // Game Constants
   const LANE_HEIGHT = 320; 
@@ -88,14 +96,23 @@ const RetroGame: React.FC = () => {
       const ctx = initAudio();
       if (!ctx) return;
       if (ctx.state === 'suspended') {
-          await ctx.resume();
+          try {
+            await ctx.resume();
+          } catch(e) {
+              console.error("Audio resume failed", e);
+          }
       }
   };
 
   const playTone = (freq: number, type: OscillatorType, duration: number, vol: number = 0.5) => {
-      if (isMuted) return;
+      // Use Ref to check mute status inside async/callback contexts
+      if (isMutedRef.current) return;
+      
       const ctx = initAudio();
-      if (!ctx || ctx.state !== 'running') return;
+      if (!ctx) return;
+      
+      // Auto-resume if suspended (common in mobile browsers)
+      if (ctx.state === 'suspended') ctx.resume();
 
       try {
         const osc = ctx.createOscillator();
@@ -103,6 +120,7 @@ const RetroGame: React.FC = () => {
         osc.type = type;
         osc.frequency.setValueAtTime(freq, ctx.currentTime);
         
+        // Louder mix
         gain.gain.setValueAtTime(vol, ctx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
 
@@ -116,17 +134,16 @@ const RetroGame: React.FC = () => {
   };
 
   const playMusicNote = () => {
-      if (isMuted || !gameRef.current.isRunning || gameRef.current.isLiftHill) return;
+      if (isMutedRef.current || !gameRef.current.isRunning || gameRef.current.isLiftHill) return;
       
       const ctx = initAudio();
-      if (!ctx || ctx.state !== 'running') return;
+      if (!ctx) return;
 
       const baseFreq = 110; // A2
       const notes = [1, 1.5, 2, 2.5]; // Simple scale
       const note = notes[Math.floor(Math.random() * notes.length)] * baseFreq;
       
-      // Increased Volume
-      playTone(note, 'triangle', 0.15, 0.25);
+      playTone(note, 'triangle', 0.15, 0.3);
   };
 
   useEffect(() => {
@@ -176,6 +193,8 @@ const RetroGame: React.FC = () => {
   const startGame = async (e: React.SyntheticEvent | Event) => {
     e.preventDefault();
     e.stopPropagation();
+    
+    // CRITICAL: Ensure audio context is active on start button press
     await unlockAudio();
 
     if (!containerRef.current) return;
@@ -348,10 +367,10 @@ const RetroGame: React.FC = () => {
         setHighScore(currentScore);
         saveHighScore(currentScore);
         setIsNewRecord(true);
-        playTone(600, 'square', 0.2, 0.4);
-        setTimeout(() => playTone(800, 'square', 0.4, 0.4), 200);
+        playTone(600, 'square', 0.2, 0.6);
+        setTimeout(() => playTone(800, 'square', 0.4, 0.6), 200);
     } else {
-        playTone(100, 'sawtooth', 0.5, 0.5);
+        playTone(100, 'sawtooth', 0.5, 0.6);
     }
   };
 
@@ -442,7 +461,7 @@ const RetroGame: React.FC = () => {
     if (game.isLiftHill) {
         game.liftHillTimer--;
         // Click-Clack Sound
-        if (game.frame % 15 === 0) playTone(800, 'square', 0.05, 0.2);
+        if (game.frame % 15 === 0) playTone(800, 'square', 0.05, 0.3);
 
         if (game.liftHillTimer <= 0) game.isLiftHill = false;
     } 
@@ -501,7 +520,7 @@ const RetroGame: React.FC = () => {
                 game.score += 5; 
                 setScore(game.score);
                 game.shake = 5; 
-                playTone(100, 'square', 0.1, 0.5);
+                playTone(100, 'square', 0.1, 0.6);
                 continue;
             } else {
                 gameOver();
@@ -526,7 +545,7 @@ const RetroGame: React.FC = () => {
                 setBoostValue(game.boost);
             }
             createExplosion(col.x, col.y, '#facc15', 8);
-            playTone(800, 'square', 0.1, 0.3);
+            playTone(800, 'square', 0.1, 0.4);
         }
         if (col.x < -50) game.collectibles.splice(i, 1);
     }
