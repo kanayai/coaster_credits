@@ -1,7 +1,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { ArrowLeft, Play, RotateCcw, Trophy, Gamepad2, PartyPopper, ArrowUp, ArrowDown, Volume2, VolumeX, BarChart3 } from 'lucide-react';
+import { ArrowLeft, Play, RotateCcw, Trophy, Gamepad2, PartyPopper, ArrowUp, ArrowDown, Volume2, VolumeX, BarChart3, Zap, Flame } from 'lucide-react';
 
 type Difficulty = 'BEGINNER' | 'MEDIUM' | 'ADVANCED';
 
@@ -22,6 +22,11 @@ const RetroGame: React.FC = () => {
   const [highScore, setHighScore] = useState(activeUser.highScore || 0);
   const [isNewRecord, setIsNewRecord] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const [audioReady, setAudioReady] = useState(false);
+  
+  // Game State for UI
+  const [boostValue, setBoostValue] = useState(0);
+  const [isBoosting, setIsBoosting] = useState(false);
 
   // Audio Context Refs
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -34,6 +39,7 @@ const RetroGame: React.FC = () => {
   const LANE_HEIGHT = 320; 
   const CAR_WIDTH = 44;
   const CAR_GAP = 6;
+  const MAX_BOOST = 100;
 
   // Game Refs
   const gameRef = useRef({
@@ -62,12 +68,14 @@ const RetroGame: React.FC = () => {
     floorY: 0,
     ceilingY: 0,
     isLiftHill: false,
-    liftHillTimer: 0
+    liftHillTimer: 0,
+    shake: 0,
+    boost: 0,
+    boosting: false
   });
 
   // --- AUDIO SYSTEM (Mobile Optimized) ---
   
-  // 1. Initialize Context Only Once
   const getAudioContext = () => {
       if (!audioCtxRef.current) {
           const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
@@ -81,33 +89,36 @@ const RetroGame: React.FC = () => {
       return audioCtxRef.current;
   };
 
-  // 2. The "Unlock" Function - Plays a silent buffer to wake up the audio engine on iOS
   const unlockAudioEngine = () => {
       const ctx = getAudioContext();
       if (!ctx) return;
 
       if (ctx.state === 'suspended') {
-          ctx.resume().catch((e) => console.warn("Audio resume failed", e));
+          ctx.resume().then(() => {
+              setAudioReady(true);
+          }).catch((e) => console.warn("Audio resume failed", e));
+      } else if (ctx.state === 'running') {
+          setAudioReady(true);
       }
 
-      // Create an empty buffer and play it
       try {
-          const buffer = ctx.createBuffer(1, 1, 22050);
-          const source = ctx.createBufferSource();
-          source.buffer = buffer;
-          source.connect(ctx.destination);
-          if (source.start) source.start(0);
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.frequency.setValueAtTime(440, ctx.currentTime);
+          gain.gain.setValueAtTime(0.01, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.1);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(ctx.currentTime);
+          osc.stop(ctx.currentTime + 0.1);
       } catch (e) {
           // Ignore
       }
   };
 
-  // 3. Attach unlocker to global events on mount
   useEffect(() => {
       const handleUserGesture = () => {
           unlockAudioEngine();
-          // We don't remove the listener immediately because sometimes the first tap fails
-          // But we can check if context is running later
       };
 
       document.addEventListener('touchstart', handleUserGesture, { passive: true });
@@ -131,7 +142,6 @@ const RetroGame: React.FC = () => {
       const ctx = getAudioContext();
       if (!ctx || isMuted) return;
       
-      // Safety resume
       if (ctx.state === 'suspended') ctx.resume().catch(() => {});
 
       try {
@@ -141,8 +151,7 @@ const RetroGame: React.FC = () => {
         osc.type = type;
         osc.frequency.setValueAtTime(freq, startTime);
         
-        // Louder volume for mobile speakers
-        const volume = vol * 1.5; 
+        const volume = Math.min(vol * 1.5, 1.0); 
 
         gain.gain.setValueAtTime(0.001, startTime);
         gain.gain.exponentialRampToValueAtTime(volume, startTime + 0.01);
@@ -174,8 +183,9 @@ const RetroGame: React.FC = () => {
           return;
       }
 
+      const isBoost = gameRef.current.boosting;
       const baseTempo = difficulty === 'ADVANCED' ? 0.12 : difficulty === 'MEDIUM' ? 0.15 : 0.18;
-      const tempo = baseTempo; 
+      const tempo = isBoost ? baseTempo * 0.7 : baseTempo; // Faster music when boosting (lower number = faster)
       const lookahead = 0.1; 
 
       if (nextNoteTimeRef.current < ctx.currentTime) {
@@ -189,10 +199,10 @@ const RetroGame: React.FC = () => {
           const beat = melodyIndexRef.current % 8;
           
           if (bassSequence[beat]) {
-              playTone(bassSequence[beat], 'square', tempo, nextNoteTimeRef.current, 0.15);
+              playTone(bassSequence[beat] * (isBoost ? 1.5 : 1), 'square', tempo, nextNoteTimeRef.current, 0.15);
           }
           if (melodySequence[beat] && Math.floor(melodyIndexRef.current / 8) % 2 === 0) {
-              playTone(melodySequence[beat], 'sawtooth', tempo, nextNoteTimeRef.current, 0.1);
+              playTone(melodySequence[beat] * (isBoost ? 1.5 : 1), 'sawtooth', tempo, nextNoteTimeRef.current, 0.1);
           }
 
           nextNoteTimeRef.current += tempo;
@@ -205,9 +215,7 @@ const RetroGame: React.FC = () => {
   const startMusic = () => {
       const ctx = getAudioContext();
       if (ctx && !musicTimerRef.current && !isMuted) {
-          // Ensure we are resumed
           if (ctx.state === 'suspended') ctx.resume();
-          
           nextNoteTimeRef.current = ctx.currentTime + 0.05; 
           scheduleMusic();
       }
@@ -267,8 +275,6 @@ const RetroGame: React.FC = () => {
   const startGame = (e: React.SyntheticEvent | Event) => {
     e.preventDefault();
     e.stopPropagation();
-    
-    // Final explicit unlock attempt on the start button itself
     unlockAudioEngine();
 
     if (!containerRef.current) return;
@@ -306,10 +312,15 @@ const RetroGame: React.FC = () => {
         frame: 0,
         score: 0,
         isLiftHill: false,
-        liftHillTimer: 0
+        liftHillTimer: 0,
+        shake: 0,
+        boost: 0,
+        boosting: false
     };
 
     setScore(0);
+    setBoostValue(0);
+    setIsBoosting(false);
     setIsNewRecord(false);
     setGameState('PLAYING');
     
@@ -334,10 +345,25 @@ const RetroGame: React.FC = () => {
       playTone(150, 'sawtooth', 0.15, getAudioContext()?.currentTime || 0, 0.2);
   };
 
+  const activateBoost = (e?: React.SyntheticEvent) => {
+      if (e) {
+          e.preventDefault();
+          e.stopPropagation();
+      }
+      if (gameRef.current.boost >= MAX_BOOST && !gameRef.current.boosting) {
+          gameRef.current.boosting = true;
+          gameRef.current.shake = 15; // Big initial shake
+          setIsBoosting(true);
+          
+          playTone(600, 'sawtooth', 0.5, getAudioContext()?.currentTime || 0, 0.4);
+          createExplosion(gameRef.current.player.x, gameRef.current.player.y, '#0ea5e9', 20);
+      }
+  };
+
   // Improved Interaction Handler for Gestures
   const handleGameInteraction = (e: React.TouchEvent | React.MouseEvent) => {
       if (!gameRef.current.isRunning) return;
-      e.preventDefault();
+      // Don't prevent default here if it's the boost button click, handled by bubble propagation check usually or specialized handler
       
       let clientX;
       if ('touches' in e) {
@@ -360,25 +386,28 @@ const RetroGame: React.FC = () => {
       for(let i=0; i<count; i++) {
           gameRef.current.particles.push({
               x, y,
-              vx: (Math.random() - 0.5) * 10,
-              vy: (Math.random() - 0.5) * 10,
+              vx: (Math.random() - 0.5) * 15, // Faster particles
+              vy: (Math.random() - 0.5) * 15,
               life: 1.0,
               color
           });
       }
   };
 
-  const drawSingleCar = (ctx: CanvasRenderingContext2D, w: number, h: number, color: string, isFront: boolean) => {
+  const drawSingleCar = (ctx: CanvasRenderingContext2D, w: number, h: number, color: string, isFront: boolean, isBoosting: boolean) => {
     // 1. Draw Wheels
     ctx.fillStyle = '#64748b'; 
     ctx.beginPath(); ctx.arc(-w/2 + 8, h/2, 6, 0, Math.PI*2); ctx.fill(); 
     ctx.beginPath(); ctx.arc(w/2 - 8, h/2, 6, 0, Math.PI*2); ctx.fill(); 
 
     // 2. Draw Main Chassis
-    ctx.fillStyle = color;
+    ctx.fillStyle = isBoosting ? '#0ea5e9' : color;
+    ctx.shadowBlur = isBoosting ? 15 : 0;
+    ctx.shadowColor = '#0ea5e9';
     ctx.beginPath();
     ctx.roundRect(-w/2, -h/2, w, h, 6);
     ctx.fill();
+    ctx.shadowBlur = 0;
     
     // Front Nose
     if (isFront) {
@@ -402,7 +431,7 @@ const RetroGame: React.FC = () => {
         ctx.font = '900 10px monospace';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('RMC', 0, 1);
+        ctx.fillText(isBoosting ? 'MAX' : 'RMC', 0, 1);
     }
 
     // 5. Shine Effect
@@ -415,7 +444,7 @@ const RetroGame: React.FC = () => {
     ctx.fill();
   };
 
-  const drawTrainCar = (ctx: CanvasRenderingContext2D, p: typeof gameRef.current.player) => {
+  const drawTrainCar = (ctx: CanvasRenderingContext2D, p: typeof gameRef.current.player, isBoosting: boolean) => {
     ctx.save();
     ctx.translate(p.x + p.width/2, p.y + p.height/2);
     ctx.rotate(p.rotation);
@@ -432,8 +461,18 @@ const RetroGame: React.FC = () => {
         const xOffset = startX + i * (carW + CAR_GAP);
         ctx.translate(xOffset, 0);
         
+        // Boost Flame Trail
+        if (isBoosting) {
+            ctx.fillStyle = Math.random() > 0.5 ? '#3b82f6' : '#60a5fa';
+            ctx.beginPath();
+            ctx.moveTo(-carW/2, 0);
+            ctx.lineTo(-carW/2 - (Math.random() * 40 + 20), -5);
+            ctx.lineTo(-carW/2 - (Math.random() * 40 + 20), 5);
+            ctx.fill();
+        }
+
         // Draw Car
-        drawSingleCar(ctx, carW, h, color, i === p.carCount - 1);
+        drawSingleCar(ctx, carW, h, color, i === p.carCount - 1, isBoosting);
         
         // Draw Coupler
         if (i > 0) {
@@ -447,6 +486,7 @@ const RetroGame: React.FC = () => {
 
   const gameOver = () => {
     gameRef.current.isRunning = false;
+    gameRef.current.shake = 20; // Big crash shake
     setGameState('GAMEOVER');
     stopMusic();
 
@@ -490,8 +530,21 @@ const RetroGame: React.FC = () => {
     const height = container.clientHeight;
     const { floorY: FLOOR_Y, ceilingY: CEILING_Y } = game;
 
+    // --- BOOST LOGIC ---
+    if (game.boosting) {
+        game.boost -= 0.5;
+        if (game.boost <= 0) {
+            game.boost = 0;
+            game.boosting = false;
+            setIsBoosting(false);
+        } else {
+            setBoostValue(game.boost); // Sync UI
+            game.shake = 3; // Constant rattle while boosting
+        }
+    }
+
     // --- LIFT HILL LOGIC ---
-    if (!game.isLiftHill && game.frame > 500 && Math.random() < 0.001) {
+    if (!game.isLiftHill && !game.boosting && game.frame > 500 && Math.random() < 0.001) {
         game.isLiftHill = true;
         game.liftHillTimer = 400; 
     }
@@ -511,10 +564,15 @@ const RetroGame: React.FC = () => {
             game.isLiftHill = false;
         }
     } else {
-        game.speed += 0.0005;
+        const targetSpeed = game.boosting ? game.baseSpeed * 2.0 : game.baseSpeed + (game.frame * 0.0005);
+        game.speed += (targetSpeed - game.speed) * 0.1; // Smooth acceleration
     }
 
     game.frame++;
+
+    // Shake Decay
+    if (game.shake > 0) game.shake *= 0.9;
+    if (game.shake < 0.5) game.shake = 0;
 
     const p = game.player;
     p.dy += settings.gravity * p.gravityDirection;
@@ -552,9 +610,22 @@ const RetroGame: React.FC = () => {
         const obs = game.obstacles[i];
         obs.x -= game.speed;
         let obsY = obs.type === 'FLOOR' ? FLOOR_Y - obs.height : CEILING_Y;
+        
+        // Collision Detection
         if (p.x + p.width - 4 > obs.x + 2 && p.x + 4 < obs.x + obs.width - 2 && p.y + p.height - 4 > obsY + 2 && p.y + 4 < obsY + obs.height - 2) {
-            gameOver();
-            return;
+            if (game.boosting) {
+                // SMASH THROUGH
+                createExplosion(obs.x + obs.width/2, obsY + obs.height/2, '#ef4444', 10);
+                game.obstacles.splice(i, 1);
+                game.score += 5; 
+                setScore(game.score);
+                game.shake = 5; // Impact shake
+                playTone(100, 'square', 0.1, getAudioContext()?.currentTime || 0, 0.3);
+                continue;
+            } else {
+                gameOver();
+                return;
+            }
         }
         if (!obs.passed && obs.x + obs.width < p.x) { obs.passed = true; game.score += 1; setScore(game.score); }
         if (obs.x + obs.width < -100) game.obstacles.splice(i, 1);
@@ -565,7 +636,16 @@ const RetroGame: React.FC = () => {
         col.x -= game.speed;
         const dist = Math.sqrt(Math.pow((p.x + p.width/2) - (col.x + col.size/2), 2) + Math.pow((p.y + p.height/2) - (col.y + col.size/2), 2));
         if (!col.collected && dist < (p.width/2 + col.size/2)) {
-            col.collected = true; game.score += 10; setScore(game.score);
+            col.collected = true; 
+            game.score += 10; 
+            setScore(game.score);
+            
+            // Add Boost
+            if (game.boost < MAX_BOOST) {
+                game.boost = Math.min(game.boost + 15, MAX_BOOST);
+                setBoostValue(game.boost);
+            }
+
             createExplosion(col.x, col.y, '#facc15', 8);
             
             const ctx = getAudioContext();
@@ -582,9 +662,15 @@ const RetroGame: React.FC = () => {
     // --- RENDER ---
     ctx.clearRect(0, 0, width, height);
     
+    // Camera Shake
+    ctx.save();
+    if (game.shake > 0) {
+        ctx.translate((Math.random() - 0.5) * game.shake, (Math.random() - 0.5) * game.shake);
+    }
+
     // Background
-    ctx.fillStyle = game.isLiftHill ? '#1e1b4b' : '#0f172a'; 
-    ctx.fillRect(0, 0, width, height);
+    ctx.fillStyle = game.isLiftHill ? '#1e1b4b' : game.boosting ? '#0c4a6e' : '#0f172a'; 
+    ctx.fillRect(-10, -10, width + 20, height + 20); // Oversize to cover shake edges
     
     // Lift Hill Visuals
     if (game.isLiftHill) {
@@ -601,15 +687,29 @@ const RetroGame: React.FC = () => {
         ctx.stroke();
     }
 
+    // Speed Lines (Boosting)
+    if (game.boosting) {
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for(let i=0; i<10; i++) {
+            const y = Math.random() * height;
+            const len = Math.random() * 200 + 100;
+            ctx.moveTo(width, y);
+            ctx.lineTo(width - len, y);
+        }
+        ctx.stroke();
+    }
+
     ctx.fillStyle = '#1e293b'; ctx.fillRect(0, CEILING_Y, width, LANE_HEIGHT);
 
-    ctx.lineWidth = 4; ctx.strokeStyle = game.isLiftHill ? '#a5b4fc' : '#334155'; 
+    ctx.lineWidth = 4; ctx.strokeStyle = game.isLiftHill ? '#a5b4fc' : game.boosting ? '#38bdf8' : '#334155'; 
     ctx.beginPath();
     ctx.moveTo(0, CEILING_Y); ctx.lineTo(width, CEILING_Y);
     ctx.moveTo(0, FLOOR_Y); ctx.lineTo(width, FLOOR_Y); ctx.stroke();
 
     const tieOffset = (game.frame * game.speed) % 50;
-    ctx.lineWidth = 2; ctx.strokeStyle = game.isLiftHill ? '#6366f1' : '#334155';
+    ctx.lineWidth = 2; ctx.strokeStyle = game.isLiftHill ? '#6366f1' : game.boosting ? '#0ea5e9' : '#334155';
     for(let x = -tieOffset; x < width; x+=50) {
         ctx.beginPath(); ctx.moveTo(x, CEILING_Y - 10); ctx.lineTo(x, CEILING_Y); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(x, FLOOR_Y); ctx.lineTo(x, FLOOR_Y + 10); ctx.stroke();
@@ -638,7 +738,7 @@ const RetroGame: React.FC = () => {
         ctx.arc(part.x, part.y, 3, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1.0;
     }
 
-    drawTrainCar(ctx, p);
+    drawTrainCar(ctx, p, game.boosting);
 
     if (game.isLiftHill) {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
@@ -646,6 +746,8 @@ const RetroGame: React.FC = () => {
         ctx.textAlign = 'center';
         ctx.fillText('LIFT HILL', width/2, height/2);
     }
+
+    ctx.restore(); // Restore shake state
 
     gameRef.current.animationId = requestAnimationFrame(loop);
   };
@@ -665,6 +767,28 @@ const RetroGame: React.FC = () => {
                     <span className="text-2xl font-black text-white leading-none font-mono">{score.toString().padStart(4, '0')}</span>
                 </div>
             </div>
+            
+            {/* Boost Gauge */}
+            {gameState === 'PLAYING' && (
+                <div className="absolute top-4 left-1/2 -translate-x-1/2 w-48 pointer-events-auto">
+                    <div className="h-3 bg-slate-800 rounded-full border border-slate-700 overflow-hidden relative">
+                        <div 
+                            className={`h-full transition-all duration-200 ${isBoosting ? 'bg-white animate-pulse' : 'bg-sky-500'}`} 
+                            style={{ width: `${(boostValue / MAX_BOOST) * 100}%` }} 
+                        />
+                    </div>
+                    {boostValue >= MAX_BOOST && !isBoosting && (
+                        <button 
+                            onPointerDown={activateBoost}
+                            className="mt-2 w-full bg-sky-500 hover:bg-sky-400 text-white font-black italic text-sm py-1 rounded-lg shadow-lg shadow-sky-500/50 animate-bounce border-2 border-white"
+                        >
+                            BOOST READY!
+                        </button>
+                    )}
+                    {isBoosting && <div className="mt-1 text-center text-xs font-black text-sky-400 italic">BOOSTING!</div>}
+                </div>
+            )}
+
             <div className="flex gap-2 pointer-events-auto">
                 <button onClick={toggleMute} className="bg-slate-800/80 backdrop-blur p-2 rounded-xl border border-slate-700 text-slate-400 hover:text-white">
                     {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
@@ -712,9 +836,9 @@ const RetroGame: React.FC = () => {
                     
                     <button 
                         onClick={unlockAudioEngine}
-                        className="text-xs text-slate-500 flex items-center justify-center gap-1 mx-auto hover:text-white"
+                        className={`text-xs flex items-center justify-center gap-1 mx-auto transition-colors ${audioReady ? 'text-emerald-500 font-bold' : 'text-slate-500 hover:text-white'}`}
                     >
-                       <Volume2 size={12} /> Test Audio
+                       <Volume2 size={12} /> {audioReady ? 'Audio Ready' : 'Test Audio'}
                     </button>
                 </div>
             </div>
