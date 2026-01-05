@@ -1,14 +1,14 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { ArrowLeft, Play, RotateCcw, Trophy, Gamepad2, PartyPopper, ArrowUp, ArrowDown, Volume2, VolumeX, BarChart3 } from 'lucide-react';
+import { ArrowLeft, Play, RotateCcw, Trophy, Gamepad2, PartyPopper, ArrowUp, ArrowDown, Volume2, VolumeX, BarChart3, MousePointerClick } from 'lucide-react';
 
 type Difficulty = 'BEGINNER' | 'MEDIUM' | 'ADVANCED';
 
-const DIFFICULTY_CONFIG: Record<Difficulty, { speed: number, gapMin: number, gapMax: number, gravity: number, jump: number, label: string, color: string }> = {
-  BEGINNER: { speed: 5, gapMin: 600, gapMax: 1000, gravity: 0.5, jump: 11, label: 'Easy', color: 'bg-emerald-500' },
-  MEDIUM: { speed: 7, gapMin: 400, gapMax: 800, gravity: 0.6, jump: 12, label: 'Medium', color: 'bg-yellow-500' },
-  ADVANCED: { speed: 9, gapMin: 300, gapMax: 600, gravity: 0.8, jump: 14, label: 'Hard', color: 'bg-red-500' }
+const DIFFICULTY_CONFIG: Record<Difficulty, { speed: number, gapMin: number, gapMax: number, gravity: number, jump: number, label: string, color: string, carCount: number }> = {
+  BEGINNER: { speed: 5, gapMin: 600, gapMax: 1000, gravity: 0.5, jump: 11, label: 'Easy', color: 'bg-emerald-500', carCount: 1 },
+  MEDIUM: { speed: 7, gapMin: 400, gapMax: 800, gravity: 0.6, jump: 12, label: 'Medium', color: 'bg-yellow-500', carCount: 1 },
+  ADVANCED: { speed: 9, gapMin: 300, gapMax: 600, gravity: 0.8, jump: 14, label: 'Hard', color: 'bg-red-500', carCount: 2 }
 };
 
 const RetroGame: React.FC = () => {
@@ -28,9 +28,12 @@ const RetroGame: React.FC = () => {
   const nextNoteTimeRef = useRef<number>(0);
   const musicTimerRef = useRef<number | null>(null);
   const melodyIndexRef = useRef(0);
+  const lastChainTimeRef = useRef(0);
 
   // Game Constants
   const LANE_HEIGHT = 320; 
+  const CAR_WIDTH = 44;
+  const CAR_GAP = 6;
 
   // Game Refs (Mutable state for loop)
   const gameRef = useRef({
@@ -44,62 +47,29 @@ const RetroGame: React.FC = () => {
         dy: 0, 
         grounded: false,
         gravityDirection: 1, 
-        rotation: 0 
+        rotation: 0,
+        carCount: 1 
     },
     obstacles: [] as { x: number, width: number, height: number, type: 'FLOOR' | 'CEILING', passed: boolean }[],
     collectibles: [] as { x: number, y: number, collected: boolean, size: number }[],
     particles: [] as { x: number, y: number, vx: number, vy: number, life: number, color: string }[],
     speed: 0,
+    baseSpeed: 0,
     frame: 0,
     score: 0,
     animationId: 0,
     pixelRatio: 1,
     floorY: 0,
-    ceilingY: 0
+    ceilingY: 0,
+    isLiftHill: false,
+    liftHillTimer: 0
   });
 
   // --- AUDIO SYSTEM (Mobile Optimized) ---
   
-  // 1. GLOBAL UNLOCKER: Run once on mount to attach listeners
+  // Clean up on unmount
   useEffect(() => {
-      const unlockAudio = () => {
-          if (!audioCtxRef.current) {
-              const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-              if (AudioContext) {
-                  audioCtxRef.current = new AudioContext();
-              }
-          }
-
-          const ctx = audioCtxRef.current;
-          if (ctx) {
-              // Always try to resume on interaction
-              if (ctx.state === 'suspended') {
-                  ctx.resume().catch(e => console.warn("Audio resume failed", e));
-              }
-              
-              // Play a silent buffer to "warm up" the iOS audio engine
-              try {
-                  const buffer = ctx.createBuffer(1, 1, 22050);
-                  const source = ctx.createBufferSource();
-                  source.buffer = buffer;
-                  source.connect(ctx.destination);
-                  source.start(0);
-              } catch (e) {
-                  // Ignore
-              }
-          }
-      };
-
-      // Attach to global events to catch the very first interaction
-      window.addEventListener('touchstart', unlockAudio, { passive: true });
-      window.addEventListener('click', unlockAudio, { passive: true });
-      window.addEventListener('keydown', unlockAudio, { passive: true });
-
       return () => {
-          window.removeEventListener('touchstart', unlockAudio);
-          window.removeEventListener('click', unlockAudio);
-          window.removeEventListener('keydown', unlockAudio);
-          
           stopMusic();
           if (gameRef.current.animationId) cancelAnimationFrame(gameRef.current.animationId);
           if (audioCtxRef.current) {
@@ -109,28 +79,27 @@ const RetroGame: React.FC = () => {
       };
   }, []);
 
-  const initAudio = () => {
-      // Logic handled by global unlocker, but we call this on Start Game just in case
+  const ensureAudioContext = () => {
       if (!audioCtxRef.current) {
           const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
           if (AudioContext) {
               audioCtxRef.current = new AudioContext();
           }
       }
+      // Force resume on every interaction to wake up the audio engine
       const ctx = audioCtxRef.current;
       if (ctx && ctx.state === 'suspended') {
           ctx.resume().catch(() => {});
       }
+      return ctx;
   };
 
   const playTone = (freq: number, type: OscillatorType, duration: number, startTime: number, vol: number = 0.3) => {
       const ctx = audioCtxRef.current;
       if (!ctx || isMuted) return;
       
-      // Safety check: if context is suspended, sound won't play. Try to resume.
       if (ctx.state === 'suspended') {
           ctx.resume().catch(() => {});
-          // Don't return, let it try to queue
       }
 
       try {
@@ -140,8 +109,6 @@ const RetroGame: React.FC = () => {
         osc.type = type;
         osc.frequency.setValueAtTime(freq, startTime);
         
-        // Use exponential ramp for smoother, click-free sound
-        // Start slightly non-zero to avoid exponential ramp errors
         gain.gain.setValueAtTime(0.001, startTime);
         gain.gain.exponentialRampToValueAtTime(vol, startTime + 0.02);
         gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
@@ -152,13 +119,27 @@ const RetroGame: React.FC = () => {
         osc.start(startTime);
         osc.stop(startTime + duration + 0.05);
       } catch (e) {
-          // Ignore audio errors
+          // Ignore
       }
+  };
+
+  const playChainClick = () => {
+      const ctx = audioCtxRef.current;
+      if (!ctx || isMuted) return;
+      // Mechanical "Clack"
+      playTone(80, 'sawtooth', 0.05, ctx.currentTime, 0.15);
+      playTone(150, 'square', 0.03, ctx.currentTime, 0.1);
   };
 
   const scheduleMusic = () => {
       const ctx = audioCtxRef.current;
       if (!ctx || isMuted || ctx.state !== 'running') return;
+
+      // Don't play music during lift hill, focus on the CLACK
+      if (gameRef.current.isLiftHill) {
+          musicTimerRef.current = requestAnimationFrame(scheduleMusic);
+          return;
+      }
 
       // Tempo increases slightly with difficulty
       const baseTempo = difficulty === 'ADVANCED' ? 0.12 : difficulty === 'MEDIUM' ? 0.15 : 0.18;
@@ -190,9 +171,8 @@ const RetroGame: React.FC = () => {
   };
 
   const startMusic = () => {
-      const ctx = audioCtxRef.current;
+      const ctx = ensureAudioContext();
       if (ctx && !musicTimerRef.current && !isMuted) {
-          // Ensure we are in the future to avoid "start time in past" glitches
           nextNoteTimeRef.current = ctx.currentTime + 0.05; 
           scheduleMusic();
       }
@@ -208,7 +188,7 @@ const RetroGame: React.FC = () => {
   const toggleMute = (e: React.SyntheticEvent) => {
       e.stopPropagation();
       e.preventDefault();
-      initAudio(); // Ensure context is ready
+      ensureAudioContext(); 
       
       setIsMuted(prev => {
           const next = !prev;
@@ -249,33 +229,10 @@ const RetroGame: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    
-    // Prevent scrolling/zooming while playing
-    const preventDefault = (e: TouchEvent) => { 
-        const target = e.target as HTMLElement;
-        if (target.closest('button')) return;
-        if(e.cancelable) e.preventDefault(); 
-    };
-
-    container.addEventListener('touchstart', preventDefault, { passive: false });
-    container.addEventListener('touchmove', preventDefault, { passive: false });
-    container.addEventListener('touchend', preventDefault, { passive: false });
-    return () => {
-        container.removeEventListener('touchstart', preventDefault);
-        container.removeEventListener('touchmove', preventDefault);
-        container.removeEventListener('touchend', preventDefault);
-    };
-  }, []);
-
   const startGame = (e: React.SyntheticEvent | Event) => {
     e.preventDefault();
     e.stopPropagation();
-    
-    // CRITICAL: Initialize Audio directly in the event handler
-    initAudio();
+    ensureAudioContext();
 
     if (!containerRef.current) return;
 
@@ -287,27 +244,32 @@ const RetroGame: React.FC = () => {
     if (gameRef.current.animationId) cancelAnimationFrame(gameRef.current.animationId);
 
     const settings = DIFFICULTY_CONFIG[difficulty];
+    const totalTrainWidth = (CAR_WIDTH * settings.carCount) + (CAR_GAP * (settings.carCount - 1));
 
     gameRef.current = {
         ...gameRef.current,
         isRunning: true,
-        settings, // Apply selected difficulty settings
+        settings,
         player: { 
             x: 80, 
             y: gameRef.current.floorY - 20, 
-            width: 44, // Train car width
-            height: 24, // Train car height
+            width: totalTrainWidth,
+            height: 24, 
             dy: 0, 
             grounded: true, 
             gravityDirection: 1, 
-            rotation: 0
+            rotation: 0,
+            carCount: settings.carCount
         },
         obstacles: [],
         collectibles: [],
         particles: [],
         speed: settings.speed,
+        baseSpeed: settings.speed,
         frame: 0,
-        score: 0
+        score: 0,
+        isLiftHill: false,
+        liftHillTimer: 0
     };
 
     setScore(0);
@@ -319,6 +281,7 @@ const RetroGame: React.FC = () => {
   };
 
   const jump = () => {
+      ensureAudioContext(); 
       const { player, settings } = gameRef.current;
       if (player.grounded) {
           player.dy = -settings.jump * player.gravityDirection;
@@ -331,6 +294,7 @@ const RetroGame: React.FC = () => {
   };
 
   const toggleGravity = () => {
+      ensureAudioContext();
       const { player } = gameRef.current;
       player.gravityDirection *= -1;
       player.grounded = false;
@@ -340,6 +304,26 @@ const RetroGame: React.FC = () => {
       const ctx = audioCtxRef.current;
       if (ctx && ctx.state === 'running' && !isMuted) {
           playTone(150, 'sawtooth', 0.15, ctx.currentTime, 0.2);
+      }
+  };
+
+  const handleGameInteraction = (e: React.TouchEvent | React.MouseEvent) => {
+      if (!gameRef.current.isRunning) return;
+      e.preventDefault();
+      
+      let clientX;
+      if ('touches' in e) {
+          if (e.touches.length > 0) clientX = e.touches[0].clientX;
+          else return;
+      } else {
+          clientX = (e as React.MouseEvent).clientX;
+      }
+
+      const screenWidth = window.innerWidth;
+      if (clientX < screenWidth / 2) {
+          toggleGravity();
+      } else {
+          jump();
       }
   };
 
@@ -355,54 +339,42 @@ const RetroGame: React.FC = () => {
       }
   };
 
-  const drawTrainCar = (ctx: CanvasRenderingContext2D, p: typeof gameRef.current.player) => {
-    ctx.save();
-    // Translate to center of player to handle rotation
-    ctx.translate(p.x + p.width/2, p.y + p.height/2);
-    ctx.rotate(p.rotation);
-    
-    const w = p.width;
-    const h = p.height;
-    const color = p.gravityDirection === 1 ? '#facc15' : '#8b5cf6'; // Yellow or Purple
-
+  const drawSingleCar = (ctx: CanvasRenderingContext2D, w: number, h: number, color: string, isFront: boolean) => {
     // 1. Draw Wheels (Bottom, slightly inset)
     ctx.fillStyle = '#64748b'; // Slate 500
-    // Back Wheel
-    ctx.beginPath();
-    ctx.arc(-w/2 + 8, h/2, 6, 0, Math.PI*2); 
-    ctx.fill();
-    // Front Wheel
-    ctx.beginPath();
-    ctx.arc(w/2 - 8, h/2, 6, 0, Math.PI*2); 
-    ctx.fill();
+    ctx.beginPath(); ctx.arc(-w/2 + 8, h/2, 6, 0, Math.PI*2); ctx.fill(); // Back Wheel
+    ctx.beginPath(); ctx.arc(w/2 - 8, h/2, 6, 0, Math.PI*2); ctx.fill(); // Front Wheel
 
     // 2. Draw Main Chassis (Rounded Rect)
     ctx.fillStyle = color;
-    // Main body
     ctx.beginPath();
     ctx.roundRect(-w/2, -h/2, w, h, 6);
     ctx.fill();
     
-    // Front Nose (Slightly angled or just a different shade)
-    ctx.fillStyle = 'rgba(255,255,255,0.2)';
-    ctx.beginPath();
-    ctx.moveTo(w/2 - 10, -h/2);
-    ctx.lineTo(w/2, -h/2);
-    ctx.lineTo(w/2, h/2);
-    ctx.lineTo(w/2 - 10, h/2);
-    ctx.fill();
+    // Front Nose (Slightly angled) - Only for front car
+    if (isFront) {
+        ctx.fillStyle = 'rgba(255,255,255,0.2)';
+        ctx.beginPath();
+        ctx.moveTo(w/2 - 10, -h/2);
+        ctx.lineTo(w/2, -h/2);
+        ctx.lineTo(w/2, h/2);
+        ctx.lineTo(w/2 - 10, h/2);
+        ctx.fill();
+    }
 
     // 3. Draw Seat Backs (Top)
     ctx.fillStyle = '#1e293b'; // Dark Slate
     ctx.fillRect(-w/2 + 4, -h/2 - 6, 8, 6); // Back seat
     ctx.fillRect(-w/2 + 18, -h/2 - 6, 8, 6); // Front seat
 
-    // 4. "RMC" Text
-    ctx.fillStyle = '#0f172a'; // Dark Slate text
-    ctx.font = '900 10px monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('RMC', 0, 1);
+    // 4. "RMC" Text - Only front car
+    if (isFront) {
+        ctx.fillStyle = '#0f172a'; // Dark Slate text
+        ctx.font = '900 10px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('RMC', 0, 1);
+    }
 
     // 5. Shine Effect
     ctx.fillStyle = 'rgba(255,255,255,0.3)';
@@ -412,6 +384,42 @@ const RetroGame: React.FC = () => {
     ctx.lineTo(w/2 - 15, -h/2 + 8);
     ctx.lineTo(-w/2 + 2, -h/2 + 8);
     ctx.fill();
+  };
+
+  const drawTrainCar = (ctx: CanvasRenderingContext2D, p: typeof gameRef.current.player) => {
+    ctx.save();
+    // Translate to center of WHOLE TRAIN
+    ctx.translate(p.x + p.width/2, p.y + p.height/2);
+    ctx.rotate(p.rotation);
+    
+    const h = p.height;
+    const color = p.gravityDirection === 1 ? '#facc15' : '#8b5cf6'; // Yellow or Purple
+    const carW = CAR_WIDTH;
+    
+    // Calculate total train width to center items
+    // Start X relative to center:
+    // If 1 car: center is 0.
+    // If 2 cars: left center is -25, right center is +25 (approx)
+    
+    const totalW = p.width;
+    const startX = -totalW / 2 + carW / 2;
+
+    for (let i = 0; i < p.carCount; i++) {
+        ctx.save();
+        const xOffset = startX + i * (carW + CAR_GAP);
+        ctx.translate(xOffset, 0);
+        
+        // Draw Car
+        drawSingleCar(ctx, carW, h, color, i === p.carCount - 1);
+        
+        // Draw Coupler to previous car if not first
+        if (i > 0) {
+            ctx.fillStyle = '#334155';
+            ctx.fillRect(-carW/2 - CAR_GAP, -2, CAR_GAP, 4);
+        }
+        
+        ctx.restore();
+    }
 
     ctx.restore();
   };
@@ -433,7 +441,34 @@ const RetroGame: React.FC = () => {
     const height = container.clientHeight;
     const { floorY: FLOOR_Y, ceilingY: CEILING_Y } = game;
 
-    game.speed += 0.0005;
+    // --- LIFT HILL LOGIC ---
+    // Start lift hill randomly
+    if (!game.isLiftHill && game.frame > 500 && Math.random() < 0.001) {
+        game.isLiftHill = true;
+        game.liftHillTimer = 400; // Duration
+    }
+
+    if (game.isLiftHill) {
+        game.liftHillTimer--;
+        // Slow down to base speed * 0.7
+        game.speed += (game.baseSpeed * 0.7 - game.speed) * 0.05;
+        
+        // Play Clack Sound periodically based on speed
+        const now = Date.now();
+        const clackInterval = 1000 / (game.speed * 10); // Faster speed = faster clack
+        if (now - lastChainTimeRef.current > clackInterval) {
+            playChainClick();
+            lastChainTimeRef.current = now;
+        }
+
+        if (game.liftHillTimer <= 0) {
+            game.isLiftHill = false; // End lift hill
+        }
+    } else {
+        // Accelerate normally
+        game.speed += 0.0005;
+    }
+
     game.frame++;
 
     const p = game.player;
@@ -450,19 +485,26 @@ const RetroGame: React.FC = () => {
 
     p.rotation += ((p.gravityDirection === 1 ? 0 : Math.PI) - p.rotation) * 0.2;
 
+    // --- SPAWNING LOGIC ---
     const lastObsX = game.obstacles.length > 0 ? game.obstacles[game.obstacles.length - 1].x : -9999;
     const lastColX = game.collectibles.length > 0 ? game.collectibles[game.collectibles.length - 1].x : -9999;
     
-    // Spawn Logic using Difficulty Settings
+    // Don't spawn heavy obstacles during lift hill, it's a break
     if (width - Math.max(lastObsX, lastColX) > Math.random() * (settings.gapMax - settings.gapMin) + settings.gapMin) {
         const spawnX = width + 50;
-        if (Math.random() > 0.7) {
-            game.collectibles.push({ x: spawnX, y: (FLOOR_Y + CEILING_Y) / 2, collected: false, size: 25 });
+        if (game.isLiftHill) {
+             // Only collectibles on lift hill
+             game.collectibles.push({ x: spawnX, y: (FLOOR_Y + CEILING_Y) / 2, collected: false, size: 25 });
         } else {
-            game.obstacles.push({ x: spawnX, width: 40, height: Math.random() * 40 + 40, type: Math.random() > 0.5 ? 'FLOOR' : 'CEILING', passed: false });
+            if (Math.random() > 0.7) {
+                game.collectibles.push({ x: spawnX, y: (FLOOR_Y + CEILING_Y) / 2, collected: false, size: 25 });
+            } else {
+                game.obstacles.push({ x: spawnX, width: 40, height: Math.random() * 40 + 40, type: Math.random() > 0.5 ? 'FLOOR' : 'CEILING', passed: false });
+            }
         }
     }
 
+    // --- UPDATE OBJECTS ---
     for (let i = game.obstacles.length - 1; i >= 0; i--) {
         const obs = game.obstacles[i];
         obs.x -= game.speed;
@@ -493,19 +535,47 @@ const RetroGame: React.FC = () => {
         if (part.life <= 0) game.particles.splice(i, 1);
     }
 
+    // --- RENDER ---
     ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, width, height);
+    
+    // Background
+    ctx.fillStyle = game.isLiftHill ? '#1e1b4b' : '#0f172a'; // Slightly purple in lift hill
+    ctx.fillRect(0, 0, width, height);
+    
+    // Lift Hill Visuals (Truss Work)
+    if (game.isLiftHill) {
+        ctx.strokeStyle = '#4338ca';
+        ctx.lineWidth = 2;
+        const offset = (game.frame * game.speed * 0.5) % 100;
+        ctx.beginPath();
+        for (let x = -offset; x < width; x += 50) {
+            ctx.moveTo(x, CEILING_Y);
+            ctx.lineTo(x + 50, FLOOR_Y);
+            ctx.moveTo(x + 50, CEILING_Y);
+            ctx.lineTo(x, FLOOR_Y);
+        }
+        ctx.stroke();
+    }
+
     ctx.fillStyle = '#1e293b'; ctx.fillRect(0, CEILING_Y, width, LANE_HEIGHT);
 
-    ctx.lineWidth = 4; ctx.strokeStyle = '#334155'; ctx.beginPath();
+    ctx.lineWidth = 4; ctx.strokeStyle = game.isLiftHill ? '#a5b4fc' : '#334155'; 
+    ctx.beginPath();
     ctx.moveTo(0, CEILING_Y); ctx.lineTo(width, CEILING_Y);
     ctx.moveTo(0, FLOOR_Y); ctx.lineTo(width, FLOOR_Y); ctx.stroke();
 
     const tieOffset = (game.frame * game.speed) % 50;
-    ctx.lineWidth = 2; ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 2; ctx.strokeStyle = game.isLiftHill ? '#6366f1' : '#334155';
     for(let x = -tieOffset; x < width; x+=50) {
         ctx.beginPath(); ctx.moveTo(x, CEILING_Y - 10); ctx.lineTo(x, CEILING_Y); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(x, FLOOR_Y); ctx.lineTo(x, FLOOR_Y + 10); ctx.stroke();
+        
+        // Draw Chain Dog / Ratchet on track center if lift hill
+        if (game.isLiftHill) {
+             const trackCenterY = (FLOOR_Y + CEILING_Y) / 2;
+             ctx.fillStyle = '#1e1b4b'; // Dark chain
+             ctx.fillRect(x, trackCenterY - 2, 10, 4);
+        }
     }
 
     for (const obs of game.obstacles) {
@@ -525,8 +595,15 @@ const RetroGame: React.FC = () => {
         ctx.arc(part.x, part.y, 3, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1.0;
     }
 
-    // DRAW THE PLAYER TRAIN
     drawTrainCar(ctx, p);
+
+    // Lift Hill UI Indicator
+    if (game.isLiftHill) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.font = '900 48px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('LIFT HILL', width/2, height/2);
+    }
 
     gameRef.current.animationId = requestAnimationFrame(loop);
   };
@@ -545,11 +622,7 @@ const RetroGame: React.FC = () => {
       }
   };
 
-  const handlePointerDownAction = (e: React.PointerEvent, action: () => void) => {
-      e.preventDefault(); e.stopPropagation();
-      if (gameRef.current.isRunning) action();
-  };
-
+  // Keyboard support remains
   useEffect(() => {
       const handleKeyDown = (e: KeyboardEvent) => {
           if (!gameRef.current.isRunning) return;
@@ -561,7 +634,11 @@ const RetroGame: React.FC = () => {
   }, [gameState]);
 
   return (
-    <div ref={containerRef} className="fixed inset-0 z-[100] bg-slate-950 flex flex-col overflow-hidden select-none" style={{ touchAction: 'none' }}>
+    <div 
+        ref={containerRef} 
+        className="fixed inset-0 z-[100] bg-slate-950 flex flex-col overflow-hidden select-none touch-none" 
+        onPointerDown={handleGameInteraction} // Handle touch for the entire screen
+    >
         <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-start pointer-events-none z-10">
             <div className="flex items-center gap-3 pointer-events-auto">
                 <button onClick={(e) => { e.preventDefault(); stopMusic(); changeView('QUEUE_HUB'); }} className="bg-slate-800/80 backdrop-blur p-2 rounded-full border border-slate-700 text-slate-400"><ArrowLeft size={20} /></button>
@@ -583,23 +660,12 @@ const RetroGame: React.FC = () => {
 
         <canvas ref={canvasRef} className="block w-full h-full" />
 
-        {gameState === 'PLAYING' && (
-            <div className="absolute inset-x-0 bottom-0 pb-safe p-4 z-30 flex gap-4 pointer-events-none">
-                <button onPointerDown={(e) => handlePointerDownAction(e, toggleGravity)} className="flex-1 h-32 bg-purple-600/10 border-2 border-purple-500/30 rounded-3xl backdrop-blur-sm flex flex-col items-center justify-center text-purple-300 pointer-events-auto active:bg-purple-600/30 transition-all">
-                    <ArrowDown size={40} /><span className="text-sm font-bold uppercase mt-2">Gravity</span>
-                </button>
-                <button onPointerDown={(e) => handlePointerDownAction(e, jump)} className="flex-1 h-32 bg-blue-600/10 border-2 border-blue-500/30 rounded-3xl backdrop-blur-sm flex flex-col items-center justify-center text-blue-300 pointer-events-auto active:bg-blue-600/30 transition-all">
-                    <ArrowUp size={40} /><span className="text-sm font-bold uppercase mt-2">Jump</span>
-                </button>
-            </div>
-        )}
-
         {gameState === 'START' && (
-            <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm p-6">
+            <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm p-6 pointer-events-auto" onPointerDown={e => e.stopPropagation()}>
                 <div className="bg-slate-900 p-8 rounded-3xl border border-slate-700 shadow-2xl text-center max-w-sm w-full">
                     <Gamepad2 size={48} className="text-primary mx-auto mb-4" />
                     <h2 className="text-3xl font-black text-white italic tracking-tighter mb-1">COASTER DASH</h2>
-                    <p className="text-sm text-slate-400 mb-6">Select your difficulty</p>
+                    <p className="text-sm text-slate-400 mb-6">Tap Left to switch Gravity. Tap Right to Jump.</p>
                     
                     <div className="flex gap-2 mb-6 w-full">
                         {(Object.keys(DIFFICULTY_CONFIG) as Difficulty[]).map((level) => (
@@ -630,7 +696,7 @@ const RetroGame: React.FC = () => {
         )}
 
         {gameState === 'GAMEOVER' && (
-            <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/80 backdrop-blur-md p-6">
+            <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/80 backdrop-blur-md p-6 pointer-events-auto" onPointerDown={e => e.stopPropagation()}>
                 <div className="bg-slate-900 p-8 rounded-3xl border border-slate-700 shadow-2xl text-center max-w-sm w-full">
                     {isNewRecord && <div className="absolute top-0 right-0 p-4"><PartyPopper size={32} className="text-yellow-400 animate-bounce" /></div>}
                     <h2 className="text-3xl font-black text-white italic tracking-tighter mb-2">CRASHED!</h2>
@@ -650,6 +716,24 @@ const RetroGame: React.FC = () => {
                             <RotateCcw size={20} /> RIDE AGAIN
                         </button>
                         <button onClick={() => changeView('QUEUE_HUB')} className="w-full bg-slate-800 text-slate-400 py-3 rounded-xl font-bold text-xs">EXIT TO HUB</button>
+                    </div>
+                </div>
+            </div>
+        )}
+        
+        {/* Visual Guide Overlay for Controls */}
+        {gameState === 'PLAYING' && gameRef.current.frame < 150 && (
+            <div className="absolute inset-0 pointer-events-none flex">
+                <div className="flex-1 border-r border-white/10 flex items-center justify-center">
+                    <div className="bg-black/40 backdrop-blur p-4 rounded-2xl flex flex-col items-center animate-pulse">
+                        <ArrowDown size={32} className="text-purple-400 mb-2" />
+                        <span className="text-xs font-bold text-white uppercase">Gravity</span>
+                    </div>
+                </div>
+                <div className="flex-1 flex items-center justify-center">
+                    <div className="bg-black/40 backdrop-blur p-4 rounded-2xl flex flex-col items-center animate-pulse">
+                        <ArrowUp size={32} className="text-blue-400 mb-2" />
+                        <span className="text-xs font-bold text-white uppercase">Jump</span>
                     </div>
                 </div>
             </div>
