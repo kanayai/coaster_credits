@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { ArrowLeft, Play, RotateCcw, Trophy, Gamepad2, PartyPopper, ArrowUp, ArrowDown, Volume2, VolumeX, BarChart3 } from 'lucide-react';
@@ -67,48 +66,8 @@ const RetroGame: React.FC = () => {
 
   // --- AUDIO SYSTEM (Mobile Optimized) ---
   
-  // Initialize audio context lazily but robustly
-  const getAudioContext = () => {
-      if (!audioCtxRef.current) {
-          const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-          if (AudioContext) {
-              audioCtxRef.current = new AudioContext({ latencyHint: 'interactive' });
-          }
-      }
-      return audioCtxRef.current;
-  };
-
-  // The "Nuclear Option" for iOS Audio: Play a silent buffer inside a user event
-  // AND forcefully resume the context if suspended.
-  const unlockAudio = () => {
-      const ctx = getAudioContext();
-      if (!ctx) return;
-
-      // Always try to resume if suspended
-      if (ctx.state === 'suspended') {
-          ctx.resume().catch(e => console.error("Audio resume failed:", e));
-      }
-
-      // Create a tiny empty buffer and play it to "warm up" the pipeline
-      try {
-          const buffer = ctx.createBuffer(1, 1, 22050);
-          const source = ctx.createBufferSource();
-          source.buffer = buffer;
-          source.connect(ctx.destination);
-          if (source.start) source.start(0);
-          else if ((source as any).noteOn) (source as any).noteOn(0);
-      } catch (e) {
-          // Ignore errors if buffer fails
-      }
-  };
-
-  // Add global listeners to catch the very first interaction anywhere
+  // Cleanup
   useEffect(() => {
-      const globalUnlock = () => unlockAudio();
-      document.addEventListener('touchstart', globalUnlock, { passive: true });
-      document.addEventListener('click', globalUnlock, { passive: true });
-      document.addEventListener('keydown', globalUnlock, { passive: true });
-
       return () => {
           stopMusic();
           if (gameRef.current.animationId) cancelAnimationFrame(gameRef.current.animationId);
@@ -116,20 +75,46 @@ const RetroGame: React.FC = () => {
               audioCtxRef.current.close().catch(() => {});
               audioCtxRef.current = null;
           }
-          document.removeEventListener('touchstart', globalUnlock);
-          document.removeEventListener('click', globalUnlock);
-          document.removeEventListener('keydown', globalUnlock);
       };
   }, []);
 
+  // FORCE AUDIO UNLOCK
+  // This must be called synchronously inside a user interaction event (touchstart/click)
+  const initAudio = () => {
+      if (!audioCtxRef.current) {
+          const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+          if (AudioContext) {
+              audioCtxRef.current = new AudioContext({ latencyHint: 'interactive' });
+          }
+      }
+      
+      const ctx = audioCtxRef.current;
+      if (ctx) {
+          // 1. Resume context
+          if (ctx.state === 'suspended') {
+              ctx.resume().catch(e => console.error(e));
+          }
+          // 2. Play silent buffer to unlock iOS audio
+          try {
+              const buffer = ctx.createBuffer(1, 1, 22050);
+              const source = ctx.createBufferSource();
+              source.buffer = buffer;
+              source.connect(ctx.destination);
+              if (source.start) source.start(0);
+              else if ((source as any).noteOn) (source as any).noteOn(0);
+          } catch (e) {
+              console.error(e);
+          }
+      }
+      return ctx;
+  };
+
   const playTone = (freq: number, type: OscillatorType, duration: number, startTime: number, vol: number = 0.3) => {
-      const ctx = getAudioContext();
+      const ctx = audioCtxRef.current;
       if (!ctx || isMuted) return;
       
-      // Aggressive resume check on every note
-      if (ctx.state === 'suspended') {
-          ctx.resume().catch(() => {});
-      }
+      // Safety resume
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
 
       try {
         const osc = ctx.createOscillator();
@@ -138,7 +123,6 @@ const RetroGame: React.FC = () => {
         osc.type = type;
         osc.frequency.setValueAtTime(freq, startTime);
         
-        // Attack/Decay envelope to avoid clicking
         gain.gain.setValueAtTime(0.001, startTime);
         gain.gain.exponentialRampToValueAtTime(vol, startTime + 0.01);
         gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
@@ -154,24 +138,21 @@ const RetroGame: React.FC = () => {
   };
 
   const playChainClick = () => {
-      const ctx = getAudioContext();
+      const ctx = audioCtxRef.current;
       if (!ctx || isMuted) return;
-      // Mechanical "Clack"
       playTone(80, 'sawtooth', 0.05, ctx.currentTime, 0.15);
       playTone(150, 'square', 0.03, ctx.currentTime, 0.1);
   };
 
   const scheduleMusic = () => {
-      const ctx = getAudioContext();
+      const ctx = audioCtxRef.current;
       if (!ctx || isMuted || ctx.state !== 'running') return;
 
-      // Don't play music during lift hill, focus on the CLACK
       if (gameRef.current.isLiftHill) {
           musicTimerRef.current = requestAnimationFrame(scheduleMusic);
           return;
       }
 
-      // Tempo increases slightly with difficulty
       const baseTempo = difficulty === 'ADVANCED' ? 0.12 : difficulty === 'MEDIUM' ? 0.15 : 0.18;
       const tempo = baseTempo; 
       const lookahead = 0.1; 
@@ -201,7 +182,7 @@ const RetroGame: React.FC = () => {
   };
 
   const startMusic = () => {
-      const ctx = getAudioContext();
+      const ctx = audioCtxRef.current;
       if (ctx && !musicTimerRef.current && !isMuted) {
           nextNoteTimeRef.current = ctx.currentTime + 0.05; 
           scheduleMusic();
@@ -218,7 +199,8 @@ const RetroGame: React.FC = () => {
   const toggleMute = (e: React.SyntheticEvent) => {
       e.stopPropagation();
       e.preventDefault();
-      unlockAudio(); 
+      // Also try to unlock here if user clicks mute button first
+      initAudio(); 
       
       setIsMuted(prev => {
           const next = !prev;
@@ -263,8 +245,8 @@ const RetroGame: React.FC = () => {
     e.preventDefault();
     e.stopPropagation();
     
-    // CRITICAL: Unlock audio on start
-    unlockAudio();
+    // CRITICAL: Initialize Audio Context inside this user event
+    initAudio();
 
     if (!containerRef.current) return;
 
@@ -313,12 +295,14 @@ const RetroGame: React.FC = () => {
   };
 
   const jump = () => {
-      unlockAudio(); // Try unlock again just in case
+      // Audio safety check
+      if (audioCtxRef.current?.state === 'suspended') initAudio();
+
       const { player, settings } = gameRef.current;
       if (player.grounded) {
           player.dy = -settings.jump * player.gravityDirection;
           player.grounded = false;
-          const ctx = getAudioContext();
+          const ctx = audioCtxRef.current;
           if (ctx && ctx.state === 'running' && !isMuted) {
               playTone(300, 'square', 0.1, ctx.currentTime, 0.2);
           }
@@ -326,14 +310,16 @@ const RetroGame: React.FC = () => {
   };
 
   const toggleGravity = () => {
-      unlockAudio(); // Try unlock again just in case
+      // Audio safety check
+      if (audioCtxRef.current?.state === 'suspended') initAudio();
+
       const { player } = gameRef.current;
       player.gravityDirection *= -1;
       player.grounded = false;
       
       createExplosion(player.x + player.width/2, player.y + player.height/2, '#8b5cf6', 5);
       
-      const ctx = getAudioContext();
+      const ctx = audioCtxRef.current;
       if (ctx && ctx.state === 'running' && !isMuted) {
           playTone(150, 'sawtooth', 0.15, ctx.currentTime, 0.2);
       }
@@ -343,9 +329,6 @@ const RetroGame: React.FC = () => {
   const handleGameInteraction = (e: React.TouchEvent | React.MouseEvent) => {
       if (!gameRef.current.isRunning) return;
       e.preventDefault();
-      
-      // Always try to unlock audio on any game interaction
-      unlockAudio();
       
       let clientX;
       if ('touches' in e) {
@@ -377,18 +360,18 @@ const RetroGame: React.FC = () => {
   };
 
   const drawSingleCar = (ctx: CanvasRenderingContext2D, w: number, h: number, color: string, isFront: boolean) => {
-    // 1. Draw Wheels (Bottom, slightly inset)
-    ctx.fillStyle = '#64748b'; // Slate 500
-    ctx.beginPath(); ctx.arc(-w/2 + 8, h/2, 6, 0, Math.PI*2); ctx.fill(); // Back Wheel
-    ctx.beginPath(); ctx.arc(w/2 - 8, h/2, 6, 0, Math.PI*2); ctx.fill(); // Front Wheel
+    // 1. Draw Wheels
+    ctx.fillStyle = '#64748b'; 
+    ctx.beginPath(); ctx.arc(-w/2 + 8, h/2, 6, 0, Math.PI*2); ctx.fill(); 
+    ctx.beginPath(); ctx.arc(w/2 - 8, h/2, 6, 0, Math.PI*2); ctx.fill(); 
 
-    // 2. Draw Main Chassis (Rounded Rect)
+    // 2. Draw Main Chassis
     ctx.fillStyle = color;
     ctx.beginPath();
     ctx.roundRect(-w/2, -h/2, w, h, 6);
     ctx.fill();
     
-    // Front Nose (Slightly angled) - Only for front car
+    // Front Nose
     if (isFront) {
         ctx.fillStyle = 'rgba(255,255,255,0.2)';
         ctx.beginPath();
@@ -399,14 +382,14 @@ const RetroGame: React.FC = () => {
         ctx.fill();
     }
 
-    // 3. Draw Seat Backs (Top)
-    ctx.fillStyle = '#1e293b'; // Dark Slate
-    ctx.fillRect(-w/2 + 4, -h/2 - 6, 8, 6); // Back seat
-    ctx.fillRect(-w/2 + 18, -h/2 - 6, 8, 6); // Front seat
+    // 3. Draw Seat Backs
+    ctx.fillStyle = '#1e293b'; 
+    ctx.fillRect(-w/2 + 4, -h/2 - 6, 8, 6); 
+    ctx.fillRect(-w/2 + 18, -h/2 - 6, 8, 6); 
 
-    // 4. "RMC" Text - Only front car
+    // 4. "RMC" Text
     if (isFront) {
-        ctx.fillStyle = '#0f172a'; // Dark Slate text
+        ctx.fillStyle = '#0f172a';
         ctx.font = '900 10px monospace';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -425,12 +408,11 @@ const RetroGame: React.FC = () => {
 
   const drawTrainCar = (ctx: CanvasRenderingContext2D, p: typeof gameRef.current.player) => {
     ctx.save();
-    // Translate to center of WHOLE TRAIN
     ctx.translate(p.x + p.width/2, p.y + p.height/2);
     ctx.rotate(p.rotation);
     
     const h = p.height;
-    const color = p.gravityDirection === 1 ? '#facc15' : '#8b5cf6'; // Yellow or Purple
+    const color = p.gravityDirection === 1 ? '#facc15' : '#8b5cf6'; 
     const carW = CAR_WIDTH;
     
     const totalW = p.width;
@@ -444,16 +426,42 @@ const RetroGame: React.FC = () => {
         // Draw Car
         drawSingleCar(ctx, carW, h, color, i === p.carCount - 1);
         
-        // Draw Coupler to previous car if not first
+        // Draw Coupler
         if (i > 0) {
             ctx.fillStyle = '#334155';
             ctx.fillRect(-carW/2 - CAR_GAP, -2, CAR_GAP, 4);
         }
-        
         ctx.restore();
     }
-
     ctx.restore();
+  };
+
+  const gameOver = () => {
+    gameRef.current.isRunning = false;
+    setGameState('GAMEOVER');
+    stopMusic();
+
+    const currentScore = gameRef.current.score;
+    if (currentScore > highScore) {
+        setHighScore(currentScore);
+        saveHighScore(currentScore);
+        setIsNewRecord(true);
+        
+        const ctx = audioCtxRef.current;
+        if (ctx && ctx.state === 'running' && !isMuted) {
+             const now = ctx.currentTime;
+             playTone(523.25, 'square', 0.1, now, 0.2);
+             playTone(659.25, 'square', 0.1, now + 0.1, 0.2);
+             playTone(783.99, 'square', 0.1, now + 0.2, 0.2);
+             playTone(1046.50, 'square', 0.4, now + 0.3, 0.2);
+        }
+    } else {
+        const ctx = audioCtxRef.current;
+        if (ctx && ctx.state === 'running' && !isMuted) {
+             playTone(100, 'sawtooth', 0.5, ctx.currentTime, 0.5);
+             playTone(50, 'square', 0.5, ctx.currentTime, 0.5);
+        }
+    }
   };
 
   const loop = () => {
@@ -474,30 +482,26 @@ const RetroGame: React.FC = () => {
     const { floorY: FLOOR_Y, ceilingY: CEILING_Y } = game;
 
     // --- LIFT HILL LOGIC ---
-    // Start lift hill randomly
     if (!game.isLiftHill && game.frame > 500 && Math.random() < 0.001) {
         game.isLiftHill = true;
-        game.liftHillTimer = 400; // Duration
+        game.liftHillTimer = 400; 
     }
 
     if (game.isLiftHill) {
         game.liftHillTimer--;
-        // Slow down to base speed * 0.7
         game.speed += (game.baseSpeed * 0.7 - game.speed) * 0.05;
         
-        // Play Clack Sound periodically based on speed
         const now = Date.now();
-        const clackInterval = 1000 / (game.speed * 10); // Faster speed = faster clack
+        const clackInterval = 1000 / (game.speed * 10);
         if (now - lastChainTimeRef.current > clackInterval) {
             playChainClick();
             lastChainTimeRef.current = now;
         }
 
         if (game.liftHillTimer <= 0) {
-            game.isLiftHill = false; // End lift hill
+            game.isLiftHill = false;
         }
     } else {
-        // Accelerate normally
         game.speed += 0.0005;
     }
 
@@ -521,11 +525,9 @@ const RetroGame: React.FC = () => {
     const lastObsX = game.obstacles.length > 0 ? game.obstacles[game.obstacles.length - 1].x : -9999;
     const lastColX = game.collectibles.length > 0 ? game.collectibles[game.collectibles.length - 1].x : -9999;
     
-    // Don't spawn heavy obstacles during lift hill, it's a break
     if (width - Math.max(lastObsX, lastColX) > Math.random() * (settings.gapMax - settings.gapMin) + settings.gapMin) {
         const spawnX = width + 50;
         if (game.isLiftHill) {
-             // Only collectibles on lift hill
              game.collectibles.push({ x: spawnX, y: (FLOOR_Y + CEILING_Y) / 2, collected: false, size: 25 });
         } else {
             if (Math.random() > 0.7) {
@@ -556,7 +558,7 @@ const RetroGame: React.FC = () => {
         if (!col.collected && dist < (p.width/2 + col.size/2)) {
             col.collected = true; game.score += 10; setScore(game.score);
             createExplosion(col.x, col.y, '#facc15', 8);
-            const ctx = getAudioContext();
+            const ctx = audioCtxRef.current;
             if (ctx && ctx.state === 'running' && !isMuted) playTone(800, 'square', 0.1, ctx.currentTime, 0.15);
         }
         if (col.x < -50) game.collectibles.splice(i, 1);
@@ -571,10 +573,10 @@ const RetroGame: React.FC = () => {
     ctx.clearRect(0, 0, width, height);
     
     // Background
-    ctx.fillStyle = game.isLiftHill ? '#1e1b4b' : '#0f172a'; // Slightly purple in lift hill
+    ctx.fillStyle = game.isLiftHill ? '#1e1b4b' : '#0f172a'; 
     ctx.fillRect(0, 0, width, height);
     
-    // Lift Hill Visuals (Truss Work)
+    // Lift Hill Visuals
     if (game.isLiftHill) {
         ctx.strokeStyle = '#4338ca';
         ctx.lineWidth = 2;
@@ -602,10 +604,9 @@ const RetroGame: React.FC = () => {
         ctx.beginPath(); ctx.moveTo(x, CEILING_Y - 10); ctx.lineTo(x, CEILING_Y); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(x, FLOOR_Y); ctx.lineTo(x, FLOOR_Y + 10); ctx.stroke();
         
-        // Draw Chain Dog / Ratchet on track center if lift hill
         if (game.isLiftHill) {
              const trackCenterY = (FLOOR_Y + CEILING_Y) / 2;
-             ctx.fillStyle = '#1e1b4b'; // Dark chain
+             ctx.fillStyle = '#1e1b4b'; 
              ctx.fillRect(x, trackCenterY - 2, 10, 4);
         }
     }
@@ -629,7 +630,6 @@ const RetroGame: React.FC = () => {
 
     drawTrainCar(ctx, p);
 
-    // Lift Hill UI Indicator
     if (game.isLiftHill) {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
         ctx.font = '900 48px sans-serif';
@@ -640,37 +640,12 @@ const RetroGame: React.FC = () => {
     gameRef.current.animationId = requestAnimationFrame(loop);
   };
 
-  const gameOver = () => {
-      gameRef.current.isRunning = false; 
-      cancelAnimationFrame(gameRef.current.animationId);
-      setGameState('GAMEOVER');
-      stopMusic();
-      const ctx = getAudioContext();
-      if (ctx && ctx.state === 'running' && !isMuted) playTone(100, 'sawtooth', 0.5, ctx.currentTime, 0.3);
-      if (gameRef.current.score > highScore) {
-          setHighScore(gameRef.current.score);
-          saveHighScore(gameRef.current.score);
-          setIsNewRecord(true);
-      }
-  };
-
-  // Keyboard support remains
-  useEffect(() => {
-      const handleKeyDown = (e: KeyboardEvent) => {
-          if (!gameRef.current.isRunning) return;
-          if (e.code === 'Space' || e.code === 'ArrowUp') jump();
-          if (e.code === 'ArrowDown' || e.code === 'KeyS') toggleGravity();
-      };
-      window.addEventListener('keydown', handleKeyDown);
-      return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [gameState]);
-
   return (
     <div 
         ref={containerRef} 
         className="fixed inset-0 z-[100] bg-slate-950 flex flex-col overflow-hidden select-none touch-none" 
-        onPointerDown={handleGameInteraction} // Handle touch for the entire screen
-        onTouchStart={unlockAudio} // Extra audio unlock trigger on the container
+        onPointerDown={handleGameInteraction} 
+        onTouchStart={() => { if (!audioCtxRef.current) initAudio(); }} 
     >
         <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-start pointer-events-none z-10">
             <div className="flex items-center gap-3 pointer-events-auto">
@@ -719,7 +694,7 @@ const RetroGame: React.FC = () => {
 
                     <button 
                         onClick={startGame}
-                        onTouchStart={unlockAudio} // Explicit iOS Audio Unlock
+                        onTouchEnd={startGame} 
                         className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 touch-manipulation cursor-pointer"
                     >
                         <Play size={20} fill="currentColor" /> START RIDE
@@ -743,7 +718,7 @@ const RetroGame: React.FC = () => {
                     <div className="space-y-3">
                         <button 
                             onClick={startGame}
-                            onTouchStart={unlockAudio}
+                            onTouchEnd={startGame}
                             className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 touch-manipulation cursor-pointer"
                         >
                             <RotateCcw size={20} /> RIDE AGAIN

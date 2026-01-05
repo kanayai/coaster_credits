@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { ArrowLeft, Gamepad2, BrainCircuit, Mic2, HelpCircle, Trophy, RefreshCw, Zap, Ticket, Loader2, Sparkles, AlertCircle, CheckCircle2, Timer, X, Search } from 'lucide-react';
+import { ArrowLeft, Gamepad2, BrainCircuit, Mic2, HelpCircle, Trophy, RefreshCw, Zap, Ticket, Loader2, Sparkles, AlertCircle, CheckCircle2, Timer, X, Search, Hash } from 'lucide-react';
 import clsx from 'clsx';
 import { GoogleGenAI } from "@google/genai";
 
@@ -162,6 +162,121 @@ const MemoryGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
     );
 };
 
+// --- HANGMAN GAME (Word Guess) ---
+const WordGuessGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
+    const WORDS = [
+        "HYPERCOASTER", "INVERSION", "AIRTIME", "CHAIN LIFT", "BLOCK ZONE", "ZERO G ROLL", 
+        "COBRA ROLL", "GIGA COASTER", "LAUNCH TRACK", "DROP TOWER", "WOODEN COASTER", 
+        "STEEL VENGEANCE", "IRON GWAZI", "MILLENNIUM FORCE", "KINGDA KA", "TOP THRILL",
+        "MAGIC MOUNTAIN", "CEDAR POINT", "DOLLYWOOD", "BUSCH GARDENS", "ALTITUDE",
+        "GRAVITY", "VELOCITY", "RESTRAINT", "LAP BAR", "SHOULDER HARNESS"
+    ];
+
+    const [word, setWord] = useState('');
+    const [guessed, setGuessed] = useState<Set<string>>(new Set());
+    const [wrongs, setWrongs] = useState(0);
+    const MAX_WRONGS = 6;
+
+    useEffect(() => {
+        startNewGame();
+    }, []);
+
+    const startNewGame = () => {
+        const randomWord = WORDS[Math.floor(Math.random() * WORDS.length)];
+        setWord(randomWord);
+        setGuessed(new Set());
+        setWrongs(0);
+    };
+
+    const handleGuess = (char: string) => {
+        if (guessed.has(char) || wrongs >= MAX_WRONGS) return;
+        
+        const newGuessed = new Set(guessed);
+        newGuessed.add(char);
+        setGuessed(newGuessed);
+
+        if (!word.includes(char)) {
+            setWrongs(w => w + 1);
+        }
+    };
+
+    const isWin = word.split('').every(c => c === ' ' || guessed.has(c));
+    const isLose = wrongs >= MAX_WRONGS;
+
+    // Keyboard layout
+    const ROWS = [
+        "QWERTYUIOP".split(''),
+        "ASDFGHJKL".split(''),
+        "ZXCVBNM".split('')
+    ];
+
+    return (
+        <div className="h-full flex flex-col animate-fade-in relative">
+             <div className="flex items-center justify-between mb-4 shrink-0">
+                 <button onClick={onExit} className="bg-slate-800 p-2 rounded-full border border-slate-700 text-slate-400"><ArrowLeft size={20}/></button>
+                 <div className="flex items-center gap-2">
+                     {[...Array(MAX_WRONGS)].map((_, i) => (
+                         <div key={i} className={`w-3 h-3 rounded-full ${i < wrongs ? 'bg-red-500' : 'bg-slate-700'}`} />
+                     ))}
+                 </div>
+             </div>
+
+             <div className="flex-1 flex flex-col justify-center items-center gap-8">
+                 {/* Word Display */}
+                 <div className="flex flex-wrap justify-center gap-2 px-2">
+                     {word.split('').map((char, idx) => (
+                         <div key={idx} className={clsx(
+                             "w-8 h-10 sm:w-10 sm:h-12 border-b-4 flex items-center justify-center text-xl sm:text-2xl font-black uppercase",
+                             char === ' ' ? "border-transparent" : "border-slate-600 bg-slate-900/50 rounded-t-lg",
+                             (isLose && !guessed.has(char)) ? "text-red-400" : "text-white"
+                         )}>
+                             {char === ' ' ? '' : (guessed.has(char) || isLose ? char : '')}
+                         </div>
+                     ))}
+                 </div>
+
+                 {/* Keyboard */}
+                 <div className="w-full max-w-sm">
+                     {ROWS.map((row, rIdx) => (
+                         <div key={rIdx} className="flex justify-center gap-1.5 mb-1.5">
+                             {row.map(char => {
+                                 const isGuessed = guessed.has(char);
+                                 const isWrong = isGuessed && !word.includes(char);
+                                 const isRight = isGuessed && word.includes(char);
+                                 
+                                 return (
+                                     <button
+                                        key={char}
+                                        onClick={() => handleGuess(char)}
+                                        disabled={isGuessed || isWin || isLose}
+                                        className={clsx(
+                                            "w-8 h-10 sm:w-9 sm:h-12 rounded-lg font-bold text-sm transition-all shadow-sm",
+                                            isWrong ? "bg-slate-800 text-slate-600 border border-slate-700" :
+                                            isRight ? "bg-emerald-600 text-white border-emerald-500" :
+                                            "bg-slate-700 text-white hover:bg-slate-600 border-b-4 border-slate-900 active:border-b-0 active:translate-y-1"
+                                        )}
+                                     >
+                                         {char}
+                                     </button>
+                                 );
+                             })}
+                         </div>
+                     ))}
+                 </div>
+             </div>
+
+             {(isWin || isLose) && (
+                 <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center rounded-2xl z-20 animate-fade-in-up">
+                     {isWin ? <Trophy size={64} className="text-yellow-400 mb-4 animate-bounce" /> : <X size={64} className="text-red-500 mb-4" />}
+                     <h2 className="text-3xl font-black text-white italic">{isWin ? 'YOU WON!' : 'GAME OVER'}</h2>
+                     <p className="text-slate-400 mb-6">{isWin ? 'Great knowledge!' : `The word was: ${word}`}</p>
+                     <button onClick={startNewGame} className="bg-primary text-white px-6 py-3 rounded-xl font-bold">Play Again</button>
+                 </div>
+             )}
+        </div>
+    );
+};
+
 // --- TRIVIA GAME ---
 const TriviaGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
     // Massive Question Database - Now over 100 questions!
@@ -263,7 +378,7 @@ const TriviaGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
         { q: "What is 'Marathoning'?", a: ["Riding a coaster repeatedly", "Running to the queue", "Staying at the park all day", "Walking the track"], correct: 0 },
         { q: "Which coaster has a 'Holding Brake' on the vertical drop?", a: ["Griffon/SheiKra", "Valravn", "Oblivion", "Yukon Striker"], correct: 0 },
         { q: "What is the 'Point of No Return'?", a: ["Cresting the lift hill", "Entering the queue", "Leaving the station", "The final brake run"], correct: 0 },
-        { q: "Which coaster is themed to a country music star?", a: ["Mystery Mine (Dolly)", "FireChaser Express", "Lightning Rod", "Tennessee Tornado"], correct: 0 }, // Trick question context but implies Dollywood association
+        { q: "Which coaster is themed to a country music star?", a: ["Mystery Mine (Dolly)", "FireChaser Express", "Lightning Rod", "Tennessee Tornado"], correct: 0 }, 
         { q: "What color is the track of 'Nitro' at SFGAdv?", a: ["Yellow/Pink", "Blue/Orange", "Red/White", "Green/Black"], correct: 0 },
         { q: "What is a 'Boomerang' coaster?", a: ["Goes forward then backward", "A spinning coaster", "A wooden coaster", "A continuously looping coaster"], correct: 0 },
         { q: "Who built 'Big Thunder Mountain'?", a: ["Vekoma/Arrow", "Intamin", "B&M", "Mack"], correct: 0 },
@@ -509,11 +624,12 @@ const JokeGenerator: React.FC<{ onExit: () => void }> = ({ onExit }) => {
 // --- MAIN HUB ---
 const QueueHub: React.FC = () => {
   const { changeView } = useAppContext();
-  const [activeActivity, setActiveActivity] = useState<'MENU' | 'MEMORY' | 'TRIVIA' | 'JOKES'>('MENU');
+  const [activeActivity, setActiveActivity] = useState<'MENU' | 'MEMORY' | 'TRIVIA' | 'JOKES' | 'HANGMAN'>('MENU');
 
   if (activeActivity === 'MEMORY') return <MemoryGame onExit={() => setActiveActivity('MENU')} />;
   if (activeActivity === 'TRIVIA') return <TriviaGame onExit={() => setActiveActivity('MENU')} />;
   if (activeActivity === 'JOKES') return <JokeGenerator onExit={() => setActiveActivity('MENU')} />;
+  if (activeActivity === 'HANGMAN') return <WordGuessGame onExit={() => setActiveActivity('MENU')} />;
 
   const MenuItem = ({ title, desc, icon: Icon, color, onClick }: any) => (
       <button 
@@ -552,6 +668,13 @@ const QueueHub: React.FC = () => {
              icon={Gamepad2} 
              color="from-pink-500 to-rose-600"
              onClick={() => changeView('GAME')}
+          />
+          <MenuItem 
+             title="Coaster Hangman" 
+             desc="Guess the term before you crash!" 
+             icon={Hash} 
+             color="from-orange-500 to-red-600"
+             onClick={() => setActiveActivity('HANGMAN')}
           />
           <MenuItem 
              title="Track Match" 
