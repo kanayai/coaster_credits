@@ -1,7 +1,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { ArrowLeft, Play, RotateCcw, Trophy, Gamepad2, PartyPopper, ArrowUp, ArrowDown } from 'lucide-react';
+import { ArrowLeft, Play, RotateCcw, Trophy, Gamepad2, PartyPopper, ArrowUp, ArrowDown, Volume2, VolumeX } from 'lucide-react';
 
 const RetroGame: React.FC = () => {
   const { changeView, activeUser, saveHighScore } = useAppContext();
@@ -12,6 +12,13 @@ const RetroGame: React.FC = () => {
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(activeUser.highScore || 0);
   const [isNewRecord, setIsNewRecord] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+
+  // Audio Context Refs
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const nextNoteTimeRef = useRef<number>(0);
+  const musicTimerRef = useRef<number | null>(null);
+  const melodyIndexRef = useRef(0);
 
   // Game Constants
   const GRAVITY_MAGNITUDE = 0.6;
@@ -41,6 +48,100 @@ const RetroGame: React.FC = () => {
     animationId: 0,
     pixelRatio: 1
   });
+
+  // --- AUDIO SYSTEM ---
+  useEffect(() => {
+      // Initialize AudioContext on mount (suspended state)
+      if (!audioCtxRef.current) {
+          const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+          if (AudioContext) {
+              audioCtxRef.current = new AudioContext();
+          }
+      }
+      return () => {
+          stopMusic();
+          audioCtxRef.current?.close();
+      };
+  }, []);
+
+  const playTone = (freq: number, type: OscillatorType, duration: number, startTime: number, vol: number = 0.1) => {
+      if (!audioCtxRef.current || isMuted) return;
+      const ctx = audioCtxRef.current;
+      
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, startTime);
+      
+      gain.gain.setValueAtTime(vol, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration - 0.05);
+      
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      
+      osc.start(startTime);
+      osc.stop(startTime + duration);
+  };
+
+  const scheduleMusic = () => {
+      if (!audioCtxRef.current || isMuted) return;
+      const ctx = audioCtxRef.current;
+      const tempo = 0.15; // Seconds per 16th note
+      const lookahead = 0.1; // How far ahead to schedule
+
+      while (nextNoteTimeRef.current < ctx.currentTime + lookahead) {
+          // Simple 8-bit Loop
+          const bassSequence = [110, 110, 164, 110, 146, 110, 196, 164]; // A2 scaleish
+          const melodySequence = [440, 0, 523, 0, 659, 523, 0, 440]; // A4...
+
+          const beat = melodyIndexRef.current % 8;
+          
+          // Bass
+          if (bassSequence[beat]) {
+              playTone(bassSequence[beat], 'square', tempo, nextNoteTimeRef.current, 0.05);
+          }
+          // Melody (every other bar roughly)
+          if (melodySequence[beat] && Math.floor(melodyIndexRef.current / 8) % 2 === 0) {
+              playTone(melodySequence[beat], 'sawtooth', tempo, nextNoteTimeRef.current, 0.03);
+          }
+
+          nextNoteTimeRef.current += tempo;
+          melodyIndexRef.current++;
+      }
+      
+      musicTimerRef.current = requestAnimationFrame(scheduleMusic);
+  };
+
+  const startMusic = () => {
+      if (audioCtxRef.current?.state === 'suspended') {
+          audioCtxRef.current.resume();
+      }
+      if (!musicTimerRef.current && !isMuted) {
+          nextNoteTimeRef.current = audioCtxRef.current?.currentTime || 0;
+          scheduleMusic();
+      }
+  };
+
+  const stopMusic = () => {
+      if (musicTimerRef.current) {
+          cancelAnimationFrame(musicTimerRef.current);
+          musicTimerRef.current = null;
+      }
+  };
+
+  const toggleMute = (e: React.SyntheticEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+      setIsMuted(!isMuted);
+      if (!isMuted) { // currently not muted, so we are muting
+          stopMusic();
+      } else { // currently muted, so we are unmuting
+          if (gameState === 'PLAYING') startMusic();
+      }
+  };
+
+  // --- GAME LOGIC ---
 
   // Handle Resize & Init Canvas
   useEffect(() => {
@@ -97,6 +198,7 @@ const RetroGame: React.FC = () => {
     setScore(0);
     setIsNewRecord(false);
     setGameState('PLAYING');
+    startMusic();
     loop();
   };
 
@@ -105,6 +207,8 @@ const RetroGame: React.FC = () => {
       if (player.grounded) {
           player.dy = -JUMP_FORCE * player.gravityDirection;
           player.grounded = false;
+          // Jump SFX
+          if (!isMuted) playTone(300, 'square', 0.1, audioCtxRef.current!.currentTime, 0.1);
       }
   };
 
@@ -113,6 +217,8 @@ const RetroGame: React.FC = () => {
       player.gravityDirection *= -1;
       player.grounded = false;
       createExplosion(player.x + player.width/2, player.y + player.height/2, '#8b5cf6', 5);
+      // Gravity SFX
+      if (!isMuted) playTone(150, 'sawtooth', 0.15, audioCtxRef.current!.currentTime, 0.1);
   };
 
   const createExplosion = (x: number, y: number, color: string, count: number) => {
@@ -256,6 +362,7 @@ const RetroGame: React.FC = () => {
             game.score += 10;
             setScore(game.score);
             createExplosion(col.x, col.y, '#facc15', 8);
+            if (!isMuted) playTone(800, 'square', 0.1, audioCtxRef.current!.currentTime, 0.05);
         }
 
         if (col.x < -50) game.collectibles.splice(i, 1);
@@ -350,7 +457,11 @@ const RetroGame: React.FC = () => {
   const gameOver = () => {
       cancelAnimationFrame(gameRef.current.animationId);
       setGameState('GAMEOVER');
+      stopMusic();
       
+      // Game Over sound
+      if (!isMuted) playTone(100, 'sawtooth', 0.5, audioCtxRef.current!.currentTime, 0.2);
+
       const finalScore = gameRef.current.score;
       if (finalScore > highScore) {
           setHighScore(finalScore);
@@ -359,7 +470,7 @@ const RetroGame: React.FC = () => {
       }
   };
 
-  // Robust Input Handling
+  // Robust Input Handling for Mobile
   const handleJumpAction = (e: React.SyntheticEvent) => {
       e.preventDefault(); 
       e.stopPropagation();
@@ -389,15 +500,18 @@ const RetroGame: React.FC = () => {
   return (
     <div 
         ref={containerRef} 
-        // Using fixed to ensure it captures full viewport on mobile without parent scrolling issues
+        // Force full screen fixed overlay to ensure no scrolling/browser chrome interference
         className="fixed inset-0 z-[100] bg-slate-950 flex flex-col overflow-hidden select-none touch-none"
+        // Global touch handler to prevent default browser behaviors (like scroll)
+        onTouchStart={(e) => e.preventDefault()}
     >
         {/* HUD */}
         <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-start pointer-events-none z-10">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 pointer-events-auto">
                 <button 
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); changeView('QUEUE_HUB'); }} 
-                  className="bg-slate-800/80 backdrop-blur p-2 rounded-full border border-slate-700 text-slate-400 hover:text-white pointer-events-auto"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); stopMusic(); changeView('QUEUE_HUB'); }} 
+                  onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); stopMusic(); changeView('QUEUE_HUB'); }}
+                  className="bg-slate-800/80 backdrop-blur p-2 rounded-full border border-slate-700 text-slate-400 hover:text-white"
                 >
                     <ArrowLeft size={20} />
                 </button>
@@ -407,11 +521,20 @@ const RetroGame: React.FC = () => {
                 </div>
             </div>
             
-            <div className="bg-slate-800/80 backdrop-blur px-4 py-2 rounded-xl border border-slate-700 flex flex-col items-end">
-                <div className="flex items-center gap-1 text-[10px] text-primary font-bold uppercase tracking-widest">
-                    <Trophy size={10} /> Record
+            <div className="flex gap-2 pointer-events-auto">
+                <button 
+                    onClick={toggleMute}
+                    onTouchStart={toggleMute}
+                    className="bg-slate-800/80 backdrop-blur p-2 rounded-xl border border-slate-700 text-slate-400 hover:text-white"
+                >
+                    {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
+                </button>
+                <div className="bg-slate-800/80 backdrop-blur px-4 py-2 rounded-xl border border-slate-700 flex flex-col items-end">
+                    <div className="flex items-center gap-1 text-[10px] text-primary font-bold uppercase tracking-widest">
+                        <Trophy size={10} /> Record
+                    </div>
+                    <span className="text-xl font-bold text-white leading-none font-mono">{highScore.toString().padStart(4, '0')}</span>
                 </div>
-                <span className="text-xl font-bold text-white leading-none font-mono">{highScore.toString().padStart(4, '0')}</span>
             </div>
         </div>
 
@@ -421,19 +544,21 @@ const RetroGame: React.FC = () => {
         {/* Game Canvas */}
         <canvas ref={canvasRef} className="block w-full h-full" />
 
-        {/* Touch Controls Overlay - Explicitly separated and sized for easy tapping */}
+        {/* Touch Controls Overlay - Using onTouchStart/onMouseDown for instant response */}
         {gameState === 'PLAYING' && (
-            <div className="absolute inset-x-0 bottom-0 p-6 z-30 flex gap-4 pointer-events-none">
+            <div className="absolute inset-x-0 bottom-0 p-4 pb-8 z-30 flex gap-4 pointer-events-none select-none">
                 <button 
-                    onPointerDown={handleInvertAction}
-                    className="flex-1 h-32 bg-purple-600/10 border-2 border-purple-500/30 rounded-3xl backdrop-blur-sm flex flex-col items-center justify-center text-purple-300 pointer-events-auto active:bg-purple-600/30 active:scale-95 transition-all touch-manipulation"
+                    onTouchStart={handleInvertAction}
+                    onMouseDown={handleInvertAction}
+                    className="flex-1 h-32 bg-purple-600/10 border-2 border-purple-500/30 rounded-3xl backdrop-blur-sm flex flex-col items-center justify-center text-purple-300 pointer-events-auto active:bg-purple-600/30 active:scale-95 transition-all touch-manipulation select-none"
                 >
                     <ArrowDown size={40} />
                     <span className="text-sm font-bold uppercase mt-2">Gravity</span>
                 </button>
                 <button 
-                    onPointerDown={handleJumpAction}
-                    className="flex-1 h-32 bg-blue-600/10 border-2 border-blue-500/30 rounded-3xl backdrop-blur-sm flex flex-col items-center justify-center text-blue-300 pointer-events-auto active:bg-blue-600/30 active:scale-95 transition-all touch-manipulation"
+                    onTouchStart={handleJumpAction}
+                    onMouseDown={handleJumpAction}
+                    className="flex-1 h-32 bg-blue-600/10 border-2 border-blue-500/30 rounded-3xl backdrop-blur-sm flex flex-col items-center justify-center text-blue-300 pointer-events-auto active:bg-blue-600/30 active:scale-95 transition-all touch-manipulation select-none"
                 >
                     <ArrowUp size={40} />
                     <span className="text-sm font-bold uppercase mt-2">Jump</span>
@@ -443,19 +568,22 @@ const RetroGame: React.FC = () => {
 
         {/* Start Screen */}
         {gameState === 'START' && (
-            <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in p-4">
+            <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in p-6 pointer-events-auto">
                 <div className="bg-slate-900 p-8 rounded-3xl border border-slate-700 shadow-2xl text-center max-w-sm w-full">
                     <Gamepad2 size={48} className="text-primary mx-auto mb-4" />
                     <h2 className="text-3xl font-black text-white italic tracking-tighter mb-2">COASTER DASH</h2>
                     <p className="text-sm text-slate-400 mb-6">Avoid obstacles. Collect coins. Don't crash.</p>
                     
-                    <button onClick={startGame} className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-xl font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2 transition-transform active:scale-95 touch-manipulation">
+                    <button 
+                        onClick={startGame} 
+                        className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-xl font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2 transition-transform active:scale-95 touch-manipulation"
+                    >
                         <Play size={20} fill="currentColor" /> START RIDE
                     </button>
                     
                     <div className="mt-4 text-[10px] text-slate-500 font-medium space-y-1">
-                        <p>Desktop: SPACE / UP to Jump, DOWN to Flip Gravity</p>
-                        <p>Mobile: Tap buttons on screen</p>
+                        <p>Controls optimized for mobile.</p>
+                        <p>Sound enabled.</p>
                     </div>
                 </div>
             </div>
@@ -463,7 +591,7 @@ const RetroGame: React.FC = () => {
 
         {/* Game Over Screen */}
         {gameState === 'GAMEOVER' && (
-            <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in p-4">
+            <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in p-6 pointer-events-auto">
                 <div className="bg-slate-900 p-8 rounded-3xl border border-slate-700 shadow-2xl text-center max-w-sm w-full relative overflow-hidden">
                     {isNewRecord && (
                         <div className="absolute top-0 right-0 p-4">
@@ -478,12 +606,20 @@ const RetroGame: React.FC = () => {
                         {isNewRecord && <div className="text-xs font-bold text-yellow-400 mt-1">NEW HIGH SCORE!</div>}
                     </div>
                     
-                    <button onClick={startGame} className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-xl font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2 transition-transform active:scale-95 touch-manipulation">
-                        <RotateCcw size={20} /> RIDE AGAIN
-                    </button>
-                    <button onClick={() => changeView('QUEUE_HUB')} className="mt-3 w-full bg-slate-800 text-slate-400 py-3 rounded-xl font-bold text-xs hover:text-white transition-colors touch-manipulation">
-                        EXIT TO HUB
-                    </button>
+                    <div className="space-y-3">
+                        <button 
+                            onClick={startGame} 
+                            className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-xl font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2 transition-transform active:scale-95 touch-manipulation"
+                        >
+                            <RotateCcw size={20} /> RIDE AGAIN
+                        </button>
+                        <button 
+                            onClick={() => changeView('QUEUE_HUB')} 
+                            className="w-full bg-slate-800 text-slate-400 py-3 rounded-xl font-bold text-xs hover:text-white transition-colors touch-manipulation"
+                        >
+                            EXIT TO HUB
+                        </button>
+                    </div>
                 </div>
             </div>
         )}
