@@ -39,7 +39,7 @@ const RetroGame: React.FC = () => {
     player: { 
         x: 100, 
         y: 0, 
-        width: 44, // Slightly wider for the train look
+        width: 44, 
         height: 24, 
         dy: 0, 
         grounded: false,
@@ -60,9 +60,46 @@ const RetroGame: React.FC = () => {
 
   // --- AUDIO SYSTEM (Mobile Optimized) ---
   
-  // Clean up on unmount
+  // 1. GLOBAL UNLOCKER: Run once on mount to attach listeners
   useEffect(() => {
+      const unlockAudio = () => {
+          if (!audioCtxRef.current) {
+              const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+              if (AudioContext) {
+                  audioCtxRef.current = new AudioContext();
+              }
+          }
+
+          const ctx = audioCtxRef.current;
+          if (ctx) {
+              // Always try to resume on interaction
+              if (ctx.state === 'suspended') {
+                  ctx.resume().catch(e => console.warn("Audio resume failed", e));
+              }
+              
+              // Play a silent buffer to "warm up" the iOS audio engine
+              try {
+                  const buffer = ctx.createBuffer(1, 1, 22050);
+                  const source = ctx.createBufferSource();
+                  source.buffer = buffer;
+                  source.connect(ctx.destination);
+                  source.start(0);
+              } catch (e) {
+                  // Ignore
+              }
+          }
+      };
+
+      // Attach to global events to catch the very first interaction
+      window.addEventListener('touchstart', unlockAudio, { passive: true });
+      window.addEventListener('click', unlockAudio, { passive: true });
+      window.addEventListener('keydown', unlockAudio, { passive: true });
+
       return () => {
+          window.removeEventListener('touchstart', unlockAudio);
+          window.removeEventListener('click', unlockAudio);
+          window.removeEventListener('keydown', unlockAudio);
+          
           stopMusic();
           if (gameRef.current.animationId) cancelAnimationFrame(gameRef.current.animationId);
           if (audioCtxRef.current) {
@@ -73,33 +110,16 @@ const RetroGame: React.FC = () => {
   }, []);
 
   const initAudio = () => {
-      // 1. Create Context lazily ONLY on user interaction
+      // Logic handled by global unlocker, but we call this on Start Game just in case
       if (!audioCtxRef.current) {
           const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
           if (AudioContext) {
               audioCtxRef.current = new AudioContext();
           }
       }
-
       const ctx = audioCtxRef.current;
-      if (!ctx) return;
-
-      // 2. Always try to resume
-      if (ctx.state === 'suspended') {
-          ctx.resume().catch(e => console.warn("Audio resume failed", e));
-      }
-
-      // 3. Play a silent "unlock" buffer immediately
-      try {
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          gain.gain.value = 0.001; 
-          osc.connect(gain);
-          gain.connect(ctx.destination);
-          osc.start(0);
-          osc.stop(0.1);
-      } catch (e) {
-          console.error("Audio unlock buffer failed", e);
+      if (ctx && ctx.state === 'suspended') {
+          ctx.resume().catch(() => {});
       }
   };
 
@@ -107,9 +127,10 @@ const RetroGame: React.FC = () => {
       const ctx = audioCtxRef.current;
       if (!ctx || isMuted) return;
       
+      // Safety check: if context is suspended, sound won't play. Try to resume.
       if (ctx.state === 'suspended') {
           ctx.resume().catch(() => {});
-          return; 
+          // Don't return, let it try to queue
       }
 
       try {
@@ -119,8 +140,11 @@ const RetroGame: React.FC = () => {
         osc.type = type;
         osc.frequency.setValueAtTime(freq, startTime);
         
-        gain.gain.setValueAtTime(vol, startTime);
-        gain.gain.linearRampToValueAtTime(0.01, startTime + duration);
+        // Use exponential ramp for smoother, click-free sound
+        // Start slightly non-zero to avoid exponential ramp errors
+        gain.gain.setValueAtTime(0.001, startTime);
+        gain.gain.exponentialRampToValueAtTime(vol, startTime + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
         
         osc.connect(gain);
         gain.connect(ctx.destination);
@@ -168,6 +192,7 @@ const RetroGame: React.FC = () => {
   const startMusic = () => {
       const ctx = audioCtxRef.current;
       if (ctx && !musicTimerRef.current && !isMuted) {
+          // Ensure we are in the future to avoid "start time in past" glitches
           nextNoteTimeRef.current = ctx.currentTime + 0.05; 
           scheduleMusic();
       }
@@ -183,7 +208,7 @@ const RetroGame: React.FC = () => {
   const toggleMute = (e: React.SyntheticEvent) => {
       e.stopPropagation();
       e.preventDefault();
-      if (isMuted) initAudio();
+      initAudio(); // Ensure context is ready
       
       setIsMuted(prev => {
           const next = !prev;
@@ -249,6 +274,7 @@ const RetroGame: React.FC = () => {
     e.preventDefault();
     e.stopPropagation();
     
+    // CRITICAL: Initialize Audio directly in the event handler
     initAudio();
 
     if (!containerRef.current) return;
