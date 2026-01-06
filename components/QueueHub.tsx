@@ -31,20 +31,24 @@ const getSharedAudioContext = (): AudioContext | null => {
 };
 
 // Global unlocker for mobile browsers
+// CRITICAL FIX: Plays a silent buffer to truly unlock iOS Audio
 const forceUnlockAudio = () => {
     const ctx = getSharedAudioContext();
-    if (ctx && ctx.state !== 'running') {
+    if (!ctx) return;
+
+    if (ctx.state === 'suspended') {
         ctx.resume().catch(() => {});
-        // Play silent buffer
-        try {
-            const buffer = ctx.createBuffer(1, 1, 22050);
-            const source = ctx.createBufferSource();
-            source.buffer = buffer;
-            source.connect(ctx.destination);
-            source.start(0);
-        } catch (e) {
-            // Ignore
-        }
+    }
+    
+    // Play silent buffer (iOS Hack)
+    try {
+        const buffer = ctx.createBuffer(1, 1, 22050);
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(ctx.destination);
+        source.start(0);
+    } catch (e) {
+        // Ignore errors if already playing
     }
 };
 
@@ -53,7 +57,7 @@ const playGameSound = (type: 'correct' | 'wrong' | 'win' | 'lose' | 'flip') => {
         const audioCtx = getSharedAudioContext();
         if (!audioCtx) return;
 
-        // CRITICAL: Always try to resume
+        // CRITICAL: Always try to resume if suspended
         if (audioCtx.state === 'suspended') {
             audioCtx.resume().catch(() => {});
         }
@@ -69,18 +73,18 @@ const playGameSound = (type: 'correct' | 'wrong' | 'win' | 'lose' | 'flip') => {
             // Short mechanical click/chirp (Higher pitch, short)
             osc.type = 'sine';
             osc.frequency.setValueAtTime(600, now);
-            osc.frequency.exponentialRampToValueAtTime(800, now + 0.05);
-            gain.gain.setValueAtTime(0.1, now); // Louder
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+            osc.frequency.linearRampToValueAtTime(800, now + 0.05);
+            gain.gain.setValueAtTime(0.1, now); 
+            gain.gain.linearRampToValueAtTime(0.001, now + 0.1); // Linear ramp is safer
             osc.start(now);
-            osc.stop(now + 0.1);
+            osc.stop(now + 0.15);
         } else if (type === 'correct') {
             // High ping (Success)
             osc.type = 'sine';
             osc.frequency.setValueAtTime(880, now); // A5
-            osc.frequency.exponentialRampToValueAtTime(1760, now + 0.1);
+            osc.frequency.linearRampToValueAtTime(1760, now + 0.1);
             gain.gain.setValueAtTime(0.2, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+            gain.gain.linearRampToValueAtTime(0.001, now + 0.3);
             osc.start(now);
             osc.stop(now + 0.35);
         } else if (type === 'wrong') {
@@ -88,8 +92,8 @@ const playGameSound = (type: 'correct' | 'wrong' | 'win' | 'lose' | 'flip') => {
             osc.type = 'triangle';
             osc.frequency.setValueAtTime(150, now);
             osc.frequency.linearRampToValueAtTime(100, now + 0.1);
-            gain.gain.setValueAtTime(0.2, now);
-            gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+            gain.gain.setValueAtTime(0.3, now); // Louder
+            gain.gain.linearRampToValueAtTime(0.001, now + 0.3);
             osc.start(now);
             osc.stop(now + 0.35);
         } else if (type === 'win') {
@@ -105,7 +109,7 @@ const playGameSound = (type: 'correct' | 'wrong' | 'win' | 'lose' | 'flip') => {
                 noteGain.connect(audioCtx.destination);
                 const time = now + (i * 0.15);
                 noteGain.gain.setValueAtTime(0.15, time);
-                noteGain.gain.exponentialRampToValueAtTime(0.01, time + 0.5);
+                noteGain.gain.linearRampToValueAtTime(0.001, time + 0.5);
                 noteOsc.start(time);
                 noteOsc.stop(time + 0.6);
             });
@@ -113,7 +117,7 @@ const playGameSound = (type: 'correct' | 'wrong' | 'win' | 'lose' | 'flip') => {
             // Crash / Explosion
             osc.type = 'sawtooth';
             osc.frequency.setValueAtTime(100, now);
-            osc.frequency.exponentialRampToValueAtTime(10, now + 0.5);
+            osc.frequency.linearRampToValueAtTime(10, now + 0.5);
             
             // Noise burst simulation
             const lfo = audioCtx.createOscillator();
@@ -127,7 +131,7 @@ const playGameSound = (type: 'correct' | 'wrong' | 'win' | 'lose' | 'flip') => {
             lfo.stop(now + 0.6);
 
             gain.gain.setValueAtTime(0.3, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
+            gain.gain.linearRampToValueAtTime(0.001, now + 0.6);
             osc.start(now);
             osc.stop(now + 0.6);
         }
@@ -422,30 +426,51 @@ const WordGuessGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
         "POLTERGEIST", "FLIGHT OF FEAR", "SPACE MOUNTAIN", "BIG THUNDER MOUNTAIN", 
         "MATTERHORN", "EXPEDITION EVEREST", "TRON LIGHTCYCLE RUN", "GUARDIANS OF THE GALAXY", 
         "HAGRIDS ADVENTURE",
-        // ADDITIONAL 100+ TERMS FOR MAXIMUM VARIETY
-        "AXIS COASTER", "FREE SPIN", "SKY ROCKET", "SKY LOOP", "EL LOCO", "BIG DIPPER", 
-        "MEGA COASTER", "HYPER GTX", "FAMILY BOOMERANG", "SUSPENDED LOOPING", "STC", "TREX", 
-        "TITAN TRACK", "PREFABRICATED", "INTAMIN PREFAB", "WOODIE", "STEELIE", "GIGA", "STRATA", 
-        "POLAR COASTER", "ALPINE COASTER", "MOUNTAIN COASTER", "SIDE FRICTION", "FLYING TURNS", 
-        "PIPELINE", "TOGO STAND UP", "INTAMIN BLITZ", "MULTI LAUNCH", "SWING LAUNCH", "SPIKE", 
-        "VERTICAL SPIKE", "TWISTED HORSESHOE", "ROLL OUT", "SEA SERPENT ROLL", "COBRA LOOP", 
-        "BUTTERFLY", "PRETZEL KNOT", "WRAP AROUND CORKSCREW", "INTERLOCKING LOOPS", 
-        "INTERLOCKING CORKSCREWS", "NON INVERTING LOOP", "NON INVERTING COBRA ROLL", "LAG PHASE", 
-        "STALL", "OUTWARD BANKED AIRTIME", "WAVE TURN", "TRICK TRACK", "DOUBLE DOWN", "TRIPLE DOWN", 
-        "QUADRUPLE DOWN", "DOUBLE UP", "SPEED HILL", "CAMELBACK", "BUNNY HOP", "STENGEL DIVE", 
-        "OVERBANK", "HIGH FIVE", "DIVE DROP", "IMMELMANN TURN", "JR IMMELMANN", "INCLINED DIVE LOOP", 
-        "REVERSE SIDEWINDER", "DEMONIC KNOT", "DRAGON FLIPPER", "SCORPION TAIL", "TWISTED AIRTIME", 
-        "OFF AXIS AIRTIME", "LATERAL AIRTIME", "EJECTOR AIRTIME", "FLOATER AIRTIME", "POSITIVE GS", 
-        "NEGATIVE GS", "LATERAL GS", "JERK", "PACE", "RATTLE", "HEADBANGING", "ROUGHNESS", 
-        "SMOOTHNESS", "INTENSITY", "AGGRESSIVE", "GRACEFUL", "THEMING", "STATION", "FAST LANE", 
-        "FLASH PASS", "QUICK QUEUE", "SKIP THE LINE", "SINGLE RIDER LINE", "DISPATCH INTERVAL", 
-        "BLOCK BRAKE", "MAGNETIC BRAKE", "FRICTION BRAKE", "SKID BRAKE", "CHAIN DOG", 
-        "ANTI ROLLBACK DOG", "LIFT MOTOR", "ELEVATOR LIFT", "FERRIS WHEEL LIFT", "TILT TRACK", 
-        "DROP TRACK", "SWITCH TRACK", "TRANSFER TABLE", "MAINTENANCE BAY", "STORAGE SHED", "TRAIN", 
-        "CAR", "ROW", "ZERO CAR", "WHEEL ASSEMBLY", "ROAD WHEEL", "POLYURETHANE", "NYLON", 
-        "STEEL WHEELS", "WOODEN STRUCTURE", "STEEL STRUCTURE", "FOOTER", "SUPPORT", "CROSS TIE", 
-        "LEDGER", "NETTING", "LOOSE ARTICLES", "BIN", "LOCKER", "EXIT", "GIFT SHOP", "POV", 
-        "TRIP REPORT", "CREDIT COUNT"
+        // DESIGNERS & LEGENDS
+        "WERNER STENGEL", "ALAN SCHILKE", "JOHN WARDLEY", "RON TOOMER", "ANTON SCHWARZKOPF", "JOHN MILLER", "HARRY TRAVER", 
+        "HERBERT SCHMECK", "CURTIS SUMMERS", "CHARLES BIGELOW", "FRED CHURCH", "PRIOR AND CHURCH", "LA MARCUS THOMPSON", 
+        "NORMAN BARTLETT", "EDWARD VETTEL", "JOE DRAVES", "ADAM SANDY", "FRANK STENGEL", "CHRISTIAN NISTL", "INGENIEURBUERO STENGEL", 
+        "RIDE CENTERLINE", "SKYLINE ATTRACTIONS", "GCI DESIGN", "THE GRAVITY GROUP", "CUSTOM COASTERS INTERNATIONAL", "DINN CORPORATION", 
+        "ARROW DEVELOPMENT", "ARROW HUSS", "MORGAN MANUFACTURING", "CHANCE RIDES", "TOGO", "PINFARI", "SCHWARZKOPF INDUSTRIES", 
+        "ZIERER", "MACK RIDES", "VEKOMA", "INTAMIN", "B AND M", "RMC", "S AND S", "GERSTLAUER", "MAURER SOEHNE", "PREMIER RIDES", 
+        "ZAMPERLA", "GIOVANOLA", "FABBRI", "L AND T SYSTEMS", "SARTORI", "INTERPARK", "E AND F MILER", "WISDOM RIDES", 
+        "LARSON INTERNATIONAL", "FREDERICK CHURCH", "HARRY TRAVER", "JOHN ALLEN", "WILLIAM COBB", "DENNIS MCNULTY", "MIKE BOHL", 
+        "CLAIR HAIN", "GREAT COASTERS INTERNATIONAL",
+        // DEFUNCT COASTERS & PARKS
+        "SON OF BEAST", "CRYSTAL BEACH CYCLONE", "THE BIG BAD WOLF", "DUELING DRAGONS", "DRACHEN FIRE", "VOLCANO THE BLAST COASTER", 
+        "HYPERSONIC XLC", "ORIENT EXPRESS", "STEEL PHANTOM", "GREAT AMERICAN SCREAM MACHINE", "SHOCKWAVE", "ROLLING THUNDER", 
+        "COLOSSUS", "MEAN STREAK", "MANTIS", "DISASTER TRANSPORT", "WILD JUNGLE", "MOONSAULT SCRAMBLE", "EAGLE FORTRESS", 
+        "HAYABUSA", "ASKA", "SCREW COASTER", "DODONPA", "THE CHILLER", "BATMAN AND ROBIN THE CHILLER", "FLASHBACK", "PSYCLONE", 
+        "DEJA VU", "CHANG", "IRON WOLF", "GWAZI", "ROAR", "WILDCAT", "HERCULES", "VILLAIN", "RAGING WOLF BOBS", "BIG DIPPER", 
+        "DOUBLE LOOP", "THUNDER ROAD", "GEAUGA LAKE", "ASTROWORLD", "OPRYLAND USA", "HARD ROCK PARK", "FREESTYLE MUSIC PARK", 
+        "SIX FLAGS NEW ORLEANS", "JAZZLAND", "NARA DREAMLAND", "JOYLAND", "CHIPPEWA LAKE PARK", "IDORA PARK", "EUCLID BEACH PARK", 
+        "RIVERVIEW PARK", "PALISADES PARK", "PONTCHARTRAIN BEACH", "LINCOLN PARK", "WHALOM PARK", "ROCKY POINT PARK", "MOUNTAIN PARK", 
+        "PARAGON PARK", "OLENTANGY PARK", "LUNA PARK", "STEEPLECHASE PARK", "DREAMLAND", "SIX FLAGS ASTROWORLD", "SIX FLAGS POWER PLANT", 
+        "SIX FLAGS ATLANTIS", "SIX FLAGS AUTO WORLD", "BOARDWALK AND BASEBALL", "CIRCUS WORLD", "SEVEN SEAS MARINE LIFE PARK", 
+        "JAPANS RUSSIAN VILLAGE", "SPREEPARK", "PRIPYAT AMUSEMENT PARK", "WONDERLAND", "CAMELOT THEME PARK", "AMERICAN ADVENTURE", 
+        "THE AMERICAN ADVENTURE", "LOUDOUN CASTLE", "PLEASURE ISLAND", "FRONTIERLAND", "BELLE VUE ZOO", "KURSAAL FLYER", 
+        "SCENIC RAILWAY", "FLIP FLAP RAILWAY", "LOOP THE LOOP", "SWITCHBACK RAILWAY", "AERIAL GLIDE", "VIRGINIA REEL", "LEAP THE DIPS", 
+        "BLUE STREAK", "TORNADO", "BOBS", "FLYING TURNS", "MISTER TWISTER", "TEXAS CYCLONE", "RIVERSIDE CYCLONE", "GREASED LIGHTNIN", 
+        "XLR8", "ULTRA TWISTER", "VIPER", "LASER", "FORCE ONE", "RING RACER", "SPEED THE RIDE", "HIGH ROLLER", "DESPERADO", 
+        "MANHATTAN EXPRESS", "BIG APPLE COASTER",
+        // ENTHUSIAST TERMINOLOGY & SLANG
+        "STAPLED", "WOODIE", "GENERAL PUBLIC", "GP", "THOOSIE", "ZEN RIDE", "WALK ON", "ROPE DROP", "EXCLUSIVE RIDE TIME", "ERT", 
+        "CREDIT RUN", "MARATHON", "NIGHT RIDE", "BACK ROW", "FRONT ROW", "MAGIC SEAT", "RATTLE", "HEADBANGER", "SLIGHT RATTLE", 
+        "ROUGH", "GLASS SMOOTH", "POTHOLE", "SHUFFLE", "JACKHAMMERING", "GREY OUT", "BLACK OUT", "RED OUT", "EJECTOR AIRTIME", 
+        "FLOATER AIRTIME", "LATERALLS", "WHIP", "SNAP", "HANGTIME", "NEAR MISS", "HEAD CHOPPER", "FOOT CHOPPER", "ONE TRAIN OPS", 
+        "STACKING", "DISPATCH TIMES", "CAPACITY NIGHTMARE", "PEOPLE EATER", "VALLEYED", "ROLLBACK", "EVAC", "LIFT WALK", "TEST SEAT", 
+        "WALK OF SHAME", "RESTRICTION", "SKY ROCKET II", "BOOMERANG", "SUSPENDED LOOPING COASTER", "STANDARD LOOPERS", "PARKING LOT COASTER", 
+        "CONCRETE JUNGLE", "THEMING", "IMMERSION", "PRE SHOW", "QUEUE LINE", "FAST LANE", "FLASH PASS", "QUICK QUEUE", "VIRTUAL QUEUE", 
+        "SINGLE RIDER LINE", "CHICKEN EXIT", "BAG DROP", "LOCKERS", "LOOSE ARTICLES", "ON RIDE PHOTO", "TRIP REPORT", "CONSTRUCTION UPDATE", 
+        "TEASER", "ANNOUNCEMENT", "GOLDEN TICKET", "GRAVEYARD", "SBNO", "STANDING BUT NOT OPERATING", "DEFUNCT", "RELOCATED", "RETRACKED", 
+        "RMC CONVERSION", "IRON HORSE", "TOPPER TRACK", "IBOX", "TITAN TRACK", "PREFAB", "PLUG AND PLAY", "HYBRID", "GIGA", "STRATA", 
+        "HYPER", "MULTI LOOPER", "DIVE MACHINE", "WING RIDER", "FLYING DUTCHMAN", "FOURTH DIMENSION", "FREE SPIN", "RAPTOR", "TREX", 
+        "INFINITY", "EUROFIGHTER", "WILD MOUSE", "SPINNING MOUSE", "BOBSLED", "STEEPLECHASE", "PIPELINE", "STAND UP", "FLOORLESS", 
+        "INVERT", "SUSPENDED", "SWINGING SUSPENDED", "BATWING", "BOWTIE", "COBRA ROLL", "SEA SERPENT", "NORWEGIAN LOOP", "PRETZEL LOOP", 
+        "VERTICAL LOOP", "DIVE LOOP", "IMMELMANN", "JOJO ROLL", "LAGOON ROLL", "NON INVERTING LOOP", "TOP HAT", "OUTSIDE BANKED TURN", 
+        "WAVE TURN", "TRICK TRACK", "DOUBLE DIP", "DOUBLE UP", "QUAD DOWN", "TRIPLE DOWN", "SPEED HILL", "CAMELBACK", "BUNNY HOP", 
+        "STENGEL DIVE", "OVERBANK", "HELIX", "BAYERN KURVE", "FAN CURVE", "HORSESHOE", "CUTBACK", "CORKSCREW", "INTERLOCKING CORKSCREWS", 
+        "ZERO G STALL", "ZERO G ROLL", "HEARTLINE ROLL", "INLINE TWIST", "BARREL ROLL"
     ];
 
     const [word, setWord] = useState('');
