@@ -17,14 +17,22 @@ const triggerHaptic = (type: 'success' | 'error' | 'light' = 'light') => {
 };
 
 // --- AUDIO HELPER ---
-let audioCtx: AudioContext | null = null;
+const getSharedAudioContext = (): AudioContext | null => {
+    const w = window as any;
+    if (!w._coasterAudioCtx) {
+        const AudioContext = w.AudioContext || w.webkitAudioContext;
+        if (AudioContext) {
+            w._coasterAudioCtx = new AudioContext();
+        }
+    }
+    return w._coasterAudioCtx || null;
+};
 
 const playGameSound = (type: 'correct' | 'wrong' | 'win' | 'lose') => {
     try {
-        if (!audioCtx) {
-            const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-            audioCtx = new AudioContext();
-        }
+        const audioCtx = getSharedAudioContext();
+        if (!audioCtx) return;
+
         if (audioCtx.state === 'suspended') {
             audioCtx.resume();
         }
@@ -59,12 +67,12 @@ const playGameSound = (type: 'correct' | 'wrong' | 'win' | 'lose') => {
             osc.type = 'square';
             // Arpeggio
             [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => { // C Major
-                const noteOsc = audioCtx!.createOscillator();
-                const noteGain = audioCtx!.createGain();
+                const noteOsc = audioCtx.createOscillator();
+                const noteGain = audioCtx.createGain();
                 noteOsc.type = 'triangle';
                 noteOsc.frequency.value = freq;
                 noteOsc.connect(noteGain);
-                noteGain.connect(audioCtx!.destination);
+                noteGain.connect(audioCtx.destination);
                 const time = now + (i * 0.1);
                 noteGain.gain.setValueAtTime(0.1, time);
                 noteGain.gain.exponentialRampToValueAtTime(0.01, time + 0.4);

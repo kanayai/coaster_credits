@@ -11,22 +11,22 @@ const DIFFICULTY_CONFIG: Record<Difficulty, { speed: number, gapMin: number, gap
   ADVANCED: { speed: 9, gapMin: 300, gapMax: 600, gravity: 0.8, jump: 14, label: 'Hard', color: 'bg-red-500', carCount: 3 }
 };
 
-// GLOBAL AUDIO ENGINE (OUTSIDE COMPONENT TO PREVENT RE-INIT)
-let globalAudioCtx: AudioContext | null = null;
-
-const initAudio = () => {
-    if (!globalAudioCtx) {
-        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+// SHARED AUDIO ENGINE
+// Uses a window property to share context between RetroGame and QueueHub
+const getSharedAudioContext = (): AudioContext | null => {
+    const w = window as any;
+    if (!w._coasterAudioCtx) {
+        const AudioContext = w.AudioContext || w.webkitAudioContext;
         if (AudioContext) {
-            globalAudioCtx = new AudioContext();
+            w._coasterAudioCtx = new AudioContext();
         }
     }
-    return globalAudioCtx;
+    return w._coasterAudioCtx || null;
 };
 
 // Robust Play Tone Function
 const playGlobalTone = (freq: number, type: OscillatorType, duration: number, vol: number = 0.5) => {
-    const ctx = initAudio();
+    const ctx = getSharedAudioContext();
     if (!ctx) return;
     
     // Auto-resume if suspended (Browser policy fix)
@@ -178,9 +178,9 @@ const RetroGame: React.FC = () => {
     e.stopPropagation();
     
     // CRITICAL: Initialize Audio on Start Click
-    initAudio();
-    if (globalAudioCtx && globalAudioCtx.state === 'suspended') {
-        await globalAudioCtx.resume();
+    const ctx = getSharedAudioContext();
+    if (ctx && ctx.state === 'suspended') {
+        await ctx.resume();
     }
     // Play a start sound to confirm
     playGlobalTone(600, 'square', 0.1, 0.5);
