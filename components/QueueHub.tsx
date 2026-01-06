@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { ArrowLeft, Gamepad2, BrainCircuit, Mic2, HelpCircle, Trophy, RefreshCw, Zap, Ticket, Loader2, Sparkles, AlertCircle, CheckCircle2, Timer, X, Search, Hash, Copy, Percent, Play } from 'lucide-react';
+import { ArrowLeft, Gamepad2, BrainCircuit, Mic2, HelpCircle, Trophy, RefreshCw, Zap, Ticket, Loader2, Sparkles, AlertCircle, CheckCircle2, Timer, X, Search, Hash, Copy, Percent, Play, Volume2, VolumeX } from 'lucide-react';
 import clsx from 'clsx';
 import { GoogleGenAI, Type } from "@google/genai";
 
@@ -18,6 +18,7 @@ const triggerHaptic = (type: 'success' | 'error' | 'light' = 'light') => {
 
 // --- AUDIO HELPER ---
 const getSharedAudioContext = (): AudioContext | null => {
+    if (typeof window === 'undefined') return null;
     const w = window as any;
     // Re-create if missing or closed
     if (!w._coasterAudioCtx || w._coasterAudioCtx.state === 'closed') {
@@ -29,12 +30,30 @@ const getSharedAudioContext = (): AudioContext | null => {
     return w._coasterAudioCtx || null;
 };
 
+// Global unlocker for mobile browsers
+const forceUnlockAudio = () => {
+    const ctx = getSharedAudioContext();
+    if (ctx && ctx.state !== 'running') {
+        ctx.resume().catch(() => {});
+        // Play silent buffer
+        try {
+            const buffer = ctx.createBuffer(1, 1, 22050);
+            const source = ctx.createBufferSource();
+            source.buffer = buffer;
+            source.connect(ctx.destination);
+            source.start(0);
+        } catch (e) {
+            // Ignore
+        }
+    }
+};
+
 const playGameSound = (type: 'correct' | 'wrong' | 'win' | 'lose' | 'flip') => {
     try {
         const audioCtx = getSharedAudioContext();
         if (!audioCtx) return;
 
-        // CRITICAL: Always try to resume on interaction
+        // CRITICAL: Always try to resume
         if (audioCtx.state === 'suspended') {
             audioCtx.resume().catch(() => {});
         }
@@ -47,32 +66,32 @@ const playGameSound = (type: 'correct' | 'wrong' | 'win' | 'lose' | 'flip') => {
         const now = audioCtx.currentTime;
 
         if (type === 'flip') {
-            // Short mechanical click/chirp
+            // Short mechanical click/chirp (Higher pitch, short)
             osc.type = 'sine';
-            osc.frequency.setValueAtTime(400, now);
-            osc.frequency.exponentialRampToValueAtTime(600, now + 0.05);
-            gain.gain.setValueAtTime(0.05, now);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+            osc.frequency.setValueAtTime(600, now);
+            osc.frequency.exponentialRampToValueAtTime(800, now + 0.05);
+            gain.gain.setValueAtTime(0.1, now); // Louder
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
             osc.start(now);
-            osc.stop(now + 0.06);
+            osc.stop(now + 0.1);
         } else if (type === 'correct') {
-            // High ping
+            // High ping (Success)
             osc.type = 'sine';
             osc.frequency.setValueAtTime(880, now); // A5
             osc.frequency.exponentialRampToValueAtTime(1760, now + 0.1);
-            gain.gain.setValueAtTime(0.1, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+            gain.gain.setValueAtTime(0.2, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
             osc.start(now);
-            osc.stop(now + 0.15);
+            osc.stop(now + 0.35);
         } else if (type === 'wrong') {
-            // Low thud
+            // Low thud (Error)
             osc.type = 'triangle';
             osc.frequency.setValueAtTime(150, now);
             osc.frequency.linearRampToValueAtTime(100, now + 0.1);
-            gain.gain.setValueAtTime(0.1, now);
-            gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
+            gain.gain.setValueAtTime(0.2, now);
+            gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
             osc.start(now);
-            osc.stop(now + 0.25);
+            osc.stop(now + 0.35);
         } else if (type === 'win') {
             // Victory Fanfare
             osc.type = 'square';
@@ -84,11 +103,11 @@ const playGameSound = (type: 'correct' | 'wrong' | 'win' | 'lose' | 'flip') => {
                 noteOsc.frequency.value = freq;
                 noteOsc.connect(noteGain);
                 noteGain.connect(audioCtx.destination);
-                const time = now + (i * 0.1);
-                noteGain.gain.setValueAtTime(0.1, time);
-                noteGain.gain.exponentialRampToValueAtTime(0.01, time + 0.4);
+                const time = now + (i * 0.15);
+                noteGain.gain.setValueAtTime(0.15, time);
+                noteGain.gain.exponentialRampToValueAtTime(0.01, time + 0.5);
                 noteOsc.start(time);
-                noteOsc.stop(time + 0.5);
+                noteOsc.stop(time + 0.6);
             });
         } else if (type === 'lose') {
             // Crash / Explosion
@@ -96,7 +115,7 @@ const playGameSound = (type: 'correct' | 'wrong' | 'win' | 'lose' | 'flip') => {
             osc.frequency.setValueAtTime(100, now);
             osc.frequency.exponentialRampToValueAtTime(10, now + 0.5);
             
-            // Noise burst simulation using rapid frequency modulation
+            // Noise burst simulation
             const lfo = audioCtx.createOscillator();
             lfo.type = 'square';
             lfo.frequency.value = 50;
@@ -119,32 +138,22 @@ const playGameSound = (type: 'correct' | 'wrong' | 'win' | 'lose' | 'flip') => {
 
 // --- VISUALS ---
 const CoasterCrashVisual: React.FC<{ wrongs: number; maxWrongs: number; isLoser: boolean }> = ({ wrongs, maxWrongs, isLoser }) => {
-    // Calculate progress towards the cliff edge (0 to 100%)
-    // The cliff edge is at 80% width.
     const progress = (wrongs / maxWrongs) * 80;
     
     return (
         <div className="w-full h-32 relative mb-6 overflow-hidden bg-slate-900 rounded-xl border border-slate-700 shadow-inner">
-            {/* Background Scenery */}
             <div className="absolute inset-0 opacity-20">
                 <div className="absolute bottom-0 left-10 w-20 h-40 bg-slate-700 rounded-t-full"></div>
                 <div className="absolute bottom-0 left-40 w-32 h-24 bg-slate-800 rounded-t-full"></div>
             </div>
-
-            {/* The Track (Broken at the end) */}
             <div className="absolute bottom-8 left-0 right-0 h-4 bg-slate-800 border-t-4 border-slate-600 w-[85%] rounded-r-sm">
-                {/* Supports */}
                 <div className="absolute top-4 left-[20%] w-2 h-20 bg-slate-800"></div>
                 <div className="absolute top-4 left-[50%] w-2 h-20 bg-slate-800"></div>
                 <div className="absolute top-4 left-[80%] w-2 h-20 bg-slate-800"></div>
             </div>
-            
-            {/* Warning Sign at Edge */}
             <div className="absolute bottom-12 left-[82%] text-yellow-500 animate-pulse">
                 <AlertCircle size={16} fill="currentColor" className="text-black" />
             </div>
-
-            {/* The Train Cart */}
             <div 
                 className={clsx(
                     "absolute bottom-9 w-12 h-8 transition-all duration-500 ease-out z-10",
@@ -152,21 +161,15 @@ const CoasterCrashVisual: React.FC<{ wrongs: number; maxWrongs: number; isLoser:
                 )}
                 style={{
                     left: isLoser ? '85%' : `${5 + progress}%`,
-                    // If not loser, stay on track. If loser, animation takes over.
                 }}
             >
-                {/* Cart Body */}
                 <div className="w-full h-full bg-primary rounded-lg border-2 border-white/20 relative shadow-lg">
-                    {/* Riders */}
                     <div className="absolute -top-3 left-1 w-3 h-3 bg-white rounded-full"></div>
                     <div className="absolute -top-3 right-1 w-3 h-3 bg-white rounded-full"></div>
-                    {/* Wheels */}
                     <div className="absolute -bottom-2 left-1 w-3 h-3 bg-black rounded-full border border-slate-600"></div>
                     <div className="absolute -bottom-2 right-1 w-3 h-3 bg-black rounded-full border border-slate-600"></div>
                 </div>
             </div>
-
-            {/* Explosion Effect (Only visible on loss) */}
             {isLoser && (
                 <div className="absolute bottom-0 right-[5%] text-4xl animate-explosion z-20">
                     💥
@@ -190,7 +193,7 @@ const CoasterCrashVisual: React.FC<{ wrongs: number; maxWrongs: number; isLoser:
                     100% { opacity: 0; transform: scale(2); }
                 }
                 .animate-explosion {
-                    animation: explosion 1s forwards 0.6s; /* Delays until train hits bottom */
+                    animation: explosion 1s forwards 0.6s;
                 }
             `}</style>
         </div>
@@ -222,12 +225,21 @@ const MemoryGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
     const [moves, setMoves] = useState(0);
     const [matches, setMatches] = useState(0);
 
+    // Mount Effect to Force Unlock Audio
     useEffect(() => {
+        const unlock = () => forceUnlockAudio();
+        window.addEventListener('touchstart', unlock, { passive: true });
+        window.addEventListener('click', unlock, { passive: true });
+        
         resetGame();
+        
+        return () => {
+            window.removeEventListener('touchstart', unlock);
+            window.removeEventListener('click', unlock);
+        };
     }, []);
 
     const resetGame = () => {
-        // 12 Pairs (24 cards) + 1 Golden Ticket (1 card) = 25 Cards (5x5)
         const pairCards = [...BRANDS, ...BRANDS];
         const deck = [...pairCards, GOLDEN_TICKET];
         
@@ -243,9 +255,15 @@ const MemoryGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
         setFlippedIndices([]);
         setMoves(0);
         setMatches(0);
+        
+        // Unlock on reset too
+        forceUnlockAudio();
     };
 
     const handleCardClick = (index: number) => {
+        // Ensure audio is awake
+        forceUnlockAudio();
+
         // Prevent clicking if 2 are already flipped, or card is already revealed
         if (flippedIndices.length >= 2 || cards[index].flipped || cards[index].matched) return;
 
@@ -281,8 +299,8 @@ const MemoryGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
             if (cards[firstIdx].label === cards[secondIdx].label) {
                 // Match Found
                 triggerHaptic('success');
-                // Play match sound
-                setTimeout(() => playGameSound('correct'), 100);
+                // Play match sound after brief delay to separate from flip
+                setTimeout(() => playGameSound('correct'), 200);
                 
                 setTimeout(() => {
                     setCards(prev => prev.map((c, i) => (i === firstIdx || i === secondIdx) ? { ...c, matched: true } : c));
@@ -292,7 +310,7 @@ const MemoryGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
             } else {
                 // No Match
                 setTimeout(() => {
-                    playGameSound('wrong'); // Play failure sound on flip back
+                    playGameSound('wrong'); 
                     setCards(prev => prev.map((c, i) => (i === firstIdx || i === secondIdx) ? { ...c, flipped: false } : c));
                     setFlippedIndices([]);
                 }, 1000);
@@ -310,19 +328,16 @@ const MemoryGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
         }
     }, [isWin]);
 
-    // Helper for card styling based on content
     const getCardStyle = (card: typeof cards[0]) => {
         if (!card.flipped && !card.matched) return "bg-slate-800 border-slate-700 hover:bg-slate-700";
-        
         if (card.type === 'golden') return "bg-amber-400 border-amber-200 text-3xl shadow-[0_0_15px_rgba(251,191,36,0.6)] rotate-y-180";
         if (card.type === 'mfg') return "bg-indigo-600 border-indigo-400 text-white rotate-y-180";
         if (card.type === 'park') return "bg-emerald-600 border-emerald-400 text-white rotate-y-180";
-        
         return "bg-slate-700";
     };
 
     return (
-        <div className="h-full flex flex-col relative animate-fade-in">
+        <div className="h-full flex flex-col relative animate-fade-in" onClick={forceUnlockAudio}>
              <div className="flex items-center justify-between mb-4 shrink-0">
                  <button onClick={onExit} className="bg-slate-800 p-2 rounded-full border border-slate-700 text-slate-400"><ArrowLeft size={20}/></button>
                  <div className="flex items-center gap-4 bg-slate-800 px-4 py-2 rounded-xl border border-slate-700 font-mono text-sm">
@@ -331,7 +346,6 @@ const MemoryGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
                  <button onClick={resetGame} className="bg-slate-800 p-2 rounded-full border border-slate-700 text-primary"><RefreshCw size={20}/></button>
              </div>
              
-             {/* 5x5 Grid */}
              <div className="flex-1 grid grid-cols-5 gap-2 content-center justify-items-center">
                  {cards.map((card, idx) => (
                      <button
@@ -355,7 +369,6 @@ const MemoryGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
                  ))}
              </div>
 
-             {/* Footer instructions */}
              <div className="text-center mt-4 text-[10px] text-slate-500 font-bold uppercase tracking-widest shrink-0">
                  Match the Industry Giants!
              </div>
@@ -440,8 +453,16 @@ const WordGuessGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
     const [wrongs, setWrongs] = useState(0);
     const MAX_WRONGS = 6;
 
+    // Force unlock
     useEffect(() => {
+        const unlock = () => forceUnlockAudio();
+        window.addEventListener('touchstart', unlock, { passive: true });
+        window.addEventListener('click', unlock, { passive: true });
         startNewGame();
+        return () => {
+            window.removeEventListener('touchstart', unlock);
+            window.removeEventListener('click', unlock);
+        };
     }, []);
 
     const startNewGame = () => {
@@ -449,9 +470,11 @@ const WordGuessGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
         setWord(randomWord);
         setGuessed(new Set());
         setWrongs(0);
+        forceUnlockAudio();
     };
 
     const handleGuess = (letter: string) => {
+        forceUnlockAudio();
         if (guessed.has(letter) || wrongs >= MAX_WRONGS || isWinner) return;
 
         triggerHaptic('light');
@@ -471,7 +494,6 @@ const WordGuessGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
             }
         } else {
             triggerHaptic('success');
-            // Check potential winner state *before* state update to play sound immediately
             const isNowWinner = word.split('').filter(l => l !== ' ').every(l => newGuessed.has(l));
             
             if (isNowWinner) {
@@ -488,7 +510,7 @@ const WordGuessGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
     const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split('');
 
     return (
-        <div className="h-full flex flex-col relative animate-fade-in">
+        <div className="h-full flex flex-col relative animate-fade-in" onClick={forceUnlockAudio}>
              <div className="flex items-center justify-between mb-2 shrink-0">
                  <button onClick={onExit} className="bg-slate-800 p-2 rounded-full border border-slate-700 text-slate-400"><ArrowLeft size={20}/></button>
                  <div className="flex items-center gap-2 bg-slate-800 px-3 py-1 rounded-full border border-slate-700">
@@ -499,10 +521,8 @@ const WordGuessGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
                  <button onClick={startNewGame} className="bg-slate-800 p-2 rounded-full border border-slate-700 text-primary"><RefreshCw size={20}/></button>
              </div>
 
-             {/* The Coaster Visual */}
              <CoasterCrashVisual wrongs={wrongs} maxWrongs={MAX_WRONGS} isLoser={isLoser} />
 
-             {/* Word Display */}
              <div className="flex-1 flex flex-col items-center justify-center">
                  <div className="flex flex-wrap justify-center gap-2 px-4 mb-8">
                      {word.split('').map((char, i) => (
@@ -520,7 +540,6 @@ const WordGuessGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
                  {isWinner && <div className="text-emerald-400 font-bold animate-bounce mb-4 text-xl">SURVIVED!</div>}
              </div>
 
-             {/* Keyboard */}
              <div className="grid grid-cols-7 gap-1.5 sm:gap-2 shrink-0 pb-4">
                  {alphabet.map((char) => {
                      const isGuessed = guessed.has(char);
@@ -546,14 +565,14 @@ const WordGuessGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
     );
 };
 
-// --- TRIVIA GAME ---
 interface TriviaQuestion {
-    question: string;
-    options: string[];
-    correctIndex: number;
-    fact: string;
+  question: string;
+  options: string[];
+  correctIndex: number;
+  fact: string;
 }
 
+// --- TRIVIA GAME ---
 const TriviaGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
     const [gameState, setGameState] = useState<'LOADING' | 'PLAYING' | 'FINISHED'>('LOADING');
     const [questions, setQuestions] = useState<TriviaQuestion[]>([]);
@@ -562,7 +581,6 @@ const TriviaGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
     const [selectedOption, setSelectedOption] = useState<number | null>(null);
     const [isAnswered, setIsAnswered] = useState(false);
 
-    // Fallback data in case API fails
     const FALLBACK_QUESTIONS: TriviaQuestion[] = [
         { question: "Which roller coaster is known as the 'Golden Ticket' winner for Best Steel Coaster for many years?", options: ["Millennium Force", "Fury 325", "Steel Vengeance", "Maverick"], correctIndex: 1, fact: "Fury 325 at Carowinds has consistently topped the charts." },
         { question: "What was the first tubular steel roller coaster?", options: ["Matterhorn Bobsleds", "Revolution", "Corkscrew", "Magnum XL-200"], correctIndex: 0, fact: "Disney's Matterhorn Bobsleds (1959) pioneered tubular steel track." },
@@ -572,6 +590,9 @@ const TriviaGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
     ];
 
     useEffect(() => {
+        const unlock = () => forceUnlockAudio();
+        window.addEventListener('touchstart', unlock, { passive: true });
+        
         const loadQuestions = async () => {
             if (!process.env.API_KEY) {
                 setQuestions(FALLBACK_QUESTIONS);
@@ -615,9 +636,11 @@ const TriviaGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
             }
         };
         loadQuestions();
+        return () => window.removeEventListener('touchstart', unlock);
     }, []);
 
     const handleAnswer = (idx: number) => {
+        forceUnlockAudio();
         if (isAnswered) return;
         
         setSelectedOption(idx);
@@ -627,8 +650,10 @@ const TriviaGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
         if (isCorrect) {
             triggerHaptic('success');
             setScore(s => s + 1);
+            playGameSound('correct');
         } else {
             triggerHaptic('error');
+            playGameSound('wrong');
         }
     };
 
@@ -639,6 +664,7 @@ const TriviaGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
             setIsAnswered(false);
         } else {
             setGameState('FINISHED');
+            if (score > questions.length / 2) playGameSound('win');
         }
     };
 
@@ -674,7 +700,7 @@ const TriviaGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
     const currentQ = questions[currentIdx];
 
     return (
-        <div className="h-full flex flex-col animate-fade-in relative pb-4">
+        <div className="h-full flex flex-col animate-fade-in relative pb-4" onClick={forceUnlockAudio}>
             {/* Header */}
             <div className="flex items-center justify-between mb-4 shrink-0">
                 <button onClick={onExit} className="bg-slate-800 p-2 rounded-full border border-slate-700 text-slate-400"><ArrowLeft size={20}/></button>
@@ -746,6 +772,17 @@ const TriviaGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
 const QueueHub: React.FC = () => {
   const { changeView } = useAppContext();
   const [activeGame, setActiveGame] = useState<'NONE' | 'MEMORY' | 'GUESS' | 'TRIVIA'>('NONE');
+
+  // Mount Effect for Hub
+  useEffect(() => {
+      const unlock = () => forceUnlockAudio();
+      window.addEventListener('touchstart', unlock, { passive: true });
+      window.addEventListener('click', unlock, { passive: true });
+      return () => {
+          window.removeEventListener('touchstart', unlock);
+          window.removeEventListener('click', unlock);
+      };
+  }, []);
 
   if (activeGame === 'MEMORY') return <MemoryGame onExit={() => setActiveGame('NONE')} />;
   if (activeGame === 'GUESS') return <WordGuessGame onExit={() => setActiveGame('NONE')} />;

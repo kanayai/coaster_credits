@@ -14,8 +14,9 @@ const DIFFICULTY_CONFIG: Record<Difficulty, { speed: number, gapMin: number, gap
 // SHARED AUDIO ENGINE
 // Uses a window property to share context between RetroGame and QueueHub
 const getSharedAudioContext = (): AudioContext | null => {
+    if (typeof window === 'undefined') return null;
     const w = window as any;
-    // Re-create if missing or closed (Fixes 'lost sound' issue on mobile)
+    // Re-create if missing or closed
     if (!w._coasterAudioCtx || w._coasterAudioCtx.state === 'closed') {
         const AudioContext = w.AudioContext || w.webkitAudioContext;
         if (AudioContext) {
@@ -23,6 +24,24 @@ const getSharedAudioContext = (): AudioContext | null => {
         }
     }
     return w._coasterAudioCtx || null;
+};
+
+// Global unlocker for mobile browsers
+const forceUnlockAudio = () => {
+    const ctx = getSharedAudioContext();
+    if (ctx && ctx.state !== 'running') {
+        ctx.resume().catch(() => {});
+        // Play silent buffer
+        try {
+            const buffer = ctx.createBuffer(1, 1, 22050);
+            const source = ctx.createBufferSource();
+            source.buffer = buffer;
+            source.connect(ctx.destination);
+            source.start(0);
+        } catch (e) {
+            // Ignore
+        }
+    }
 };
 
 // Robust Play Tone Function
@@ -73,6 +92,20 @@ const RetroGame: React.FC = () => {
 
   // Audio Context Refs
   const musicIntervalRef = useRef<number | null>(null);
+
+  // Mount Effect to Force Unlock Audio
+  useEffect(() => {
+      const unlock = () => forceUnlockAudio();
+      window.addEventListener('touchstart', unlock, { passive: true });
+      window.addEventListener('click', unlock, { passive: true });
+      window.addEventListener('keydown', unlock, { passive: true });
+      
+      return () => {
+          window.removeEventListener('touchstart', unlock);
+          window.removeEventListener('click', unlock);
+          window.removeEventListener('keydown', unlock);
+      };
+  }, []);
 
   // Sync mute ref
   useEffect(() => {
@@ -178,11 +211,7 @@ const RetroGame: React.FC = () => {
     e.preventDefault();
     e.stopPropagation();
     
-    // CRITICAL: Initialize Audio on Start Click
-    const ctx = getSharedAudioContext();
-    if (ctx && ctx.state === 'suspended') {
-        await ctx.resume();
-    }
+    forceUnlockAudio();
     // Play a start sound to confirm
     playGlobalTone(600, 'square', 0.1, 0.5);
     setTimeout(() => playGlobalTone(880, 'square', 0.2, 0.5), 100);
