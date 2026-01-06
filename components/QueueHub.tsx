@@ -19,7 +19,8 @@ const triggerHaptic = (type: 'success' | 'error' | 'light' = 'light') => {
 // --- AUDIO HELPER ---
 const getSharedAudioContext = (): AudioContext | null => {
     const w = window as any;
-    if (!w._coasterAudioCtx) {
+    // Re-create if missing or closed
+    if (!w._coasterAudioCtx || w._coasterAudioCtx.state === 'closed') {
         const AudioContext = w.AudioContext || w.webkitAudioContext;
         if (AudioContext) {
             w._coasterAudioCtx = new AudioContext();
@@ -28,13 +29,14 @@ const getSharedAudioContext = (): AudioContext | null => {
     return w._coasterAudioCtx || null;
 };
 
-const playGameSound = (type: 'correct' | 'wrong' | 'win' | 'lose') => {
+const playGameSound = (type: 'correct' | 'wrong' | 'win' | 'lose' | 'flip') => {
     try {
         const audioCtx = getSharedAudioContext();
         if (!audioCtx) return;
 
+        // CRITICAL: Always try to resume on interaction
         if (audioCtx.state === 'suspended') {
-            audioCtx.resume();
+            audioCtx.resume().catch(() => {});
         }
 
         const osc = audioCtx.createOscillator();
@@ -44,7 +46,16 @@ const playGameSound = (type: 'correct' | 'wrong' | 'win' | 'lose') => {
 
         const now = audioCtx.currentTime;
 
-        if (type === 'correct') {
+        if (type === 'flip') {
+            // Short mechanical click/chirp
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(400, now);
+            osc.frequency.exponentialRampToValueAtTime(600, now + 0.05);
+            gain.gain.setValueAtTime(0.05, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+            osc.start(now);
+            osc.stop(now + 0.06);
+        } else if (type === 'correct') {
             // High ping
             osc.type = 'sine';
             osc.frequency.setValueAtTime(880, now); // A5
@@ -238,7 +249,10 @@ const MemoryGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
         // Prevent clicking if 2 are already flipped, or card is already revealed
         if (flippedIndices.length >= 2 || cards[index].flipped || cards[index].matched) return;
 
+        // Play flip sound
+        playGameSound('flip');
         triggerHaptic('light');
+
         const clickedCard = cards[index];
         const newCards = [...cards];
 
@@ -249,6 +263,7 @@ const MemoryGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
             setCards(newCards);
             setMatches(m => m + 1);
             triggerHaptic('success');
+            playGameSound('correct');
             return;
         }
 
@@ -266,6 +281,9 @@ const MemoryGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
             if (cards[firstIdx].label === cards[secondIdx].label) {
                 // Match Found
                 triggerHaptic('success');
+                // Play match sound
+                setTimeout(() => playGameSound('correct'), 100);
+                
                 setTimeout(() => {
                     setCards(prev => prev.map((c, i) => (i === firstIdx || i === secondIdx) ? { ...c, matched: true } : c));
                     setFlippedIndices([]);
@@ -274,6 +292,7 @@ const MemoryGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
             } else {
                 // No Match
                 setTimeout(() => {
+                    playGameSound('wrong'); // Play failure sound on flip back
                     setCards(prev => prev.map((c, i) => (i === firstIdx || i === secondIdx) ? { ...c, flipped: false } : c));
                     setFlippedIndices([]);
                 }, 1000);
@@ -283,6 +302,13 @@ const MemoryGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
 
     // Total matches needed: 12 pairs + 1 golden ticket = 13 "matches" logic
     const isWin = matches === BRANDS.length + 1;
+
+    // Effect for Win
+    useEffect(() => {
+        if (isWin) {
+            playGameSound('win');
+        }
+    }, [isWin]);
 
     // Helper for card styling based on content
     const getCardStyle = (card: typeof cards[0]) => {

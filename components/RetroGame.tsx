@@ -15,7 +15,8 @@ const DIFFICULTY_CONFIG: Record<Difficulty, { speed: number, gapMin: number, gap
 // Uses a window property to share context between RetroGame and QueueHub
 const getSharedAudioContext = (): AudioContext | null => {
     const w = window as any;
-    if (!w._coasterAudioCtx) {
+    // Re-create if missing or closed (Fixes 'lost sound' issue on mobile)
+    if (!w._coasterAudioCtx || w._coasterAudioCtx.state === 'closed') {
         const AudioContext = w.AudioContext || w.webkitAudioContext;
         if (AudioContext) {
             w._coasterAudioCtx = new AudioContext();
