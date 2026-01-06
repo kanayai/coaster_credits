@@ -16,6 +16,88 @@ const triggerHaptic = (type: 'success' | 'error' | 'light' = 'light') => {
     }
 };
 
+// --- AUDIO HELPER ---
+let audioCtx: AudioContext | null = null;
+
+const playGameSound = (type: 'correct' | 'wrong' | 'win' | 'lose') => {
+    try {
+        if (!audioCtx) {
+            const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+            audioCtx = new AudioContext();
+        }
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        const now = audioCtx.currentTime;
+
+        if (type === 'correct') {
+            // High ping
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(880, now); // A5
+            osc.frequency.exponentialRampToValueAtTime(1760, now + 0.1);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+            osc.start(now);
+            osc.stop(now + 0.15);
+        } else if (type === 'wrong') {
+            // Low thud
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(150, now);
+            osc.frequency.linearRampToValueAtTime(100, now + 0.1);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
+            osc.start(now);
+            osc.stop(now + 0.25);
+        } else if (type === 'win') {
+            // Victory Fanfare
+            osc.type = 'square';
+            // Arpeggio
+            [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => { // C Major
+                const noteOsc = audioCtx!.createOscillator();
+                const noteGain = audioCtx!.createGain();
+                noteOsc.type = 'triangle';
+                noteOsc.frequency.value = freq;
+                noteOsc.connect(noteGain);
+                noteGain.connect(audioCtx!.destination);
+                const time = now + (i * 0.1);
+                noteGain.gain.setValueAtTime(0.1, time);
+                noteGain.gain.exponentialRampToValueAtTime(0.01, time + 0.4);
+                noteOsc.start(time);
+                noteOsc.stop(time + 0.5);
+            });
+        } else if (type === 'lose') {
+            // Crash / Explosion
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(100, now);
+            osc.frequency.exponentialRampToValueAtTime(10, now + 0.5);
+            
+            // Noise burst simulation using rapid frequency modulation
+            const lfo = audioCtx.createOscillator();
+            lfo.type = 'square';
+            lfo.frequency.value = 50;
+            const lfoGain = audioCtx.createGain();
+            lfoGain.gain.value = 500;
+            lfo.connect(lfoGain);
+            lfoGain.connect(osc.frequency);
+            lfo.start(now);
+            lfo.stop(now + 0.6);
+
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
+            osc.start(now);
+            osc.stop(now + 0.6);
+        }
+    } catch (e) {
+        console.error("Audio play failed", e);
+    }
+};
+
 // --- VISUALS ---
 const CoasterCrashVisual: React.FC<{ wrongs: number; maxWrongs: number; isLoser: boolean }> = ({ wrongs, maxWrongs, isLoser }) => {
     // Calculate progress towards the cliff edge (0 to 100%)
@@ -345,9 +427,24 @@ const WordGuessGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
 
         if (!word.includes(letter)) {
             triggerHaptic('error');
-            setWrongs(w => w + 1);
+            const newWrongs = wrongs + 1;
+            setWrongs(newWrongs);
+            
+            if (newWrongs >= MAX_WRONGS) {
+                playGameSound('lose');
+            } else {
+                playGameSound('wrong');
+            }
         } else {
             triggerHaptic('success');
+            // Check potential winner state *before* state update to play sound immediately
+            const isNowWinner = word.split('').filter(l => l !== ' ').every(l => newGuessed.has(l));
+            
+            if (isNowWinner) {
+                playGameSound('win');
+            } else {
+                playGameSound('correct');
+            }
         }
     };
 
