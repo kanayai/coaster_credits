@@ -334,6 +334,55 @@ const ProfileManager: React.FC = () => {
         </div>
       </div>
 
+      {/* Cloud Data Audit */}
+      {currentUser && (
+        <div className="bg-slate-900/50 rounded-3xl p-6 border border-slate-800/50 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
+              <Database size={14} className="text-primary" /> Cloud Data Audit
+            </div>
+            <div className="px-2 py-0.5 rounded bg-primary/10 text-[8px] font-black text-primary uppercase tracking-widest">Live</div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="p-3 bg-black/20 rounded-2xl border border-white/5">
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-[10px] font-bold text-slate-500 uppercase">Total Cloud Credits</span>
+                <span className="text-sm font-black text-white">{credits.length}</span>
+              </div>
+              <div className="h-1 w-full bg-slate-800 rounded-full overflow-hidden">
+                <div className="h-full bg-primary" style={{ width: '100%' }} />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest px-1">Breakdown by Profile</p>
+              {users.map(u => {
+                const count = credits.filter(c => c.userId === u.id).length;
+                return (
+                  <div key={u.id} className="flex items-center justify-between p-2.5 bg-slate-800/30 rounded-xl border border-slate-700/30">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold" style={{ backgroundColor: u.avatarColor }}>
+                        {u.name[0]}
+                      </div>
+                      <span className="text-xs font-bold text-slate-300">{u.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-black text-white">{count}</span>
+                      <span className="text-[8px] font-bold text-slate-500 uppercase">Credits</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <p className="text-[9px] text-slate-500 italic leading-relaxed px-1">
+              If the total count above is correct but your dashboard is empty, simply switch to the correct profile using the menu at the top of the Dashboard.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div>
         <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-3">Data & Settings</h3>
         <div className="grid grid-cols-2 gap-3">

@@ -14,12 +14,13 @@ import clsx from 'clsx';
 type ChartMetric = 'PARK' | 'TYPE' | 'MANUFACTURER' | 'COUNTRY' | 'YEAR';
 
 const Dashboard: React.FC = () => {
-  const { credits, coasters, activeUser, changeView, setLastSearchQuery, showNotification, setAnalyticsFilter, appTheme } = useAppContext();
+  const { credits, coasters, activeUser, users, switchUser, changeView, setLastSearchQuery, showNotification, setAnalyticsFilter, appTheme } = useAppContext();
 
   // Modal States
   const [editingCreditData, setEditingCreditData] = useState<{ credit: Credit, coaster: Coaster } | null>(null);
   const [viewingCreditData, setViewingCreditData] = useState<{ credit: Credit, coaster: Coaster } | null>(null);
   const [sharingCreditData, setSharingCreditData] = useState<{ credit: Credit, coaster: Coaster } | null>(null);
+  const [showProfileSwitcher, setShowProfileSwitcher] = useState(false);
   
   const [chartMetric, setChartMetric] = useState<ChartMetric>('MANUFACTURER');
   
@@ -199,9 +200,62 @@ const Dashboard: React.FC = () => {
     <div className="animate-fade-in pb-12 space-y-6 relative flex flex-col">
       {/* Header */}
       <div className="flex justify-between items-start shrink-0">
-        <div>
-          <h1 className="text-3xl font-black italic tracking-tighter text-white">RIDE<span className="text-primary">STATS</span></h1>
-          <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">{activeUser.name}'s Dashboard</p>
+        <div className="relative">
+          <button 
+            onClick={() => setShowProfileSwitcher(!showProfileSwitcher)}
+            className="text-left group"
+          >
+            <h1 className="text-3xl font-black italic tracking-tighter text-white flex items-center gap-2">
+              RIDE<span className="text-primary">STATS</span>
+              <ChevronRight size={18} className={clsx("text-slate-600 transition-transform", showProfileSwitcher && "rotate-90")} />
+            </h1>
+            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest flex items-center gap-1.5">
+              {activeUser.name}'s Dashboard
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            </p>
+          </button>
+
+          {showProfileSwitcher && (
+            <div className="absolute top-full left-0 mt-2 w-64 bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl z-50 p-2 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="px-3 py-2 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-700/50 mb-1">Switch Profile</div>
+              {users.map(u => {
+                const profileCredits = credits.filter(c => c.userId === u.id).length;
+                return (
+                  <button
+                    key={u.id}
+                    onClick={() => {
+                      switchUser(u.id);
+                      setShowProfileSwitcher(false);
+                    }}
+                    className={clsx(
+                      "w-full flex items-center justify-between p-3 rounded-xl transition-colors",
+                      u.id === activeUser.id ? "bg-primary/10 text-primary" : "text-slate-300 hover:bg-slate-700/50"
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold" style={{ backgroundColor: u.avatarColor }}>
+                        {u.name[0]}
+                      </div>
+                      <div className="text-left">
+                        <div className="text-sm font-bold">{u.name}</div>
+                        <div className="text-[10px] opacity-70">{profileCredits} Credits</div>
+                      </div>
+                    </div>
+                    {u.id === activeUser.id && <div className="w-2 h-2 rounded-full bg-primary" />}
+                  </button>
+                );
+              })}
+              <button 
+                onClick={() => {
+                  changeView('PROFILE');
+                  setShowProfileSwitcher(false);
+                }}
+                className="w-full mt-1 p-2 text-[10px] font-bold text-slate-500 hover:text-white uppercase tracking-widest text-center"
+              >
+                Manage Profiles
+              </button>
+            </div>
+          )}
         </div>
         <div className="flex gap-2">
             <button 
@@ -224,6 +278,18 @@ const Dashboard: React.FC = () => {
           </div>
           
           <div className="relative z-10 flex flex-col items-center text-center space-y-2 py-4">
+               {uniqueCreditsCount === 0 && users.some(u => credits.some(c => c.userId === u.id)) && (
+                 <div className="w-full mb-4 p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl animate-bounce">
+                    <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-2">Data Found in Other Profile!</p>
+                    <button 
+                      onClick={() => setShowProfileSwitcher(true)}
+                      className="text-xs font-bold text-white underline decoration-amber-500/50 underline-offset-4"
+                    >
+                      Switch to see your credits
+                    </button>
+                 </div>
+               )}
+
                <div className="w-full flex justify-between items-center text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">
                   <span>Current Level</span>
                   <span>{Math.round(progressToNext)}% to Next</span>
