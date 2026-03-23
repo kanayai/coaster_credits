@@ -1,0 +1,182 @@
+
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users
+// Document ID: userId (Firebase Auth UID)
+// Fields:
+//   - id: string (required) - User's unique ID
+//   - name: string (required) - User's display name
+//   - avatarColor: string (required) - Background color for avatar
+//   - avatarUrl: string (optional) - URL to user's avatar image
+//   - rankings: map (optional) - User's coaster rankings
+//   - highScore: number (optional) - User's high score in the retro game
+//
+// Collection: coasters
+// Document ID: coasterId
+// Fields:
+//   - id: string (required) - Coaster's unique ID
+//   - name: string (required) - Coaster name
+//   - park: string (required) - Park name
+//   - country: string (required) - Country name
+//   - type: string (required) - Coaster type (Steel, Wooden, etc.)
+//   - manufacturer: string (required) - Manufacturer name
+//   - imageUrl: string (optional) - URL to coaster image
+//   - isCustom: bool (optional) - Whether it's a user-added coaster
+//   - specs: map (optional) - Height, speed, length, inversions
+//   - variants: list (optional) - List of ride variants
+//   - audioUrl: string (optional) - URL to audio
+//
+// Collection: credits
+// Document ID: creditId
+// Fields:
+//   - id: string (required) - Credit's unique ID
+//   - userId: string (required) - ID of the user who owns this credit
+//   - coasterId: string (required) - ID of the coaster
+//   - date: string (required) - Date of the ride (ISO 8601)
+//   - rideCount: number (required) - Number of times ridden
+//   - photoUrl: string (optional) - Main photo URL
+//   - gallery: list (optional) - Additional photo URLs
+//   - notes: string (optional) - User notes
+//   - restraints: string (optional) - Restraint type
+//   - variant: string (optional) - Specific variant ridden
+//
+// Collection: wishlist
+// Document ID: wishlistId
+// Fields:
+//   - id: string (required) - Entry's unique ID
+//   - userId: string (required) - ID of the user who owns this entry
+//   - coasterId: string (required) - ID of the coaster
+//   - addedAt: string (required) - Date added (ISO 8601)
+//   - notes: string (optional) - User notes
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "k.anaya.izquierdo@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUrl(url) {
+      return url is string && (url.matches("^https://.*") || url.matches("^http://.*") || url.matches("^data:image/.*"));
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasRequiredFields(['id', 'ownerId', 'name', 'avatarColor']) &&
+        data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
+        data.ownerId == request.auth.uid &&
+        data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+        data.avatarColor is string && data.avatarColor.size() > 0 && data.avatarColor.size() < 50 &&
+        (!('avatarUrl' in data) || isValidUrl(data.avatarUrl)) &&
+        (!('highScore' in data) || data.highScore is int);
+    }
+
+    function isValidCoaster(data) {
+      return hasRequiredFields(['id', 'name', 'park', 'type', 'manufacturer']) &&
+        data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
+        data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
+        data.park is string && data.park.size() > 0 && data.park.size() < 200 &&
+        data.type is string && data.type in ['Steel', 'Wooden', 'Hybrid', 'Alpine', 'Family', 'Powered', 'Bobsled'] &&
+        data.manufacturer is string && data.manufacturer.size() > 0 && data.manufacturer.size() < 200 &&
+        (!('imageUrl' in data) || isValidUrl(data.imageUrl)) &&
+        (!('country' in data) || data.country is string);
+    }
+
+    function isValidCredit(data) {
+      return hasRequiredFields(['id', 'userId', 'ownerId', 'coasterId', 'date', 'rideCount']) &&
+        data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
+        data.userId is string && data.userId.size() > 0 &&
+        data.ownerId == request.auth.uid &&
+        data.coasterId is string && data.coasterId.size() > 0 &&
+        isValidDateString(data.date) &&
+        data.rideCount is int && data.rideCount >= 0 &&
+        (!('photoUrl' in data) || isValidUrl(data.photoUrl)) &&
+        (!('notes' in data) || data.notes is string && data.notes.size() < 5000);
+    }
+
+    function isValidWishlist(data) {
+      return hasRequiredFields(['id', 'userId', 'ownerId', 'coasterId', 'addedAt']) &&
+        data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
+        data.userId is string && data.userId.size() > 0 &&
+        data.ownerId == request.auth.uid &&
+        data.coasterId is string && data.coasterId.size() > 0 &&
+        isValidDateString(data.addedAt);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && !('role' in request.resource.data);
+      allow update: if isAuthenticated() && resource.data.ownerId == request.auth.uid && isValidUser(request.resource.data) && 
+                      (request.resource.data.role == resource.data.role || (isAdmin() && 'role' in request.resource.data));
+      allow delete: if isAdmin();
+    }
+
+    match /coasters/{coasterId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidCoaster(request.resource.data);
+      allow update: if isAuthenticated() && isValidCoaster(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /credits/{creditId} {
+      allow read: if isAuthenticated() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && isValidCredit(request.resource.data);
+      allow update: if isAuthenticated() && resource.data.ownerId == request.auth.uid && isValidCredit(request.resource.data);
+      allow delete: if isAuthenticated() && (resource.data.ownerId == request.auth.uid || isAdmin());
+    }
+
+    match /wishlist/{wishlistId} {
+      allow read: if isAuthenticated() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && isValidWishlist(request.resource.data);
+      allow update: if isAuthenticated() && resource.data.ownerId == request.auth.uid && isValidWishlist(request.resource.data);
+      allow delete: if isAuthenticated() && (resource.data.ownerId == request.auth.uid || isAdmin());
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

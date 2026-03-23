@@ -69,7 +69,26 @@ const ActivityHeatmap = () => {
 };
 
 const ProfileManager: React.FC = () => {
-  const { users, activeUser, switchUser, addUser, updateUser, credits, coasters, enrichDatabaseImages, importData, standardizeDatabase, changeView, showNotification, appTheme, setAppTheme } = useAppContext();
+  const { 
+    users, 
+    activeUser, 
+    switchUser, 
+    addUser, 
+    updateUser, 
+    credits, 
+    coasters, 
+    enrichDatabaseImages, 
+    importData, 
+    standardizeDatabase, 
+    changeView, 
+    showNotification, 
+    appTheme, 
+    setAppTheme,
+    currentUser,
+    signIn,
+    logout,
+    isAuthLoading
+  } = useAppContext();
   const [isAdding, setIsAdding] = useState(false);
   const [newUserName, setNewUserName] = useState('');
   const [isEnriching, setIsEnriching] = useState(false);
@@ -77,6 +96,7 @@ const ProfileManager: React.FC = () => {
   const [editName, setEditName] = useState('');
 
   const handleExportCSV = () => {
+    if (!activeUser) return;
     const userCredits = credits.filter(c => c.userId === activeUser.id);
     const headers = ['Coaster Name', 'Park', 'Country', 'Manufacturer', 'Type', 'Date Ridden', 'Notes'];
     const rows = userCredits.map(credit => {
@@ -103,11 +123,53 @@ const ProfileManager: React.FC = () => {
 
   return (
     <div className="animate-fade-in space-y-8 pb-8">
+      {/* Cloud Account Section */}
+      <div className="bg-slate-900 rounded-3xl p-6 border border-slate-800 shadow-xl">
+        <div className="flex items-center gap-2 mb-4 text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
+          <Cloud size={14} className="text-primary" /> Cloud Sync
+        </div>
+        
+        {currentUser ? (
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <img 
+                src={currentUser.photoURL || ''} 
+                alt="Account" 
+                className="w-12 h-12 rounded-full border-2 border-primary/20"
+                referrerPolicy="no-referrer"
+              />
+              <div>
+                <h3 className="font-bold text-white">{currentUser.displayName}</h3>
+                <p className="text-xs text-slate-500">{currentUser.email}</p>
+              </div>
+            </div>
+            <button 
+              onClick={logout}
+              className="p-2 text-slate-400 hover:text-red-400 transition-colors"
+              title="Sign Out"
+            >
+              <X size={20} />
+            </button>
+          </div>
+        ) : (
+          <div className="text-center py-4">
+            <p className="text-sm text-slate-400 mb-4 italic">Sign in to sync your credits across devices and never lose your data.</p>
+            <button 
+              onClick={signIn}
+              disabled={isAuthLoading}
+              className="w-full bg-primary hover:bg-primary-hover text-white py-3 rounded-2xl font-black uppercase tracking-widest text-xs transition-all active:scale-95 disabled:opacity-50"
+            >
+              {isAuthLoading ? 'Connecting...' : 'Sign In with Google'}
+            </button>
+          </div>
+        )}
+      </div>
+
       <div className="space-y-6">
         <h2 className="text-2xl font-bold">Rider Profiles</h2>
         <div className="grid grid-cols-1 gap-3">
           {users.map(user => (
-                <div key={user.id} onClick={() => editingUserId !== user.id && switchUser(user.id)} className={`flex items-center p-4 rounded-xl border transition-all cursor-pointer ${user.id === activeUser.id ? 'bg-primary/10 border-primary' : 'bg-slate-800 border-slate-700'}`}>
+                <div key={user.id} onClick={() => editingUserId !== user.id && switchUser(user.id)} className={`flex items-center p-4 rounded-xl border transition-all cursor-pointer ${user.id === activeUser?.id ? 'bg-primary/10 border-primary' : 'bg-slate-800 border-slate-700'}`}>
                     <div className={`w-12 h-12 rounded-full ${user.avatarUrl ? 'bg-transparent' : user.avatarColor} flex items-center justify-center text-lg font-bold shadow-lg overflow-hidden mr-4`}>{user.avatarUrl ? <img src={user.avatarUrl} className="w-full h-full object-cover" /> : user.name.substring(0, 2).toUpperCase()}</div>
                     <div className="flex-1 text-left min-w-0">
                         {editingUserId === user.id ? (
@@ -121,7 +183,7 @@ const ProfileManager: React.FC = () => {
                                 <button onClick={(e) => { e.stopPropagation(); setEditingUserId(user.id); setEditName(user.name); }} className="p-2 text-slate-500 hover:text-white"><Edit2 size={16} /></button>
                             </div>
                         )}
-                        {editingUserId !== user.id && <p className="text-xs text-slate-500 font-bold uppercase">{user.id === activeUser.id ? 'Active Rider' : 'Switch Profile'}</p>}
+                        {editingUserId !== user.id && <p className="text-xs text-slate-500 font-bold uppercase">{user.id === activeUser?.id ? 'Active Rider' : 'Switch Profile'}</p>}
                     </div>
                 </div>
           ))}
@@ -136,15 +198,17 @@ const ProfileManager: React.FC = () => {
         )}
       </div>
 
-      <div onClick={() => changeView('QUEUE_HUB')} className="bg-gradient-to-r from-purple-900 to-pink-900 rounded-[24px] p-6 border border-pink-500/30 relative overflow-hidden group cursor-pointer shadow-xl">
-          <div className="absolute top-0 right-0 p-8 opacity-20"><Ticket size={100} /></div>
-          <div className="relative z-10">
-              <div className="flex items-center gap-2 mb-2"><div className="bg-white/20 p-1.5 rounded-lg text-white backdrop-blur"><Gamepad2 size={16} /></div><span className="text-[10px] font-bold text-pink-300 uppercase tracking-widest">Queue Hub</span></div>
-              <h3 className="text-2xl font-black text-white italic">WAITING IN LINE?</h3>
-              <p className="text-xs text-pink-200 mt-1">Games, trivia & jokes to kill time!</p>
-              <div className="mt-4 flex items-center gap-3"><div className="bg-black/30 backdrop-blur px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-2"><Trophy size={14} className="text-yellow-400" /><span className="text-sm font-bold text-white font-mono">{activeUser.highScore || 0}</span></div><button className="bg-white text-purple-900 px-4 py-2 rounded-lg text-xs font-bold uppercase hover:bg-pink-100">Enter Hub</button></div>
-          </div>
-      </div>
+      {activeUser && (
+        <div onClick={() => changeView('QUEUE_HUB')} className="bg-gradient-to-r from-purple-900 to-pink-900 rounded-[24px] p-6 border border-pink-500/30 relative overflow-hidden group cursor-pointer shadow-xl">
+            <div className="absolute top-0 right-0 p-8 opacity-20"><Ticket size={100} /></div>
+            <div className="relative z-10">
+                <div className="flex items-center gap-2 mb-2"><div className="bg-white/20 p-1.5 rounded-lg text-white backdrop-blur"><Gamepad2 size={16} /></div><span className="text-[10px] font-bold text-pink-300 uppercase tracking-widest">Queue Hub</span></div>
+                <h3 className="text-2xl font-black text-white italic">WAITING IN LINE?</h3>
+                <p className="text-xs text-pink-200 mt-1">Games, trivia & jokes to kill time!</p>
+                <div className="mt-4 flex items-center gap-3"><div className="bg-black/30 backdrop-blur px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-2"><Trophy size={14} className="text-yellow-400" /><span className="text-sm font-bold text-white font-mono">{activeUser.highScore || 0}</span></div><button className="bg-white text-purple-900 px-4 py-2 rounded-lg text-xs font-bold uppercase hover:bg-pink-100">Enter Hub</button></div>
+            </div>
+        </div>
+      )}
 
       <div>
          <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-3">App Appearance</h3>
@@ -158,7 +222,9 @@ const ProfileManager: React.FC = () => {
          </div>
       </div>
 
-      <div><h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-3">Ride Activity</h3><ActivityHeatmap /></div>
+      {activeUser && (
+        <div><h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-3">Ride Activity</h3><ActivityHeatmap /></div>
+      )}
 
       <div>
         <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-3">Data & Settings</h3>

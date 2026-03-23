@@ -16,127 +16,101 @@ const triggerHaptic = (type: 'success' | 'error' | 'light' = 'light') => {
     }
 };
 
-// --- AUDIO HELPER ---
-const getSharedAudioContext = (): AudioContext | null => {
+// --- ROBUST AUDIO ENGINE ---
+// Simplified to ensure compatibility
+const getAudioCtx = (): AudioContext | null => {
     if (typeof window === 'undefined') return null;
     const w = window as any;
-    // Re-create if missing or closed
-    if (!w._coasterAudioCtx || w._coasterAudioCtx.state === 'closed') {
-        const AudioContext = w.AudioContext || w.webkitAudioContext;
-        if (AudioContext) {
-            w._coasterAudioCtx = new AudioContext();
+    if (!w._coasterAudioCtx) {
+        const AudioCtor = w.AudioContext || w.webkitAudioContext;
+        if (AudioCtor) {
+            w._coasterAudioCtx = new AudioCtor();
         }
     }
     return w._coasterAudioCtx || null;
 };
 
-// Global unlocker for mobile browsers
-// CRITICAL FIX: Plays a silent buffer to truly unlock iOS Audio
-const forceUnlockAudio = () => {
-    const ctx = getSharedAudioContext();
+const unlockAudio = () => {
+    const ctx = getAudioCtx();
     if (!ctx) return;
-
     if (ctx.state === 'suspended') {
-        ctx.resume().catch(() => {});
+        ctx.resume().catch(e => console.error("Audio resume failed", e));
     }
-    
-    // Play silent buffer (iOS Hack)
+    // Play silent buffer to force iOS to wake up the audio thread
     try {
         const buffer = ctx.createBuffer(1, 1, 22050);
         const source = ctx.createBufferSource();
         source.buffer = buffer;
         source.connect(ctx.destination);
         source.start(0);
-    } catch (e) {
-        // Ignore errors if already playing
+    } catch(e) {
+        // Ignore
     }
 };
 
-const playGameSound = (type: 'correct' | 'wrong' | 'win' | 'lose' | 'flip') => {
-    try {
-        const audioCtx = getSharedAudioContext();
-        if (!audioCtx) return;
+const playSoundEffect = (type: 'correct' | 'wrong' | 'win' | 'lose' | 'flip') => {
+    const ctx = getAudioCtx();
+    if (!ctx) return;
 
-        // CRITICAL: Always try to resume if suspended
-        if (audioCtx.state === 'suspended') {
-            audioCtx.resume().catch(() => {});
-        }
+    // Ensure we are active
+    if (ctx.state === 'suspended') ctx.resume();
 
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    
+    osc.connect(gain);
+    gain.connect(ctx.destination);
 
-        const now = audioCtx.currentTime;
-
-        if (type === 'flip') {
-            // Short mechanical click/chirp (Higher pitch, short)
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(600, now);
-            osc.frequency.linearRampToValueAtTime(800, now + 0.05);
-            gain.gain.setValueAtTime(0.1, now); 
-            gain.gain.linearRampToValueAtTime(0.001, now + 0.1); // Linear ramp is safer
-            osc.start(now);
-            osc.stop(now + 0.15);
-        } else if (type === 'correct') {
-            // High ping (Success)
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(880, now); // A5
-            osc.frequency.linearRampToValueAtTime(1760, now + 0.1);
-            gain.gain.setValueAtTime(0.2, now);
-            gain.gain.linearRampToValueAtTime(0.001, now + 0.3);
-            osc.start(now);
-            osc.stop(now + 0.35);
-        } else if (type === 'wrong') {
-            // Low thud (Error)
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(150, now);
-            osc.frequency.linearRampToValueAtTime(100, now + 0.1);
-            gain.gain.setValueAtTime(0.3, now); // Louder
-            gain.gain.linearRampToValueAtTime(0.001, now + 0.3);
-            osc.start(now);
-            osc.stop(now + 0.35);
-        } else if (type === 'win') {
-            // Victory Fanfare
-            osc.type = 'square';
-            // Arpeggio
-            [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => { // C Major
-                const noteOsc = audioCtx.createOscillator();
-                const noteGain = audioCtx.createGain();
-                noteOsc.type = 'triangle';
-                noteOsc.frequency.value = freq;
-                noteOsc.connect(noteGain);
-                noteGain.connect(audioCtx.destination);
-                const time = now + (i * 0.15);
-                noteGain.gain.setValueAtTime(0.15, time);
-                noteGain.gain.linearRampToValueAtTime(0.001, time + 0.5);
-                noteOsc.start(time);
-                noteOsc.stop(time + 0.6);
-            });
-        } else if (type === 'lose') {
-            // Crash / Explosion
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(100, now);
-            osc.frequency.linearRampToValueAtTime(10, now + 0.5);
-            
-            // Noise burst simulation
-            const lfo = audioCtx.createOscillator();
-            lfo.type = 'square';
-            lfo.frequency.value = 50;
-            const lfoGain = audioCtx.createGain();
-            lfoGain.gain.value = 500;
-            lfo.connect(lfoGain);
-            lfoGain.connect(osc.frequency);
-            lfo.start(now);
-            lfo.stop(now + 0.6);
-
-            gain.gain.setValueAtTime(0.3, now);
-            gain.gain.linearRampToValueAtTime(0.001, now + 0.6);
-            osc.start(now);
-            osc.stop(now + 0.6);
-        }
-    } catch (e) {
-        console.error("Audio play failed", e);
+    if (type === 'flip') {
+        // High mechanical click
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(800, t);
+        osc.frequency.exponentialRampToValueAtTime(1200, t + 0.05);
+        gain.gain.setValueAtTime(0.05, t);
+        gain.gain.linearRampToValueAtTime(0.001, t + 0.05);
+        osc.start(t);
+        osc.stop(t + 0.06);
+    } else if (type === 'correct') {
+        // Nice Ding
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, t); // A5
+        gain.gain.setValueAtTime(0.1, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+        osc.start(t);
+        osc.stop(t + 0.5);
+    } else if (type === 'wrong') {
+        // Low Buzz
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(150, t);
+        osc.frequency.linearRampToValueAtTime(100, t + 0.2);
+        gain.gain.setValueAtTime(0.1, t);
+        gain.gain.linearRampToValueAtTime(0.001, t + 0.2);
+        osc.start(t);
+        osc.stop(t + 0.25);
+    } else if (type === 'win') {
+        // Major Arpeggio
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(523.25, t);
+        osc.frequency.setValueAtTime(659.25, t + 0.1);
+        osc.frequency.setValueAtTime(783.99, t + 0.2);
+        osc.frequency.setValueAtTime(1046.50, t + 0.3);
+        
+        gain.gain.setValueAtTime(0.1, t);
+        gain.gain.setValueAtTime(0.1, t + 0.3);
+        gain.gain.linearRampToValueAtTime(0.001, t + 0.6);
+        
+        osc.start(t);
+        osc.stop(t + 0.6);
+    } else if (type === 'lose') {
+        // Slide down
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(300, t);
+        osc.frequency.exponentialRampToValueAtTime(50, t + 0.4);
+        gain.gain.setValueAtTime(0.1, t);
+        gain.gain.linearRampToValueAtTime(0.001, t + 0.4);
+        osc.start(t);
+        osc.stop(t + 0.45);
     }
 };
 
@@ -229,18 +203,10 @@ const MemoryGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
     const [moves, setMoves] = useState(0);
     const [matches, setMatches] = useState(0);
 
-    // Mount Effect to Force Unlock Audio
     useEffect(() => {
-        const unlock = () => forceUnlockAudio();
-        window.addEventListener('touchstart', unlock, { passive: true });
-        window.addEventListener('click', unlock, { passive: true });
-        
+        // Unlock on mount
+        unlockAudio();
         resetGame();
-        
-        return () => {
-            window.removeEventListener('touchstart', unlock);
-            window.removeEventListener('click', unlock);
-        };
     }, []);
 
     const resetGame = () => {
@@ -259,37 +225,29 @@ const MemoryGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
         setFlippedIndices([]);
         setMoves(0);
         setMatches(0);
-        
-        // Unlock on reset too
-        forceUnlockAudio();
     };
 
     const handleCardClick = (index: number) => {
-        // Ensure audio is awake
-        forceUnlockAudio();
+        unlockAudio(); // Ensure active
 
-        // Prevent clicking if 2 are already flipped, or card is already revealed
         if (flippedIndices.length >= 2 || cards[index].flipped || cards[index].matched) return;
 
-        // Play flip sound
-        playGameSound('flip');
+        playSoundEffect('flip');
         triggerHaptic('light');
 
         const clickedCard = cards[index];
         const newCards = [...cards];
 
-        // LOGIC: Golden Ticket (Instant Match)
         if (clickedCard.type === 'golden') {
             newCards[index].flipped = true;
             newCards[index].matched = true;
             setCards(newCards);
             setMatches(m => m + 1);
             triggerHaptic('success');
-            playGameSound('correct');
+            playSoundEffect('correct');
             return;
         }
 
-        // Standard Logic
         newCards[index].flipped = true;
         setCards(newCards);
 
@@ -301,20 +259,16 @@ const MemoryGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
             const [firstIdx, secondIdx] = newFlipped;
             
             if (cards[firstIdx].label === cards[secondIdx].label) {
-                // Match Found
                 triggerHaptic('success');
-                // Play match sound after brief delay to separate from flip
-                setTimeout(() => playGameSound('correct'), 200);
-                
+                setTimeout(() => playSoundEffect('correct'), 100);
                 setTimeout(() => {
                     setCards(prev => prev.map((c, i) => (i === firstIdx || i === secondIdx) ? { ...c, matched: true } : c));
                     setFlippedIndices([]);
                     setMatches(m => m + 1);
                 }, 500);
             } else {
-                // No Match
                 setTimeout(() => {
-                    playGameSound('wrong'); 
+                    playSoundEffect('wrong'); 
                     setCards(prev => prev.map((c, i) => (i === firstIdx || i === secondIdx) ? { ...c, flipped: false } : c));
                     setFlippedIndices([]);
                 }, 1000);
@@ -322,14 +276,10 @@ const MemoryGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
         }
     };
 
-    // Total matches needed: 12 pairs + 1 golden ticket = 13 "matches" logic
     const isWin = matches === BRANDS.length + 1;
 
-    // Effect for Win
     useEffect(() => {
-        if (isWin) {
-            playGameSound('win');
-        }
+        if (isWin) playSoundEffect('win');
     }, [isWin]);
 
     const getCardStyle = (card: typeof cards[0]) => {
@@ -341,7 +291,7 @@ const MemoryGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
     };
 
     return (
-        <div className="h-full flex flex-col relative animate-fade-in" onClick={forceUnlockAudio}>
+        <div className="h-full flex flex-col relative animate-fade-in" onClick={unlockAudio} onTouchStart={unlockAudio}>
              <div className="flex items-center justify-between mb-4 shrink-0">
                  <button onClick={onExit} className="bg-slate-800 p-2 rounded-full border border-slate-700 text-slate-400"><ArrowLeft size={20}/></button>
                  <div className="flex items-center gap-4 bg-slate-800 px-4 py-2 rounded-xl border border-slate-700 font-mono text-sm">
@@ -480,14 +430,8 @@ const WordGuessGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
 
     // Force unlock
     useEffect(() => {
-        const unlock = () => forceUnlockAudio();
-        window.addEventListener('touchstart', unlock, { passive: true });
-        window.addEventListener('click', unlock, { passive: true });
+        unlockAudio();
         startNewGame();
-        return () => {
-            window.removeEventListener('touchstart', unlock);
-            window.removeEventListener('click', unlock);
-        };
     }, []);
 
     const startNewGame = () => {
@@ -495,11 +439,11 @@ const WordGuessGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
         setWord(randomWord);
         setGuessed(new Set());
         setWrongs(0);
-        forceUnlockAudio();
+        unlockAudio();
     };
 
     const handleGuess = (letter: string) => {
-        forceUnlockAudio();
+        unlockAudio();
         if (guessed.has(letter) || wrongs >= MAX_WRONGS || isWinner) return;
 
         triggerHaptic('light');
@@ -513,18 +457,18 @@ const WordGuessGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
             setWrongs(newWrongs);
             
             if (newWrongs >= MAX_WRONGS) {
-                playGameSound('lose');
+                playSoundEffect('lose');
             } else {
-                playGameSound('wrong');
+                playSoundEffect('wrong');
             }
         } else {
             triggerHaptic('success');
             const isNowWinner = word.split('').filter(l => l !== ' ').every(l => newGuessed.has(l));
             
             if (isNowWinner) {
-                playGameSound('win');
+                playSoundEffect('win');
             } else {
-                playGameSound('correct');
+                playSoundEffect('correct');
             }
         }
     };
@@ -535,7 +479,7 @@ const WordGuessGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
     const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split('');
 
     return (
-        <div className="h-full flex flex-col relative animate-fade-in" onClick={forceUnlockAudio}>
+        <div className="h-full flex flex-col relative animate-fade-in" onClick={unlockAudio} onTouchStart={unlockAudio}>
              <div className="flex items-center justify-between mb-2 shrink-0">
                  <button onClick={onExit} className="bg-slate-800 p-2 rounded-full border border-slate-700 text-slate-400"><ArrowLeft size={20}/></button>
                  <div className="flex items-center gap-2 bg-slate-800 px-3 py-1 rounded-full border border-slate-700">
@@ -615,9 +559,7 @@ const TriviaGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
     ];
 
     useEffect(() => {
-        const unlock = () => forceUnlockAudio();
-        window.addEventListener('touchstart', unlock, { passive: true });
-        
+        unlockAudio();
         const loadQuestions = async () => {
             if (!process.env.API_KEY) {
                 setQuestions(FALLBACK_QUESTIONS);
@@ -661,11 +603,10 @@ const TriviaGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
             }
         };
         loadQuestions();
-        return () => window.removeEventListener('touchstart', unlock);
     }, []);
 
     const handleAnswer = (idx: number) => {
-        forceUnlockAudio();
+        unlockAudio();
         if (isAnswered) return;
         
         setSelectedOption(idx);
@@ -675,10 +616,10 @@ const TriviaGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
         if (isCorrect) {
             triggerHaptic('success');
             setScore(s => s + 1);
-            playGameSound('correct');
+            playSoundEffect('correct');
         } else {
             triggerHaptic('error');
-            playGameSound('wrong');
+            playSoundEffect('wrong');
         }
     };
 
@@ -689,7 +630,7 @@ const TriviaGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
             setIsAnswered(false);
         } else {
             setGameState('FINISHED');
-            if (score > questions.length / 2) playGameSound('win');
+            if (score > questions.length / 2) playSoundEffect('win');
         }
     };
 
@@ -725,7 +666,7 @@ const TriviaGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
     const currentQ = questions[currentIdx];
 
     return (
-        <div className="h-full flex flex-col animate-fade-in relative pb-4" onClick={forceUnlockAudio}>
+        <div className="h-full flex flex-col animate-fade-in relative pb-4" onClick={unlockAudio} onTouchStart={unlockAudio}>
             {/* Header */}
             <div className="flex items-center justify-between mb-4 shrink-0">
                 <button onClick={onExit} className="bg-slate-800 p-2 rounded-full border border-slate-700 text-slate-400"><ArrowLeft size={20}/></button>
@@ -798,15 +739,8 @@ const QueueHub: React.FC = () => {
   const { changeView } = useAppContext();
   const [activeGame, setActiveGame] = useState<'NONE' | 'MEMORY' | 'GUESS' | 'TRIVIA'>('NONE');
 
-  // Mount Effect for Hub
   useEffect(() => {
-      const unlock = () => forceUnlockAudio();
-      window.addEventListener('touchstart', unlock, { passive: true });
-      window.addEventListener('click', unlock, { passive: true });
-      return () => {
-          window.removeEventListener('touchstart', unlock);
-          window.removeEventListener('click', unlock);
-      };
+      unlockAudio();
   }, []);
 
   if (activeGame === 'MEMORY') return <MemoryGame onExit={() => setActiveGame('NONE')} />;
@@ -814,7 +748,7 @@ const QueueHub: React.FC = () => {
   if (activeGame === 'TRIVIA') return <TriviaGame onExit={() => setActiveGame('NONE')} />;
 
   return (
-    <div className="animate-fade-in h-full flex flex-col">
+    <div className="animate-fade-in h-full flex flex-col" onClick={unlockAudio} onTouchStart={unlockAudio}>
        {/* Header */}
       <div className="flex items-center gap-4 mb-6">
           <button 

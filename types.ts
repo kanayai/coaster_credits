@@ -32,6 +32,7 @@ export interface Coaster {
 
 export interface Credit {
   id: string;
+  ownerId: string;
   userId: string;
   coasterId: string;
   date: string;
@@ -45,6 +46,7 @@ export interface Credit {
 
 export interface WishlistEntry {
   id: string;
+  ownerId: string;
   userId: string;
   coasterId: string;
   addedAt: string;
@@ -61,6 +63,7 @@ export interface RankingList {
 
 export interface User {
   id: string;
+  ownerId: string;
   name: string;
   avatarColor: string;
   avatarUrl?: string;

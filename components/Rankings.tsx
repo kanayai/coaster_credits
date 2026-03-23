@@ -16,7 +16,7 @@ const Rankings: React.FC = () => {
   
   // Initialize ranking limit based on saved preference OR existing data OR default to 10
   const [rankingLimit, setRankingLimit] = useState<number>(() => {
-    const base = activeUser.rankings || { overall: [], steel: [], wooden: [] };
+    const base = activeUser?.rankings || { overall: [], steel: [], wooden: [] };
     
     // 1. Prefer saved limit
     if (base.limit) return base.limit;
@@ -43,7 +43,7 @@ const Rankings: React.FC = () => {
 
   // Initialize temp rankings with defaults if they don't exist
   const [tempRankings, setTempRankings] = useState<RankingList>(() => {
-    const base = activeUser.rankings || { overall: [], steel: [], wooden: [] };
+    const base = activeUser?.rankings || { overall: [], steel: [], wooden: [] };
     const elements = base.elements || {};
     const overall = base.overall || [];
     
@@ -64,9 +64,10 @@ const Rankings: React.FC = () => {
 
   // Filter only coasters that the user has actually RIDDEN
   const riddenCoasters = useMemo(() => {
+      if (!activeUser) return [];
       const riddenIds = new Set(credits.filter(c => c.userId === activeUser.id).map(c => c.coasterId));
       return coasters.filter(c => riddenIds.has(c.id));
-  }, [coasters, credits, activeUser.id]);
+  }, [coasters, credits, activeUser?.id]);
 
   // Determine current list for display/logic
   const currentListIds = useMemo(() => {
@@ -201,6 +202,26 @@ const Rankings: React.FC = () => {
           else setActiveElementKey(''); // No categories left
       }
   };
+
+  if (!activeUser) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] text-center space-y-6 animate-fade-in">
+        <div className="bg-slate-800 p-8 rounded-[32px] border border-slate-700 shadow-2xl max-w-sm">
+          <div className="bg-primary/20 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Trophy size={40} className="text-primary" />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">Rankings</h2>
+          <p className="text-slate-400 text-sm mb-8">Sign in to create and manage your personal roller coaster rankings.</p>
+          <button 
+            onClick={() => changeView('PROFILE')}
+            className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-2xl font-bold shadow-lg shadow-primary/20 transition-all active:scale-95"
+          >
+            Go to Profile
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in pb-20 space-y-4">

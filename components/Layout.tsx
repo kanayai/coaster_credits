@@ -18,7 +18,19 @@ const THEME_COLORS: Record<AppTheme, { primary: string, hover: string }> = {
 };
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const { currentView, changeView, activeUser, notification, hideNotification, showConfetti, showFireworks, appTheme } = useAppContext();
+  const { 
+    currentView, 
+    changeView, 
+    activeUser, 
+    notification, 
+    hideNotification, 
+    showConfetti, 
+    showFireworks, 
+    appTheme,
+    currentUser,
+    signIn,
+    isAuthLoading
+  } = useAppContext();
 
   const navItems = [
     { id: 'DASHBOARD', icon: LayoutDashboard, label: 'Dashboard' },
@@ -138,19 +150,29 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   </h1>
               </div>
               
-              <button 
-                onClick={() => changeView('PROFILE')}
-                className="flex items-center gap-2 bg-slate-800/50 p-1 pr-3 rounded-full border border-slate-700/50 transition-all hover:border-primary/50 active:scale-95"
-              >
-                <div className={`w-7 h-7 rounded-full ${activeUser.avatarUrl ? 'bg-transparent' : activeUser.avatarColor} border border-slate-600 flex items-center justify-center text-[8px] font-bold shadow-inner overflow-hidden`}>
-                  {activeUser.avatarUrl ? (
-                      <img src={activeUser.avatarUrl} alt="User" className="w-full h-full object-cover" />
-                  ) : (
-                      activeUser.name.substring(0,2).toUpperCase()
-                  )}
-                </div>
-                <span className="text-xs font-bold text-slate-300 max-w-[80px] truncate">{activeUser.name}</span>
-              </button>
+              {currentUser ? (
+                <button 
+                  onClick={() => changeView('PROFILE')}
+                  className="flex items-center gap-2 bg-slate-800/50 p-1 pr-3 rounded-full border border-slate-700/50 transition-all hover:border-primary/50 active:scale-95"
+                >
+                  <div className={`w-7 h-7 rounded-full ${activeUser?.avatarUrl ? 'bg-transparent' : (activeUser?.avatarColor || 'bg-slate-700')} border border-slate-600 flex items-center justify-center text-[8px] font-bold shadow-inner overflow-hidden`}>
+                    {activeUser?.avatarUrl ? (
+                        <img src={activeUser.avatarUrl} alt="User" className="w-full h-full object-cover" />
+                    ) : (
+                        activeUser?.name.substring(0,2).toUpperCase() || '??'
+                    )}
+                  </div>
+                  <span className="text-xs font-bold text-slate-300 max-w-[80px] truncate">{activeUser?.name || 'Loading...'}</span>
+                </button>
+              ) : (
+                <button 
+                  onClick={signIn}
+                  disabled={isAuthLoading}
+                  className="bg-primary hover:bg-primary-hover text-white px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50"
+                >
+                  {isAuthLoading ? '...' : 'Sign In'}
+                </button>
+              )}
             </header>
         )}
 

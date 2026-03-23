@@ -83,6 +83,26 @@ const ParkStats: React.FC = () => {
     setPosition({ x: 0, y: 0 });
   };
 
+  if (!activeUser) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] text-center space-y-6 animate-fade-in">
+        <div className="bg-slate-800 p-8 rounded-[32px] border border-slate-700 shadow-2xl max-w-sm">
+          <div className="bg-primary/20 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Globe size={40} className="text-primary" />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">Park Stats</h2>
+          <p className="text-slate-400 text-sm mb-8">Sign in to see your global coaster footprint and park statistics!</p>
+          <button 
+            onClick={() => changeView('PROFILE')}
+            className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-2xl font-bold shadow-lg shadow-primary/20 transition-all active:scale-95"
+          >
+            Go to Profile
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="animate-fade-in h-full flex flex-col space-y-4 pb-8">
       {/* Header */}

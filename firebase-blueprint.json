@@ -1,0 +1,105 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and rankings",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "ownerId": { "type": "string", "description": "Firebase Auth UID of the account owner" },
+        "name": { "type": "string" },
+        "avatarColor": { "type": "string" },
+        "avatarUrl": { "type": "string" },
+        "rankings": {
+          "type": "object",
+          "properties": {
+            "limit": { "type": "integer" },
+            "overall": { "type": "array", "items": { "type": "string" } },
+            "steel": { "type": "array", "items": { "type": "string" } },
+            "wooden": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "highScore": { "type": "integer" }
+      },
+      "required": ["id", "ownerId", "name", "avatarColor"]
+    },
+    "Coaster": {
+      "title": "Coaster",
+      "description": "Roller coaster details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "park": { "type": "string" },
+        "country": { "type": "string" },
+        "type": { "type": "string", "enum": ["Steel", "Wooden", "Hybrid", "Alpine", "Family", "Powered", "Bobsled"] },
+        "manufacturer": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "isCustom": { "type": "boolean" },
+        "specs": {
+          "type": "object",
+          "properties": {
+            "height": { "type": "string" },
+            "speed": { "type": "string" },
+            "length": { "type": "string" },
+            "inversions": { "type": "integer" }
+          }
+        },
+        "variants": { "type": "array", "items": { "type": "string" } },
+        "audioUrl": { "type": "string" }
+      },
+      "required": ["id", "name", "park", "type", "manufacturer"]
+    },
+    "Credit": {
+      "title": "Credit",
+      "description": "A ride credit for a user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "ownerId": { "type": "string", "description": "Firebase Auth UID of the account owner" },
+        "coasterId": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "rideCount": { "type": "integer" },
+        "photoUrl": { "type": "string" },
+        "gallery": { "type": "array", "items": { "type": "string" } },
+        "notes": { "type": "string" },
+        "restraints": { "type": "string" },
+        "variant": { "type": "string" }
+      },
+      "required": ["id", "userId", "ownerId", "coasterId", "date", "rideCount"]
+    },
+    "WishlistEntry": {
+      "title": "WishlistEntry",
+      "description": "A coaster on a user's wishlist",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "ownerId": { "type": "string", "description": "Firebase Auth UID of the account owner" },
+        "coasterId": { "type": "string" },
+        "addedAt": { "type": "string", "format": "date-time" },
+        "notes": { "type": "string" }
+      },
+      "required": ["id", "userId", "ownerId", "coasterId", "addedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/coasters/{coasterId}": {
+      "schema": "Coaster",
+      "description": "Global or custom coaster database"
+    },
+    "/credits/{creditId}": {
+      "schema": "Credit",
+      "description": "User ride credits"
+    },
+    "/wishlist/{wishlistId}": {
+      "schema": "WishlistEntry",
+      "description": "User wishlist items"
+    }
+  }
+}

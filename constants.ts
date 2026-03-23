@@ -195,7 +195,7 @@ export const normalizeParkName = (rawName: string): string => {
 };
 
 export const INITIAL_USERS: User[] = [
-  { id: 'u1', name: 'Main Rider', avatarColor: 'bg-blue-500' }
+  { id: 'u1', ownerId: 'local', name: 'Main Rider', avatarColor: 'bg-blue-500' }
 ];
 
 // A curated list of top roller coasters worldwide to simulate a large database

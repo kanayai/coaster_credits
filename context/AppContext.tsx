@@ -1,10 +1,32 @@
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { User, Coaster, Credit, ViewState, WishlistEntry, RankingList } from '../types';
 import { INITIAL_COASTERS, INITIAL_USERS, normalizeManufacturer, cleanName, normalizeParkName, normalizeCountry } from '../constants';
 import { generateCoasterInfo, generateAppIcon, extractCoasterFromUrl } from '../services/geminiService';
 import { fetchCoasterImageFromWiki } from '../services/wikipediaService';
 import { storage } from '../services/storage';
+import { 
+  auth, 
+  db, 
+  googleProvider, 
+  signInWithPopup, 
+  signOut, 
+  onAuthStateChanged, 
+  collection, 
+  onSnapshot, 
+  query, 
+  where, 
+  setDoc, 
+  getDoc, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  doc,
+  writeBatch,
+  OperationType,
+  handleFirestoreError,
+  FirebaseUser
+} from '../firebase';
 
 export interface Notification {
   id: string;
@@ -15,7 +37,13 @@ export interface Notification {
 export type AppTheme = 'sky' | 'emerald' | 'violet' | 'rose' | 'amber';
 
 interface AppContextType {
-  activeUser: User;
+  // Auth
+  currentUser: FirebaseUser | null;
+  signIn: () => Promise<void>;
+  logout: () => Promise<void>;
+  isAuthLoading: boolean;
+
+  activeUser: User | null;
   users: User[];
   coasters: Coaster[];
   credits: Credit[];
@@ -106,8 +134,10 @@ const compressImage = (file: File): Promise<string> => {
 };
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [activeUserId, setActiveUserId] = useState<string>('u1');
-  const [users, setUsers] = useState<User[]>(INITIAL_USERS);
+  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [activeUserId, setActiveUserId] = useState<string | null>(null);
+  const [users, setUsers] = useState<User[]>([]);
   const [coasters, setCoasters] = useState<Coaster[]>(INITIAL_COASTERS);
   const [credits, setCredits] = useState<Credit[]>([]);
   const [wishlist, setWishlist] = useState<WishlistEntry[]>([]);
@@ -126,64 +156,131 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Deep linking for analytics
   const [analyticsFilter, setAnalyticsFilter] = useState<{ mode: string, value: string } | null>(null);
 
-  // --- INITIALIZATION ---
+  // --- AUTH ---
   useEffect(() => {
-    const init = async () => {
-        // 1. Try migrate from LocalStorage first (legacy support)
-        await storage.migrateFromLocalStorage();
-
-        // 2. Load from IndexedDB
-        const loadedUsers = await storage.get<User[]>('cc_users');
-        const loadedCoasters = await storage.get<Coaster[]>('cc_coasters');
-        const loadedCredits = await storage.get<Credit[]>('cc_credits');
-        const loadedWishlist = await storage.get<WishlistEntry[]>('cc_wishlist');
-        const loadedActiveId = await storage.get<string>('cc_active_user_id');
-        const loadedTheme = await storage.get<AppTheme>('cc_theme');
-
-        if (loadedUsers) setUsers(loadedUsers);
-        if (loadedCoasters) setCoasters(loadedCoasters);
-        if (loadedCredits) setCredits(loadedCredits);
-        if (loadedWishlist) setWishlist(loadedWishlist);
-        if (loadedActiveId) setActiveUserId(loadedActiveId);
-        if (loadedTheme) setAppTheme(loadedTheme);
-        
-        setIsInitialized(true);
-    };
-    init();
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+      setIsAuthLoading(false);
+    });
+    return unsubscribe;
   }, []);
 
-  // --- PERSISTENCE ---
-  useEffect(() => {
-      if (!isInitialized) return;
-      storage.set('cc_users', users);
-  }, [users, isInitialized]);
+  const signIn = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+      showNotification("Signed in successfully!", "success");
+    } catch (error: any) {
+      console.error("Sign in error", error);
+      
+      let message = "Failed to sign in";
+      if (error.code === 'auth/unauthorized-domain') {
+        message = "Domain not authorized in Firebase. Please add this domain to your Firebase Console.";
+      } else if (error.code === 'auth/network-request-failed') {
+        message = "Network error: Please check your internet connection or disable ad-blockers/firewalls.";
+      } else if (error.code === 'auth/popup-blocked') {
+        message = "Sign-in popup was blocked by your browser.";
+      } else if (error.code === 'auth/popup-closed-by-user') {
+        message = "Sign-in window was closed before completion.";
+      } else if (error.message) {
+        message = `Sign-in error: ${error.message}`;
+      }
+      
+      showNotification(message, "error");
+    }
+  };
 
-  useEffect(() => {
-      if (!isInitialized) return;
-      storage.set('cc_coasters', coasters);
-  }, [coasters, isInitialized]);
+  const logout = async () => {
+    try {
+      await signOut(auth);
+      setActiveUserId(null);
+      setUsers([]);
+      setCredits([]);
+      setWishlist([]);
+      showNotification("Signed out", "info");
+    } catch (error) {
+      console.error("Logout error", error);
+    }
+  };
 
+  // --- INITIALIZATION & REAL-TIME SYNC ---
   useEffect(() => {
-      if (!isInitialized) return;
-      storage.set('cc_credits', credits);
-  }, [credits, isInitialized]);
+    if (!currentUser) {
+      // Clear data if not logged in
+      setUsers([]);
+      setCredits([]);
+      setWishlist([]);
+      setIsInitialized(true);
+      return;
+    }
 
-  useEffect(() => {
-      if (!isInitialized) return;
-      storage.set('cc_wishlist', wishlist);
-  }, [wishlist, isInitialized]);
+    const uid = currentUser.uid;
 
+    // Sync Users
+    const qUsers = query(collection(db, 'users'), where('ownerId', '==', uid));
+    const unsubUsers = onSnapshot(qUsers, (snapshot) => {
+      const loadedUsers = snapshot.docs.map(doc => doc.data() as User);
+      setUsers(loadedUsers.length > 0 ? loadedUsers : INITIAL_USERS);
+      
+      // Handle active user selection
+      storage.get<string>('cc_active_user_id').then(id => {
+        if (id && loadedUsers.some(u => u.id === id)) {
+          setActiveUserId(id);
+        } else if (loadedUsers.length > 0) {
+          setActiveUserId(loadedUsers[0].id);
+        } else {
+          setActiveUserId(INITIAL_USERS[0].id);
+        }
+      });
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'users'));
+
+    // Sync Coasters (Global + Custom)
+    const unsubCoasters = onSnapshot(collection(db, 'coasters'), (snapshot) => {
+      const loadedCoasters = snapshot.docs.map(doc => doc.data() as Coaster);
+      // Merge global initial with custom from DB
+      const customOnes = loadedCoasters.filter(c => c.isCustom);
+      setCoasters([...INITIAL_COASTERS, ...customOnes]);
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'coasters'));
+
+    // Sync Credits
+    const qCredits = query(collection(db, 'credits'), where('ownerId', '==', uid));
+    const unsubCredits = onSnapshot(qCredits, (snapshot) => {
+      setCredits(snapshot.docs.map(doc => doc.data() as Credit));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'credits'));
+
+    // Sync Wishlist
+    const qWishlist = query(collection(db, 'wishlist'), where('ownerId', '==', uid));
+    const unsubWishlist = onSnapshot(qWishlist, (snapshot) => {
+      setWishlist(snapshot.docs.map(doc => doc.data() as WishlistEntry));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'wishlist'));
+
+    setIsInitialized(true);
+
+    return () => {
+      unsubUsers();
+      unsubCoasters();
+      unsubCredits();
+      unsubWishlist();
+    };
+  }, [currentUser]);
+
+  // Theme persistence
   useEffect(() => {
-      if (!isInitialized) return;
-      storage.set('cc_active_user_id', activeUserId);
-  }, [activeUserId, isInitialized]);
+    storage.get<AppTheme>('cc_theme').then(theme => {
+      if (theme) setAppTheme(theme);
+    });
+  }, []);
 
   useEffect(() => {
       if (!isInitialized) return;
       storage.set('cc_theme', appTheme);
   }, [appTheme, isInitialized]);
 
-  const activeUser = users.find(u => u.id === activeUserId) || users[0];
+  useEffect(() => {
+      if (!isInitialized || !activeUserId) return;
+      storage.set('cc_active_user_id', activeUserId);
+  }, [activeUserId, isInitialized]);
+
+  const activeUser = users.find(u => u.id === activeUserId) || users[0] || null;
 
   const switchUser = (userId: string) => {
     setActiveUserId(userId);
@@ -192,18 +289,29 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const addUser = async (name: string, photo?: File) => {
+    if (!currentUser) {
+      showNotification("Please sign in to add profiles", "error");
+      return;
+    }
+
     let avatarUrl;
     if (photo) {
         avatarUrl = await compressImage(photo);
     }
     const newUser: User = {
       id: generateId('u'),
+      ownerId: currentUser.uid,
       name,
       avatarColor: 'bg-emerald-500',
       avatarUrl
     };
-    setUsers([...users, newUser]);
-    switchUser(newUser.id);
+
+    try {
+      await setDoc(doc(db, 'users', newUser.id), newUser);
+      switchUser(newUser.id);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, `users/${newUser.id}`);
+    }
   };
 
   const updateUser = async (userId: string, newName: string, photo?: File) => {
@@ -211,24 +319,38 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (photo) {
           avatarUrl = await compressImage(photo);
       }
-      setUsers(prev => prev.map(u => u.id === userId ? { ...u, name: newName, ...(avatarUrl ? { avatarUrl } : {}) } : u));
-      showNotification("Profile updated");
-  };
-
-  const saveHighScore = (score: number) => {
-      const currentHigh = activeUser.highScore || 0;
-      if (score > currentHigh) {
-          setUsers(prev => prev.map(u => u.id === activeUserId ? { ...u, highScore: score } : u));
+      
+      try {
+        await updateDoc(doc(db, 'users', userId), {
+          name: newName,
+          ...(avatarUrl ? { avatarUrl } : {})
+        });
+        showNotification("Profile updated");
+      } catch (err) {
+        handleFirestoreError(err, OperationType.UPDATE, `users/${userId}`);
       }
   };
 
-  const updateRankings = (rankings: RankingList) => {
-      setUsers(prev => prev.map(u => 
-          u.id === activeUser.id 
-            ? { ...u, rankings } 
-            : u
-      ));
-      showNotification("Rankings saved!", "success");
+  const saveHighScore = async (score: number) => {
+      if (!activeUser) return;
+      const currentHigh = activeUser.highScore || 0;
+      if (score > currentHigh) {
+          try {
+            await updateDoc(doc(db, 'users', activeUser.id), { highScore: score });
+          } catch (err) {
+            handleFirestoreError(err, OperationType.UPDATE, `users/${activeUser.id}`);
+          }
+      }
+  };
+
+  const updateRankings = async (rankings: RankingList) => {
+      if (!activeUser) return;
+      try {
+        await updateDoc(doc(db, 'users', activeUser.id), { rankings });
+        showNotification("Rankings saved!", "success");
+      } catch (err) {
+        handleFirestoreError(err, OperationType.UPDATE, `users/${activeUser.id}`);
+      }
   };
 
   const changeView = (view: ViewState) => {
@@ -257,13 +379,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const hideNotification = () => setNotification(null);
 
   const addCredit = async (coasterId: string, date: string, notes: string, restraints: string, photos: File[] = [], variant?: string) => {
+    if (!currentUser || !activeUser) {
+      showNotification("Please sign in to log credits", "error");
+      return;
+    }
+
     let photoUrl;
     let gallery: string[] = [];
 
     if (photos.length > 0) {
-        // Process all photos
         const processed = await Promise.all(photos.map(p => compressImage(p)));
-        // First one is main, others are gallery
         photoUrl = processed[0];
         if (processed.length > 1) {
             gallery = processed.slice(1);
@@ -273,9 +398,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const newCredit: Credit = {
       id: generateId('cr'),
       userId: activeUser.id,
+      ownerId: currentUser.uid,
       coasterId,
       date,
-      rideCount: 1, // Default to 1, logic can handle increment if exact same date/variant logic exists later
+      rideCount: 1,
       notes,
       restraints,
       photoUrl,
@@ -283,58 +409,60 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       variant
     };
     
-    setCredits(prev => [...prev, newCredit]);
-    
-    // Auto-remove from wishlist if present
-    if (isInWishlist(coasterId)) {
-        removeFromWishlist(coasterId);
+    try {
+      await setDoc(doc(db, 'credits', newCredit.id), newCredit);
+      
+      if (isInWishlist(coasterId)) {
+          removeFromWishlist(coasterId);
+      }
+      return newCredit;
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, `credits/${newCredit.id}`);
     }
-
-    return newCredit;
   };
 
   const updateCredit = async (creditId: string, date: string, notes: string, restraints: string, mainPhotoUrl: string | undefined, gallery: string[], newPhotos: File[] = [], variant?: string) => {
       let newGallery = [...gallery];
       
-      // Process new uploads
       if (newPhotos && newPhotos.length > 0) {
           const processedNew = await Promise.all(newPhotos.map(p => compressImage(p)));
-          
-          // If we don't have a main photo yet, take the first new one
           if (!mainPhotoUrl && processedNew.length > 0) {
               mainPhotoUrl = processedNew[0];
-              // Add rest to gallery
               if (processedNew.length > 1) {
                   newGallery = [...newGallery, ...processedNew.slice(1)];
               }
           } else {
-              // Add all to gallery
               newGallery = [...newGallery, ...processedNew];
           }
       }
 
-      setCredits(prev => prev.map(c => c.id === creditId ? {
-          ...c,
+      try {
+        await updateDoc(doc(db, 'credits', creditId), {
           date,
           notes,
           restraints,
           photoUrl: mainPhotoUrl,
           gallery: newGallery,
           variant
-      } : c));
-      
-      showNotification("Log updated successfully", "success");
+        });
+        showNotification("Log updated successfully", "success");
+      } catch (err) {
+        handleFirestoreError(err, OperationType.UPDATE, `credits/${creditId}`);
+      }
   };
 
-  const deleteCredit = (creditId: string) => {
+  const deleteCredit = async (creditId: string) => {
     if (window.confirm("Are you sure you want to delete this ride log?")) {
-        setCredits(prev => prev.filter(c => c.id !== creditId));
-        showNotification("Ride log deleted", 'info');
+        try {
+          await deleteDoc(doc(db, 'credits', creditId));
+          showNotification("Ride log deleted", 'info');
+        } catch (err) {
+          handleFirestoreError(err, OperationType.DELETE, `credits/${creditId}`);
+        }
     }
   };
 
   const addNewCoaster = async (coasterData: Omit<Coaster, 'id'>) => {
-    // Check if duplicate exists (name + park)
     const exists = coasters.find(c => 
         cleanName(c.name).toLowerCase() === cleanName(coasterData.name).toLowerCase() && 
         cleanName(c.park).toLowerCase() === cleanName(coasterData.park).toLowerCase()
@@ -345,56 +473,72 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return exists;
     }
 
-    // Standardize before adding
     const newCoaster: Coaster = {
       ...coasterData,
       id: generateId('c'),
       manufacturer: normalizeManufacturer(coasterData.manufacturer),
       park: normalizeParkName(coasterData.park),
-      country: normalizeCountry(coasterData.country), // Integrated normalizeCountry
+      country: normalizeCountry(coasterData.country),
       isCustom: true
     };
     
-    setCoasters(prev => [...prev, newCoaster]);
-    return newCoaster;
+    try {
+      await setDoc(doc(db, 'coasters', newCoaster.id), newCoaster);
+      return newCoaster;
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, `coasters/${newCoaster.id}`);
+      return newCoaster; // Return anyway to allow local use if rules fail but app logic expects it
+    }
   };
 
-  const editCoaster = (id: string, updates: Partial<Coaster>) => {
-      setCoasters(prev => prev.map(c => {
-          if (c.id !== id) return c;
-          
-          const updated = { ...c, ...updates };
-          // Re-standardize relevant fields if they changed
-          if (updates.manufacturer) updated.manufacturer = normalizeManufacturer(updates.manufacturer);
-          if (updates.park) updated.park = normalizeParkName(updates.park);
-          if (updates.country) updated.country = normalizeCountry(updates.country);
-          return updated;
-      }));
-      showNotification("Coaster details updated", "success");
+  const editCoaster = async (id: string, updates: Partial<Coaster>) => {
+      const coaster = coasters.find(c => c.id === id);
+      if (!coaster) return;
+
+      const updated = { ...coaster, ...updates };
+      if (updates.manufacturer) updated.manufacturer = normalizeManufacturer(updates.manufacturer);
+      if (updates.park) updated.park = normalizeParkName(updates.park);
+      if (updates.country) updated.country = normalizeCountry(updates.country);
+
+      try {
+        await updateDoc(doc(db, 'coasters', id), updated);
+        showNotification("Coaster details updated", "success");
+      } catch (err) {
+        handleFirestoreError(err, OperationType.UPDATE, `coasters/${id}`);
+      }
   };
 
   const addMultipleCoasters = async (newCoasters: Omit<Coaster, 'id'>[]) => {
-      const toAdd: Coaster[] = [];
+      const batch = writeBatch(db);
+      let count = 0;
+
       newCoasters.forEach(c => {
           const exists = coasters.find(existing => 
              cleanName(existing.name).toLowerCase() === cleanName(c.name).toLowerCase() &&
              cleanName(existing.park).toLowerCase() === cleanName(c.park).toLowerCase()
           );
           if (!exists) {
-              toAdd.push({
+              const id = generateId('c');
+              const newC = {
                   ...c,
-                  id: generateId('c'),
+                  id,
                   manufacturer: normalizeManufacturer(c.manufacturer),
                   park: normalizeParkName(c.park),
                   country: normalizeCountry(c.country),
                   isCustom: true
-              });
+              };
+              batch.set(doc(db, 'coasters', id), newC);
+              count++;
           }
       });
       
-      if (toAdd.length > 0) {
-          setCoasters(prev => [...prev, ...toAdd]);
-          showNotification(`Imported ${toAdd.length} new coasters!`, 'success');
+      if (count > 0) {
+          try {
+            await batch.commit();
+            showNotification(`Imported ${count} new coasters!`, 'success');
+          } catch (err) {
+            handleFirestoreError(err, OperationType.WRITE, 'coasters (batch)');
+          }
       }
   };
 
@@ -410,25 +554,44 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return await generateAppIcon(prompt);
   };
 
-  const addToWishlist = (coasterId: string) => {
+  const addToWishlist = async (coasterId: string) => {
+      if (!currentUser || !activeUser) {
+        showNotification("Please sign in to add to wishlist", "error");
+        return;
+      }
+
       if (!isInWishlist(coasterId)) {
           const entry: WishlistEntry = {
               id: generateId('w'),
               userId: activeUser.id,
+              ownerId: currentUser.uid,
               coasterId,
               addedAt: new Date().toISOString()
           };
-          setWishlist(prev => [...prev, entry]);
-          showNotification("Added to Bucket List", "success");
+          try {
+            await setDoc(doc(db, 'wishlist', entry.id), entry);
+            showNotification("Added to Bucket List", "success");
+          } catch (err) {
+            handleFirestoreError(err, OperationType.CREATE, `wishlist/${entry.id}`);
+          }
       }
   };
 
-  const removeFromWishlist = (coasterId: string) => {
-      setWishlist(prev => prev.filter(w => !(w.userId === activeUser.id && w.coasterId === coasterId)));
-      showNotification("Removed from Bucket List", "info");
+  const removeFromWishlist = async (coasterId: string) => {
+      if (!activeUser) return;
+      const entry = wishlist.find(w => w.userId === activeUser.id && w.coasterId === coasterId);
+      if (entry) {
+          try {
+            await deleteDoc(doc(db, 'wishlist', entry.id));
+            showNotification("Removed from Bucket List", "info");
+          } catch (err) {
+            handleFirestoreError(err, OperationType.DELETE, `wishlist/${entry.id}`);
+          }
+      }
   };
 
   const isInWishlist = (coasterId: string) => {
+      if (!activeUser) return false;
       return wishlist.some(w => w.userId === activeUser.id && w.coasterId === coasterId);
   };
 
@@ -436,23 +599,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       showNotification("Enriching database... this may take a moment.", 'info');
       let updatedCount = 0;
       
-      // Clone array to modify
-      const newCoasters = [...coasters];
-      
-      for (let i = 0; i < newCoasters.length; i++) {
-          const c = newCoasters[i];
-          // Only fetch if it's a generic placeholder OR missing
+      for (let i = 0; i < coasters.length; i++) {
+          const c = coasters[i];
           if (!c.imageUrl || c.imageUrl.includes('picsum')) {
               const url = await fetchCoasterImageFromWiki(c.name, c.park);
               if (url) {
-                  newCoasters[i] = { ...c, imageUrl: url };
+                  await editCoaster(c.id, { imageUrl: url });
                   updatedCount++;
               }
           }
       }
 
       if (updatedCount > 0) {
-          setCoasters(newCoasters);
           showNotification(`Updated ${updatedCount} coasters with real photos!`, 'success');
       } else {
           showNotification("Database is already up to date.", 'info');
@@ -464,43 +622,68 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (!coaster) return null;
       const url = await fetchCoasterImageFromWiki(coaster.name, coaster.park);
       if (url) {
-          // Update silently in background
           updateCoasterImage(coasterId, url);
       }
       return url;
   };
 
-  const updateCoasterImage = (coasterId: string, imageUrl: string) => {
-      setCoasters(prev => prev.map(c => c.id === coasterId ? { ...c, imageUrl } : c));
+  const updateCoasterImage = async (coasterId: string, imageUrl: string) => {
+      try {
+        await updateDoc(doc(db, 'coasters', coasterId), { imageUrl });
+      } catch (err) {
+        handleFirestoreError(err, OperationType.UPDATE, `coasters/${coasterId}`);
+      }
   };
 
-  const standardizeDatabase = () => {
-      setCoasters(prev => prev.map(c => ({
-          ...c,
-          manufacturer: normalizeManufacturer(c.manufacturer),
-          park: normalizeParkName(c.park),
-          country: normalizeCountry(c.country) // Apply country normalization
-      })));
-      showNotification("Database names, parks, and countries standardized.", 'success');
+  const standardizeDatabase = async () => {
+      const batch = writeBatch(db);
+      let count = 0;
+      coasters.forEach(c => {
+          if (c.isCustom) {
+            batch.update(doc(db, 'coasters', c.id), {
+              manufacturer: normalizeManufacturer(c.manufacturer),
+              park: normalizeParkName(c.park),
+              country: normalizeCountry(c.country)
+            });
+            count++;
+          }
+      });
+      
+      if (count > 0) {
+        try {
+          await batch.commit();
+          showNotification("Database standardized.", 'success');
+        } catch (err) {
+          handleFirestoreError(err, OperationType.WRITE, 'coasters (standardize batch)');
+        }
+      }
   };
 
   const clearStoragePhotos = async () => {
       if (window.confirm("This will remove all uploaded photos from logs to free up space. Text data remains. Continue?")) {
-           setCredits(prev => prev.map(c => ({ ...c, photoUrl: undefined, gallery: [] })));
-           showNotification("Storage cleared.", 'success');
+           const batch = writeBatch(db);
+           credits.forEach(c => {
+             batch.update(doc(db, 'credits', c.id), { photoUrl: null, gallery: [] });
+           });
+           try {
+             await batch.commit();
+             showNotification("Storage cleared.", 'success');
+           } catch (err) {
+             handleFirestoreError(err, OperationType.WRITE, 'credits (clear photos batch)');
+           }
       }
   };
 
   const importData = (jsonData: any) => {
-      if (jsonData && Array.isArray(jsonData)) {
-          // Assume coaster array import for now
-          // Could be expanded to full backup import
-          showNotification("Full backup import not yet implemented, imported structure must match DB.", "info");
-      }
+      showNotification("Import not implemented for Cloud mode yet.", "info");
   };
 
   return (
     <AppContext.Provider value={{
+      currentUser,
+      signIn,
+      logout,
+      isAuthLoading,
       activeUser,
       users,
       coasters,
