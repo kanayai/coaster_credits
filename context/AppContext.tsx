@@ -97,6 +97,7 @@ interface AppContextType {
   // Recovery
   getLocalDataStats: () => Promise<{ users: number, credits: number, wishlist: number }>;
   forceMigrateLocalData: () => Promise<void>;
+  manualRefresh: () => void;
   
   // Ranking Actions
   updateRankings: (rankings: RankingList) => void;
@@ -153,6 +154,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [lastSearchQuery, setLastSearchQuery] = useState('');
   const [coasterToLog, setCoasterToLog] = useState<Coaster | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const manualRefresh = useCallback(() => {
+    setRefreshKey(prev => prev + 1);
+    setIsSyncing(true);
+    showNotification("Refreshing cloud data...", "info");
+  }, []);
   const [appTheme, setAppTheme] = useState<AppTheme>('sky');
   
   // Animations
@@ -337,7 +345,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => {
       cleanupPromise.then(cleanup => cleanup && typeof cleanup === 'function' && cleanup());
     };
-  }, [currentUser]);
+  }, [currentUser, refreshKey]);
 
   // Theme persistence
   useEffect(() => {
@@ -935,7 +943,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       appTheme,
       setAppTheme,
       getLocalDataStats,
-      forceMigrateLocalData
+      forceMigrateLocalData,
+      manualRefresh
     }}>
       {children}
     </AppContext.Provider>

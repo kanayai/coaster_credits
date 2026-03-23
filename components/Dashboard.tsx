@@ -2,7 +2,7 @@
 import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { Trophy, Palmtree, Layers, Factory, Flag, CalendarRange, MapPin, Navigation, ChevronRight, Plus, Loader2, ListOrdered, Ticket, TrendingUp } from 'lucide-react';
+import { Trophy, Palmtree, Layers, Factory, Flag, CalendarRange, MapPin, Navigation, ChevronRight, Plus, Loader2, ListOrdered, Ticket, TrendingUp, RefreshCw } from 'lucide-react';
 import EditCreditModal from './EditCreditModal';
 import RideDetailModal from './RideDetailModal';
 import ShareCardModal from './ShareCardModal';
@@ -14,13 +14,31 @@ import clsx from 'clsx';
 type ChartMetric = 'PARK' | 'TYPE' | 'MANUFACTURER' | 'COUNTRY' | 'YEAR';
 
 const Dashboard: React.FC = () => {
-  const { credits, coasters, activeUser, users, switchUser, changeView, setLastSearchQuery, showNotification, setAnalyticsFilter, appTheme } = useAppContext();
+  const { 
+    credits, 
+    coasters, 
+    activeUser, 
+    users, 
+    switchUser, 
+    changeView, 
+    setLastSearchQuery, 
+    showNotification, 
+    setAnalyticsFilter, 
+    appTheme,
+    isSyncing,
+    getLocalDataStats,
+    forceMigrateLocalData,
+    manualRefresh,
+    currentUser
+  } = useAppContext();
 
   // Modal States
   const [editingCreditData, setEditingCreditData] = useState<{ credit: Credit, coaster: Coaster } | null>(null);
   const [viewingCreditData, setViewingCreditData] = useState<{ credit: Credit, coaster: Coaster } | null>(null);
   const [sharingCreditData, setSharingCreditData] = useState<{ credit: Credit, coaster: Coaster } | null>(null);
   const [showProfileSwitcher, setShowProfileSwitcher] = useState(false);
+  const [showRecoveryOptions, setShowRecoveryOptions] = useState(false);
+  const [localStats, setLocalStats] = useState<{ users: number, credits: number, wishlist: number } | null>(null);
   
   const [chartMetric, setChartMetric] = useState<ChartMetric>('MANUFACTURER');
   
@@ -52,6 +70,17 @@ const Dashboard: React.FC = () => {
   }, [userCredits]);
   
   const totalRidesCount = userCredits.length;
+
+  // Check for local data when empty
+  React.useEffect(() => {
+    if (uniqueCreditsCount === 0 && currentUser) {
+      getLocalDataStats().then(stats => {
+        if (stats.credits > 0 || stats.users > 0) {
+          setLocalStats(stats);
+        }
+      });
+    }
+  }, [uniqueCreditsCount, currentUser, getLocalDataStats]);
 
   // Milestone Logic
   const milestoneLevels = [1, 10, 25, 50, 100, 250, 500];
@@ -211,7 +240,10 @@ const Dashboard: React.FC = () => {
             </h1>
             <p className="text-slate-400 text-xs font-bold uppercase tracking-widest flex items-center gap-1.5">
               {activeUser.name}'s Dashboard
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <div className={clsx(
+                "w-1.5 h-1.5 rounded-full",
+                isSyncing ? "bg-amber-500 animate-spin" : "bg-emerald-500 animate-pulse"
+              )} />
             </p>
           </button>
 
@@ -259,6 +291,16 @@ const Dashboard: React.FC = () => {
         </div>
         <div className="flex gap-2">
             <button 
+                onClick={manualRefresh}
+                className={clsx(
+                  "bg-slate-800 p-2.5 rounded-xl text-slate-400 hover:text-white border border-slate-700 hover:border-slate-500 transition-all",
+                  isSyncing && "animate-spin text-primary border-primary/50"
+                )}
+                title="Force Refresh Sync"
+            >
+                <RefreshCw size={20} />
+            </button>
+            <button 
                 onClick={() => {
                     const randomCoaster = coasters[Math.floor(Math.random() * coasters.length)];
                     setLastSearchQuery(randomCoaster.park);
@@ -278,15 +320,72 @@ const Dashboard: React.FC = () => {
           </div>
           
           <div className="relative z-10 flex flex-col items-center text-center space-y-2 py-4">
-               {uniqueCreditsCount === 0 && users.some(u => credits.some(c => c.userId === u.id)) && (
-                 <div className="w-full mb-4 p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl animate-bounce">
-                    <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-2">Data Found in Other Profile!</p>
-                    <button 
-                      onClick={() => setShowProfileSwitcher(true)}
-                      className="text-xs font-bold text-white underline decoration-amber-500/50 underline-offset-4"
-                    >
-                      Switch to see your credits
-                    </button>
+               {uniqueCreditsCount === 0 && (
+                 <div className="w-full mb-4 space-y-3">
+                    {/* Data in other profile warning */}
+                    {(() => {
+                      const otherProfilesWithData = users
+                        .filter(u => u.id !== activeUser.id)
+                        .map(u => ({ ...u, count: credits.filter(c => c.userId === u.id).length }))
+                        .filter(u => u.count > 0)
+                        .sort((a, b) => b.count - a.count);
+
+                      if (otherProfilesWithData.length > 0) {
+                        const bestProfile = otherProfilesWithData[0];
+                        return (
+                          <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl animate-in fade-in slide-in-from-top-2">
+                            <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-2">Data Found in Other Profile!</p>
+                            <p className="text-[10px] text-slate-400 mb-3">"{bestProfile.name}" has {bestProfile.count} credits. Did you mean to use that profile?</p>
+                            <button 
+                              onClick={() => switchUser(bestProfile.id)}
+                              className="bg-amber-600 hover:bg-amber-500 text-white text-[10px] font-bold py-2 px-4 rounded-lg transition-colors"
+                            >
+                              Switch to {bestProfile.name}
+                            </button>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+
+                    {/* Local data found warning */}
+                    {localStats && (
+                      <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-2xl animate-in fade-in slide-in-from-top-2">
+                        <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-2">Local Data Detected!</p>
+                        <p className="text-[10px] text-slate-400 mb-3">We found {localStats.credits} credits on this device that aren't in the cloud yet.</p>
+                        <button 
+                          onClick={async () => {
+                            await forceMigrateLocalData();
+                            setLocalStats(null);
+                          }}
+                          className="bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold py-2 px-4 rounded-lg transition-colors"
+                        >
+                          Restore to Cloud
+                        </button>
+                      </div>
+                    )}
+
+                    {/* General Help */}
+                    {!isSyncing && (
+                      <div className="p-4 bg-slate-800/50 border border-slate-700 rounded-2xl">
+                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Missing Credits?</p>
+                        <div className="flex gap-2 justify-center">
+                          <button 
+                            onClick={() => changeView('PROFILE')}
+                            className="text-[10px] font-bold text-slate-400 hover:text-white underline"
+                          >
+                            Check Sync Status
+                          </button>
+                          <span className="text-slate-700">•</span>
+                          <button 
+                            onClick={manualRefresh}
+                            className="text-[10px] font-bold text-slate-400 hover:text-white underline"
+                          >
+                            Force Refresh
+                          </button>
+                        </div>
+                      </div>
+                    )}
                  </div>
                )}
 
