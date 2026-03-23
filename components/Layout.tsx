@@ -1,7 +1,7 @@
 
 import React, { useEffect, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { LayoutDashboard, PlusCircle, UserCircle, List, Info, CheckCircle, CheckCircle2, AlertCircle, X, MapPin, Zap } from 'lucide-react';
+import { LayoutDashboard, PlusCircle, UserCircle, List, Info, CheckCircle, CheckCircle2, AlertCircle, X, MapPin, Zap, Loader2 } from 'lucide-react';
 import clsx from 'clsx';
 import { AppTheme } from '../context/AppContext';
 
@@ -29,7 +29,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     appTheme,
     currentUser,
     signIn,
-    isAuthLoading
+    isAuthLoading,
+    isSyncing
   } = useAppContext();
 
   const navItems = [
@@ -172,6 +173,17 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 >
                   {isAuthLoading ? '...' : 'Sign In'}
                 </button>
+              )}
+
+              {/* Cloud Sync Indicator */}
+              {currentUser && (
+                <div className={clsx(
+                  "absolute top-[calc(100%+8px)] right-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900/80 backdrop-blur-md border border-slate-800 shadow-xl transition-all duration-500",
+                  isSyncing ? "translate-y-0 opacity-100" : "-translate-y-4 opacity-0 pointer-events-none"
+                )}>
+                  <Loader2 size={12} className="text-primary animate-spin" />
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Syncing Cloud Data...</span>
+                </div>
               )}
             </header>
         )}

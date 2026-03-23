@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { UserPlus, CheckCircle2, Smartphone, Share2, QrCode, Edit2, Save, X, FileSpreadsheet, Database, Download, Cloud, PaintBucket, Sparkles, Loader2, Copy, ExternalLink, Camera, ImageDown, Upload, Wrench, Share, FileJson, Trophy, FileText, Code2, Calendar, Gamepad2, Ticket } from 'lucide-react';
+import { UserPlus, CheckCircle2, Smartphone, Share2, QrCode, Edit2, Save, X, FileSpreadsheet, Database, Download, Cloud, PaintBucket, Sparkles, Loader2, Copy, ExternalLink, Camera, ImageDown, Upload, Wrench, Share, FileJson, Trophy, FileText, Code2, Calendar, Gamepad2, Ticket, Info, AlertCircle } from 'lucide-react';
 import { User } from '../types';
 import { AppTheme } from '../context/AppContext';
 import clsx from 'clsx';
@@ -87,13 +87,28 @@ const ProfileManager: React.FC = () => {
     currentUser,
     signIn,
     logout,
-    isAuthLoading
+    isAuthLoading,
+    isSyncing,
+    getLocalDataStats,
+    forceMigrateLocalData
   } = useAppContext();
   const [isAdding, setIsAdding] = useState(false);
   const [newUserName, setNewUserName] = useState('');
   const [isEnriching, setIsEnriching] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
+  const [localStats, setLocalStats] = useState<{ users: number, credits: number, wishlist: number } | null>(null);
+  const [isCheckingLocal, setIsCheckingLocal] = useState(false);
+
+  useEffect(() => {
+    const checkLocal = async () => {
+      setIsCheckingLocal(true);
+      const stats = await getLocalDataStats();
+      setLocalStats(stats);
+      setIsCheckingLocal(false);
+    };
+    checkLocal();
+  }, []);
 
   const handleExportCSV = () => {
     if (!activeUser) return;
@@ -124,42 +139,65 @@ const ProfileManager: React.FC = () => {
   return (
     <div className="animate-fade-in space-y-8 pb-8">
       {/* Cloud Account Section */}
-      <div className="bg-slate-900 rounded-3xl p-6 border border-slate-800 shadow-xl">
-        <div className="flex items-center gap-2 mb-4 text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
-          <Cloud size={14} className="text-primary" /> Cloud Sync
+      <div className={clsx(
+        "rounded-3xl p-6 border shadow-xl transition-all duration-500",
+        currentUser ? "bg-emerald-500/5 border-emerald-500/20" : "bg-slate-900 border-slate-800"
+      )}>
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
+            <Cloud size={14} className={currentUser ? "text-emerald-400" : "text-primary"} /> 
+            {currentUser ? "Cloud Connected" : "Local Mode"}
+          </div>
+          {currentUser && (
+            <div className="flex items-center gap-2 px-2 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+              <div className={clsx("w-1.5 h-1.5 rounded-full", isSyncing ? "bg-amber-500 animate-pulse" : "bg-emerald-500")} />
+              <span className="text-[8px] font-black text-emerald-400 uppercase tracking-widest">
+                {isSyncing ? "Syncing..." : "Synced"}
+              </span>
+            </div>
+          )}
         </div>
         
         {currentUser ? (
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <img 
-                src={currentUser.photoURL || ''} 
-                alt="Account" 
-                className="w-12 h-12 rounded-full border-2 border-primary/20"
-                referrerPolicy="no-referrer"
-              />
+              <div className="relative">
+                <img 
+                  src={currentUser.photoURL || ''} 
+                  alt="Account" 
+                  className="w-12 h-12 rounded-full border-2 border-emerald-500/30 shadow-lg shadow-emerald-500/10"
+                  referrerPolicy="no-referrer"
+                />
+                <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-white p-0.5 rounded-full border-2 border-slate-900">
+                  <CheckCircle2 size={10} />
+                </div>
+              </div>
               <div>
-                <h3 className="font-bold text-white">{currentUser.displayName}</h3>
-                <p className="text-xs text-slate-500">{currentUser.email}</p>
+                <h3 className="font-bold text-white tracking-tight">{currentUser.displayName}</h3>
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{currentUser.email}</p>
               </div>
             </div>
             <button 
               onClick={logout}
-              className="p-2 text-slate-400 hover:text-red-400 transition-colors"
-              title="Sign Out"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-red-500/20 text-slate-400 hover:text-red-400 text-[10px] font-black uppercase tracking-widest transition-all border border-slate-700 hover:border-red-500/30 active:scale-95"
             >
-              <X size={20} />
+              <X size={14} /> Sign Out
             </button>
           </div>
         ) : (
           <div className="text-center py-4">
-            <p className="text-sm text-slate-400 mb-4 italic">Sign in to sync your credits across devices and never lose your data.</p>
+            <p className="text-sm text-slate-400 mb-4 italic font-medium leading-relaxed">Sign in to sync your credits across devices and never lose your data.</p>
             <button 
               onClick={signIn}
               disabled={isAuthLoading}
-              className="w-full bg-primary hover:bg-primary-hover text-white py-3 rounded-2xl font-black uppercase tracking-widest text-xs transition-all active:scale-95 disabled:opacity-50"
+              className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-primary/20 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
             >
-              {isAuthLoading ? 'Connecting...' : 'Sign In with Google'}
+              {isAuthLoading ? <Loader2 size={18} className="animate-spin" /> : (
+                <>
+                  <Cloud size={18} />
+                  Sign In with Google
+                </>
+              )}
             </button>
           </div>
         )}
@@ -225,6 +263,76 @@ const ProfileManager: React.FC = () => {
       {activeUser && (
         <div><h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-3">Ride Activity</h3><ActivityHeatmap /></div>
       )}
+
+      {/* Sync Troubleshooting */}
+      <div className="bg-slate-900/50 rounded-3xl p-6 border border-slate-800/50">
+        <div className="flex items-center gap-2 mb-4 text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
+          <Info size={14} className="text-primary" /> Sync Troubleshooting
+        </div>
+
+        {currentUser && credits.length === 0 && (
+          <div className="mb-6 p-5 bg-amber-500/10 border border-amber-500/30 rounded-3xl animate-fade-in">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2 bg-amber-500/20 rounded-xl text-amber-400">
+                <AlertCircle size={20} />
+              </div>
+              <div>
+                <h4 className="text-sm font-black text-amber-200 uppercase tracking-widest">Missing your data?</h4>
+                <p className="text-[10px] font-bold text-amber-500/60 uppercase tracking-wider">Let's try to recover it</p>
+              </div>
+            </div>
+            
+            <p className="text-xs text-amber-100/70 leading-relaxed mb-4">
+              If you had credits before signing in, they are stored locally on <strong className="text-amber-200">this specific browser</strong>. We can try to move them to your cloud account now.
+            </p>
+
+            {localStats && (localStats.credits > 0 || localStats.users > 0) ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between px-4 py-2 bg-black/20 rounded-xl border border-white/5">
+                   <span className="text-[10px] font-bold text-slate-400 uppercase">Local Credits Found</span>
+                   <span className="text-sm font-black text-amber-400 font-mono">{localStats.credits}</span>
+                </div>
+                <button 
+                  onClick={forceMigrateLocalData}
+                  className="w-full py-3 rounded-2xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-amber-500/20 active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <Cloud size={16} /> Restore Local Data to Cloud
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                <div className="p-3 bg-black/20 rounded-xl border border-white/5 text-center">
+                  <p className="text-[10px] font-bold text-amber-500/50 uppercase italic">No local data detected on this device.</p>
+                </div>
+                <p className="text-[10px] text-slate-500 leading-relaxed italic">
+                  Note: If you used a different phone or browser, you must sign in on <strong className="text-slate-400">that device</strong> first to sync your data.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="w-5 h-5 rounded-full bg-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-400 shrink-0 mt-0.5">1</div>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              <strong className="text-slate-200">Data missing on mobile?</strong> Ensure you are signed in with the <em className="text-primary not-italic font-bold underline decoration-primary/30 underline-offset-2">same Google account</em> on both devices.
+            </p>
+          </div>
+          <div className="flex items-start gap-3">
+            <div className="w-5 h-5 rounded-full bg-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-400 shrink-0 mt-0.5">2</div>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              <strong className="text-slate-200">Check your profile.</strong> If you have multiple profiles, you might need to <em className="text-primary not-italic font-bold underline decoration-primary/30 underline-offset-2">switch to the correct one</em> above.
+            </p>
+          </div>
+          <div className="flex items-start gap-3">
+            <div className="w-5 h-5 rounded-full bg-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-400 shrink-0 mt-0.5">3</div>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              <strong className="text-slate-200">Still not seeing it?</strong> Try signing out and signing back in to trigger a fresh cloud sync.
+            </p>
+          </div>
+        </div>
+      </div>
 
       <div>
         <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-3">Data & Settings</h3>

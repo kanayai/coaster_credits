@@ -42,6 +42,7 @@ interface AppContextType {
   signIn: () => Promise<void>;
   logout: () => Promise<void>;
   isAuthLoading: boolean;
+  isSyncing: boolean;
 
   activeUser: User | null;
   users: User[];
@@ -93,6 +94,10 @@ interface AppContextType {
   triggerFireworks: () => void;
   setAppTheme: (theme: AppTheme) => void;
   
+  // Recovery
+  getLocalDataStats: () => Promise<{ users: number, credits: number, wishlist: number }>;
+  forceMigrateLocalData: () => Promise<void>;
+  
   // Ranking Actions
   updateRankings: (rankings: RankingList) => void;
   
@@ -136,6 +141,7 @@ const compressImage = (file: File): Promise<string> => {
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [activeUserId, setActiveUserId] = useState<string | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [coasters, setCoasters] = useState<Coaster[]>(INITIAL_COASTERS);
@@ -226,6 +232,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       // --- CLOUD MODE ---
       const uid = currentUser.uid;
+      setIsSyncing(true);
 
       // Migration logic: If we have local data, move it to Firestore
       const localUsers = await storage.get<User[]>('cc_users');
@@ -294,7 +301,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           setUsers(INITIAL_USERS);
           setActiveUserId(INITIAL_USERS[0].id);
         }
-      }, (err) => handleFirestoreError(err, OperationType.LIST, 'users'));
+        setIsSyncing(false);
+      }, (err) => {
+        handleFirestoreError(err, OperationType.LIST, 'users');
+        setIsSyncing(false);
+      });
 
       const unsubCoasters = onSnapshot(collection(db, 'coasters'), (snapshot) => {
         const loadedCoasters = snapshot.docs.map(doc => doc.data() as Coaster);
@@ -811,12 +822,71 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       showNotification("Import not implemented for Cloud mode yet.", "info");
   };
 
+  const getLocalDataStats = async () => {
+    const localUsers = await storage.get<User[]>('cc_users');
+    const localCredits = await storage.get<Credit[]>('cc_credits');
+    const localWishlist = await storage.get<WishlistEntry[]>('cc_wishlist');
+    
+    return {
+      users: localUsers?.length || 0,
+      credits: localCredits?.length || 0,
+      wishlist: localWishlist?.length || 0
+    };
+  };
+
+  const forceMigrateLocalData = async () => {
+    if (!currentUser) {
+      showNotification("You must be signed in to migrate data to the cloud.", "error");
+      return;
+    }
+
+    const stats = await getLocalDataStats();
+    if (stats.users === 0 && stats.credits === 0 && stats.wishlist === 0) {
+      showNotification("No local data found to migrate.", "info");
+      return;
+    }
+
+    const uid = currentUser.uid;
+    const localUsers = await storage.get<User[]>('cc_users');
+    const localCredits = await storage.get<Credit[]>('cc_credits');
+    const localWishlist = await storage.get<WishlistEntry[]>('cc_wishlist');
+
+    const batch = writeBatch(db);
+    const usersToMigrate = localUsers || INITIAL_USERS;
+
+    for (const u of usersToMigrate) {
+      batch.set(doc(db, 'users', u.id), { ...u, ownerId: uid });
+    }
+    if (localCredits) {
+      for (const c of localCredits) {
+        batch.set(doc(db, 'credits', c.id), { ...c, ownerId: uid });
+      }
+    }
+    if (localWishlist) {
+      for (const w of localWishlist) {
+        batch.set(doc(db, 'wishlist', w.id), { ...w, ownerId: uid });
+      }
+    }
+
+    try {
+      await batch.commit();
+      await storage.set('cc_users', null);
+      await storage.set('cc_credits', null);
+      await storage.set('cc_wishlist', null);
+      showNotification("Manual migration successful!", "success");
+    } catch (err) {
+      console.error("Manual migration failed", err);
+      showNotification("Migration failed. Please try again.", "error");
+    }
+  };
+
   return (
     <AppContext.Provider value={{
       currentUser,
       signIn,
       logout,
       isAuthLoading,
+      isSyncing,
       activeUser,
       users,
       coasters,
@@ -863,7 +933,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       analyticsFilter,
       setAnalyticsFilter,
       appTheme,
-      setAppTheme
+      setAppTheme,
+      getLocalDataStats,
+      forceMigrateLocalData
     }}>
       {children}
     </AppContext.Provider>
