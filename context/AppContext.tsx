@@ -204,62 +204,127 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // --- INITIALIZATION & REAL-TIME SYNC ---
   useEffect(() => {
-    if (!currentUser) {
-      // Clear data if not logged in
-      setUsers([]);
-      setCredits([]);
-      setWishlist([]);
-      setIsInitialized(true);
-      return;
-    }
+    const initializeAndSync = async () => {
+      // 1. First, ensure any old localStorage data is moved to IndexedDB
+      await storage.migrateFromLocalStorage();
 
-    const uid = currentUser.uid;
+      if (!currentUser) {
+        // --- LOCAL MODE ---
+        const localUsers = await storage.get<User[]>('cc_users');
+        const localCredits = await storage.get<Credit[]>('cc_credits');
+        const localWishlist = await storage.get<WishlistEntry[]>('cc_wishlist');
+        const localActiveId = await storage.get<string>('cc_active_user_id');
 
-    // Sync Users
-    const qUsers = query(collection(db, 'users'), where('ownerId', '==', uid));
-    const unsubUsers = onSnapshot(qUsers, (snapshot) => {
-      const loadedUsers = snapshot.docs.map(doc => doc.data() as User);
-      setUsers(loadedUsers.length > 0 ? loadedUsers : INITIAL_USERS);
-      
-      // Handle active user selection
-      storage.get<string>('cc_active_user_id').then(id => {
-        if (id && loadedUsers.some(u => u.id === id)) {
-          setActiveUserId(id);
-        } else if (loadedUsers.length > 0) {
-          setActiveUserId(loadedUsers[0].id);
+        setUsers(localUsers && localUsers.length > 0 ? localUsers : INITIAL_USERS);
+        setCredits(localCredits || []);
+        setWishlist(localWishlist || []);
+        setActiveUserId(localActiveId || (localUsers && localUsers.length > 0 ? localUsers[0].id : INITIAL_USERS[0].id));
+        
+        setIsInitialized(true);
+        return;
+      }
+
+      // --- CLOUD MODE ---
+      const uid = currentUser.uid;
+
+      // Migration logic: If we have local data, move it to Firestore
+      const localUsers = await storage.get<User[]>('cc_users');
+      const localCredits = await storage.get<Credit[]>('cc_credits');
+      const localWishlist = await storage.get<WishlistEntry[]>('cc_wishlist');
+
+      // Even if localUsers is null, we might have credits for the default INITIAL_USERS
+      const usersToMigrate = localUsers || INITIAL_USERS;
+      const hasDataToMigrate = (localCredits && localCredits.length > 0) || 
+                               (localWishlist && localWishlist.length > 0) || 
+                               (localUsers && localUsers.length > 0);
+
+      if (hasDataToMigrate) {
+        showNotification("Syncing your local data to the cloud...", "info");
+        const batch = writeBatch(db);
+
+        // Migrate Users (including INITIAL_USERS if they have data)
+        for (const u of usersToMigrate) {
+          const userRef = doc(db, 'users', u.id);
+          batch.set(userRef, { ...u, ownerId: uid });
+        }
+
+        // Migrate Credits
+        if (localCredits) {
+          for (const c of localCredits) {
+            const creditRef = doc(db, 'credits', c.id);
+            batch.set(creditRef, { ...c, ownerId: uid });
+          }
+        }
+
+        // Migrate Wishlist
+        if (localWishlist) {
+          for (const w of localWishlist) {
+            const wishlistRef = doc(db, 'wishlist', w.id);
+            batch.set(wishlistRef, { ...w, ownerId: uid });
+          }
+        }
+
+        try {
+          await batch.commit();
+          // Clear local storage after successful migration to prevent double migration
+          await storage.set('cc_users', null);
+          await storage.set('cc_credits', null);
+          await storage.set('cc_wishlist', null);
+          showNotification("Cloud sync complete!", "success");
+        } catch (err) {
+          console.error("Migration failed", err);
+          showNotification("Cloud sync encountered an issue. Some data might not be synced yet.", "error");
+        }
+      }
+
+      // Start Real-time Sync from Firestore
+      const qUsers = query(collection(db, 'users'), where('ownerId', '==', uid));
+      const unsubUsers = onSnapshot(qUsers, (snapshot) => {
+        const loadedUsers = snapshot.docs.map(doc => doc.data() as User);
+        if (loadedUsers.length > 0) {
+          setUsers(loadedUsers);
+          storage.get<string>('cc_active_user_id').then(id => {
+            if (id && loadedUsers.some(u => u.id === id)) {
+              setActiveUserId(id);
+            } else {
+              setActiveUserId(loadedUsers[0].id);
+            }
+          });
         } else {
+          setUsers(INITIAL_USERS);
           setActiveUserId(INITIAL_USERS[0].id);
         }
-      });
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'users'));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'users'));
 
-    // Sync Coasters (Global + Custom)
-    const unsubCoasters = onSnapshot(collection(db, 'coasters'), (snapshot) => {
-      const loadedCoasters = snapshot.docs.map(doc => doc.data() as Coaster);
-      // Merge global initial with custom from DB
-      const customOnes = loadedCoasters.filter(c => c.isCustom);
-      setCoasters([...INITIAL_COASTERS, ...customOnes]);
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'coasters'));
+      const unsubCoasters = onSnapshot(collection(db, 'coasters'), (snapshot) => {
+        const loadedCoasters = snapshot.docs.map(doc => doc.data() as Coaster);
+        const customOnes = loadedCoasters.filter(c => c.isCustom);
+        setCoasters([...INITIAL_COASTERS, ...customOnes]);
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'coasters'));
 
-    // Sync Credits
-    const qCredits = query(collection(db, 'credits'), where('ownerId', '==', uid));
-    const unsubCredits = onSnapshot(qCredits, (snapshot) => {
-      setCredits(snapshot.docs.map(doc => doc.data() as Credit));
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'credits'));
+      const qCredits = query(collection(db, 'credits'), where('ownerId', '==', uid));
+      const unsubCredits = onSnapshot(qCredits, (snapshot) => {
+        setCredits(snapshot.docs.map(doc => doc.data() as Credit));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'credits'));
 
-    // Sync Wishlist
-    const qWishlist = query(collection(db, 'wishlist'), where('ownerId', '==', uid));
-    const unsubWishlist = onSnapshot(qWishlist, (snapshot) => {
-      setWishlist(snapshot.docs.map(doc => doc.data() as WishlistEntry));
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'wishlist'));
+      const qWishlist = query(collection(db, 'wishlist'), where('ownerId', '==', uid));
+      const unsubWishlist = onSnapshot(qWishlist, (snapshot) => {
+        setWishlist(snapshot.docs.map(doc => doc.data() as WishlistEntry));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'wishlist'));
 
-    setIsInitialized(true);
+      setIsInitialized(true);
 
+      return () => {
+        unsubUsers();
+        unsubCoasters();
+        unsubCredits();
+        unsubWishlist();
+      };
+    };
+
+    const cleanupPromise = initializeAndSync();
     return () => {
-      unsubUsers();
-      unsubCoasters();
-      unsubCredits();
-      unsubWishlist();
+      cleanupPromise.then(cleanup => cleanup && typeof cleanup === 'function' && cleanup());
     };
   }, [currentUser]);
 
@@ -289,28 +354,31 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const addUser = async (name: string, photo?: File) => {
-    if (!currentUser) {
-      showNotification("Please sign in to add profiles", "error");
-      return;
-    }
-
     let avatarUrl;
     if (photo) {
         avatarUrl = await compressImage(photo);
     }
     const newUser: User = {
       id: generateId('u'),
-      ownerId: currentUser.uid,
+      ownerId: currentUser?.uid || 'local',
       name,
       avatarColor: 'bg-emerald-500',
       avatarUrl
     };
 
-    try {
-      await setDoc(doc(db, 'users', newUser.id), newUser);
+    if (currentUser) {
+      try {
+        await setDoc(doc(db, 'users', newUser.id), newUser);
+        switchUser(newUser.id);
+      } catch (err) {
+        handleFirestoreError(err, OperationType.CREATE, `users/${newUser.id}`);
+      }
+    } else {
+      const updatedUsers = [...users, newUser];
+      setUsers(updatedUsers);
+      await storage.set('cc_users', updatedUsers);
       switchUser(newUser.id);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, `users/${newUser.id}`);
+      showNotification("Local profile created!");
     }
   };
 
@@ -320,14 +388,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           avatarUrl = await compressImage(photo);
       }
       
-      try {
-        await updateDoc(doc(db, 'users', userId), {
-          name: newName,
-          ...(avatarUrl ? { avatarUrl } : {})
-        });
-        showNotification("Profile updated");
-      } catch (err) {
-        handleFirestoreError(err, OperationType.UPDATE, `users/${userId}`);
+      if (currentUser) {
+        try {
+          await updateDoc(doc(db, 'users', userId), {
+            name: newName,
+            ...(avatarUrl ? { avatarUrl } : {})
+          });
+          showNotification("Profile updated");
+        } catch (err) {
+          handleFirestoreError(err, OperationType.UPDATE, `users/${userId}`);
+        }
+      } else {
+        const updatedUsers = users.map(u => u.id === userId ? { ...u, name: newName, ...(avatarUrl ? { avatarUrl } : {}) } : u);
+        setUsers(updatedUsers);
+        await storage.set('cc_users', updatedUsers);
+        showNotification("Local profile updated");
       }
   };
 
@@ -335,21 +410,34 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (!activeUser) return;
       const currentHigh = activeUser.highScore || 0;
       if (score > currentHigh) {
-          try {
-            await updateDoc(doc(db, 'users', activeUser.id), { highScore: score });
-          } catch (err) {
-            handleFirestoreError(err, OperationType.UPDATE, `users/${activeUser.id}`);
+          if (currentUser) {
+            try {
+              await updateDoc(doc(db, 'users', activeUser.id), { highScore: score });
+            } catch (err) {
+              handleFirestoreError(err, OperationType.UPDATE, `users/${activeUser.id}`);
+            }
+          } else {
+            const updatedUsers = users.map(u => u.id === activeUser.id ? { ...u, highScore: score } : u);
+            setUsers(updatedUsers);
+            await storage.set('cc_users', updatedUsers);
           }
       }
   };
 
   const updateRankings = async (rankings: RankingList) => {
       if (!activeUser) return;
-      try {
-        await updateDoc(doc(db, 'users', activeUser.id), { rankings });
-        showNotification("Rankings saved!", "success");
-      } catch (err) {
-        handleFirestoreError(err, OperationType.UPDATE, `users/${activeUser.id}`);
+      if (currentUser) {
+        try {
+          await updateDoc(doc(db, 'users', activeUser.id), { rankings });
+          showNotification("Rankings saved!", "success");
+        } catch (err) {
+          handleFirestoreError(err, OperationType.UPDATE, `users/${activeUser.id}`);
+        }
+      } else {
+        const updatedUsers = users.map(u => u.id === activeUser.id ? { ...u, rankings } : u);
+        setUsers(updatedUsers);
+        await storage.set('cc_users', updatedUsers);
+        showNotification("Local rankings saved!", "success");
       }
   };
 
@@ -379,8 +467,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const hideNotification = () => setNotification(null);
 
   const addCredit = async (coasterId: string, date: string, notes: string, restraints: string, photos: File[] = [], variant?: string) => {
-    if (!currentUser || !activeUser) {
-      showNotification("Please sign in to log credits", "error");
+    if (!activeUser) {
+      showNotification("Please select a profile to log credits", "error");
       return;
     }
 
@@ -398,7 +486,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const newCredit: Credit = {
       id: generateId('cr'),
       userId: activeUser.id,
-      ownerId: currentUser.uid,
+      ownerId: currentUser?.uid || 'local',
       coasterId,
       date,
       rideCount: 1,
@@ -409,15 +497,25 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       variant
     };
     
-    try {
-      await setDoc(doc(db, 'credits', newCredit.id), newCredit);
-      
+    if (currentUser) {
+      try {
+        await setDoc(doc(db, 'credits', newCredit.id), newCredit);
+        if (isInWishlist(coasterId)) {
+            removeFromWishlist(coasterId);
+        }
+        return newCredit;
+      } catch (err) {
+        handleFirestoreError(err, OperationType.CREATE, `credits/${newCredit.id}`);
+      }
+    } else {
+      const updatedCredits = [...credits, newCredit];
+      setCredits(updatedCredits);
+      await storage.set('cc_credits', updatedCredits);
       if (isInWishlist(coasterId)) {
           removeFromWishlist(coasterId);
       }
+      showNotification("Credit logged locally!");
       return newCredit;
-    } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, `credits/${newCredit.id}`);
     }
   };
 
@@ -436,29 +534,49 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           }
       }
 
-      try {
-        await updateDoc(doc(db, 'credits', creditId), {
+      if (currentUser) {
+        try {
+          await updateDoc(doc(db, 'credits', creditId), {
+            date,
+            notes,
+            restraints,
+            photoUrl: mainPhotoUrl,
+            gallery: newGallery,
+            variant
+          });
+          showNotification("Log updated successfully", "success");
+        } catch (err) {
+          handleFirestoreError(err, OperationType.UPDATE, `credits/${creditId}`);
+        }
+      } else {
+        const updatedCredits = credits.map(c => c.id === creditId ? {
+          ...c,
           date,
           notes,
           restraints,
           photoUrl: mainPhotoUrl,
           gallery: newGallery,
           variant
-        });
-        showNotification("Log updated successfully", "success");
-      } catch (err) {
-        handleFirestoreError(err, OperationType.UPDATE, `credits/${creditId}`);
+        } : c);
+        setCredits(updatedCredits);
+        await storage.set('cc_credits', updatedCredits);
+        showNotification("Local log updated successfully", "success");
       }
   };
 
   const deleteCredit = async (creditId: string) => {
-    if (window.confirm("Are you sure you want to delete this ride log?")) {
-        try {
-          await deleteDoc(doc(db, 'credits', creditId));
-          showNotification("Ride log deleted", 'info');
-        } catch (err) {
-          handleFirestoreError(err, OperationType.DELETE, `credits/${creditId}`);
-        }
+    if (currentUser) {
+      try {
+        await deleteDoc(doc(db, 'credits', creditId));
+        showNotification("Ride log deleted", 'info');
+      } catch (err) {
+        handleFirestoreError(err, OperationType.DELETE, `credits/${creditId}`);
+      }
+    } else {
+      const updatedCredits = credits.filter(c => c.id !== creditId);
+      setCredits(updatedCredits);
+      await storage.set('cc_credits', updatedCredits);
+      showNotification("Local ride log deleted", 'info');
     }
   };
 
@@ -555,8 +673,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const addToWishlist = async (coasterId: string) => {
-      if (!currentUser || !activeUser) {
-        showNotification("Please sign in to add to wishlist", "error");
+      if (!activeUser) {
+        showNotification("Please select a profile to add to wishlist", "error");
         return;
       }
 
@@ -564,15 +682,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           const entry: WishlistEntry = {
               id: generateId('w'),
               userId: activeUser.id,
-              ownerId: currentUser.uid,
+              ownerId: currentUser?.uid || 'local',
               coasterId,
               addedAt: new Date().toISOString()
           };
-          try {
-            await setDoc(doc(db, 'wishlist', entry.id), entry);
-            showNotification("Added to Bucket List", "success");
-          } catch (err) {
-            handleFirestoreError(err, OperationType.CREATE, `wishlist/${entry.id}`);
+          
+          if (currentUser) {
+            try {
+              await setDoc(doc(db, 'wishlist', entry.id), entry);
+              showNotification("Added to Bucket List", "success");
+            } catch (err) {
+              handleFirestoreError(err, OperationType.CREATE, `wishlist/${entry.id}`);
+            }
+          } else {
+            const updatedWishlist = [...wishlist, entry];
+            setWishlist(updatedWishlist);
+            await storage.set('cc_wishlist', updatedWishlist);
+            showNotification("Added to local Bucket List", "success");
           }
       }
   };
@@ -581,11 +707,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (!activeUser) return;
       const entry = wishlist.find(w => w.userId === activeUser.id && w.coasterId === coasterId);
       if (entry) {
-          try {
-            await deleteDoc(doc(db, 'wishlist', entry.id));
-            showNotification("Removed from Bucket List", "info");
-          } catch (err) {
-            handleFirestoreError(err, OperationType.DELETE, `wishlist/${entry.id}`);
+          if (currentUser) {
+            try {
+              await deleteDoc(doc(db, 'wishlist', entry.id));
+              showNotification("Removed from Bucket List", "info");
+            } catch (err) {
+              handleFirestoreError(err, OperationType.DELETE, `wishlist/${entry.id}`);
+            }
+          } else {
+            const updatedWishlist = wishlist.filter(w => w.id !== entry.id);
+            setWishlist(updatedWishlist);
+            await storage.set('cc_wishlist', updatedWishlist);
+            showNotification("Removed from local Bucket List", "info");
           }
       }
   };
