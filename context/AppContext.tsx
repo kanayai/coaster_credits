@@ -181,6 +181,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const signIn = async () => {
     try {
+      // Force the account selection dialog to appear
+      googleProvider.setCustomParameters({ prompt: 'select_account' });
       await signInWithPopup(auth, googleProvider);
       showNotification("Signed in successfully!", "success");
     } catch (error: any) {
