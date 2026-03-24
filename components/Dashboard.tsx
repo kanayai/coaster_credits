@@ -29,7 +29,9 @@ const Dashboard: React.FC = () => {
     getLocalDataStats,
     forceMigrateLocalData,
     manualRefresh,
-    currentUser
+    currentUser,
+    logout,
+    signIn
   } = useAppContext();
 
   // Modal States
@@ -322,6 +324,37 @@ const Dashboard: React.FC = () => {
           <div className="relative z-10 flex flex-col items-center text-center space-y-2 py-4">
                {uniqueCreditsCount === 0 && (
                  <div className="w-full mb-4 space-y-3">
+                    {/* Not Logged In Warning */}
+                    {!currentUser && uniqueCreditsCount === 0 && (
+                      <div className="p-4 bg-primary/10 border border-primary/30 rounded-2xl">
+                        <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-2">Not Signed In</p>
+                        <p className="text-[10px] text-slate-400 mb-3 italic">Sign in to access your cloud-synced credits and profiles.</p>
+                        <button 
+                          onClick={signIn}
+                          className="w-full bg-primary hover:bg-primary-hover text-white text-[10px] font-black py-2.5 px-4 rounded-lg transition-all shadow-lg shadow-primary/20"
+                        >
+                          Sign In with Google
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Wrong Account Warning */}
+                    {currentUser && uniqueCreditsCount === 0 && (
+                      <div className="p-4 bg-slate-800/50 border border-slate-700 rounded-2xl">
+                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Logged in as:</p>
+                        <p className="text-xs font-bold text-slate-300 mb-3 truncate">{currentUser.email}</p>
+                        <div className="flex flex-col gap-2">
+                          <p className="text-[10px] text-slate-500 italic">Data is linked to your Google account. If you used a different account before, you won't see your credits here.</p>
+                          <button 
+                            onClick={logout}
+                            className="bg-slate-700 hover:bg-red-500/20 text-slate-300 hover:text-red-400 text-[10px] font-black py-2 px-4 rounded-lg transition-all border border-slate-600 hover:border-red-500/30"
+                          >
+                            Sign Out & Switch Account
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Data in other profile warning */}
                     {(() => {
                       const otherProfilesWithData = users
