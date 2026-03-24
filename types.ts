@@ -71,4 +71,4 @@ export interface User {
   highScore?: number;
 }
 
-export type ViewState = 'DASHBOARD' | 'ADD_CREDIT' | 'COASTER_LIST' | 'PROFILE' | 'PARK_STATS' | 'RANKINGS' | 'MILESTONES' | 'GAME' | 'QUEUE_HUB';
+export type ViewState = 'DASHBOARD' | 'ADD_CREDIT' | 'COASTER_LIST' | 'PROFILE' | 'PARK_STATS' | 'RANKINGS' | 'MILESTONES' | 'GAME' | 'QUEUE_HUB' | 'DATA_RECOVERY';

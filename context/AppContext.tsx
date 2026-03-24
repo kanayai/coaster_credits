@@ -89,6 +89,7 @@ interface AppContextType {
   updateCoasterImage: (coasterId: string, imageUrl: string) => void;
   autoFetchCoasterImage: (coasterId: string) => Promise<string | null>;
   importData: (jsonData: any) => void;
+  exportData: () => void;
   standardizeDatabase: () => void;
   triggerConfetti: () => void;
   triggerFireworks: () => void;
@@ -840,8 +841,220 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
   };
 
-  const importData = (jsonData: any) => {
-      showNotification("Import not implemented for Cloud mode yet.", "info");
+  const importData = async (jsonData: any) => {
+      try {
+        const data = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData;
+        
+        if (currentUser) {
+          const uid = currentUser.uid;
+          const batch = writeBatch(db);
+          
+          const coasterIdMap: Record<string, string> = {};
+          const userIdMap: Record<string, string> = {};
+          
+          let coastersAdded = 0;
+          let usersAdded = 0;
+          let creditsAdded = 0;
+          let wishlistAdded = 0;
+
+          // 1. Handle Users
+          if (data.users && Array.isArray(data.users)) {
+            for (const u of data.users) {
+              const existing = users.find(e => e.name.toLowerCase() === u.name.toLowerCase());
+              if (existing) {
+                userIdMap[u.id] = existing.id;
+              } else {
+                const newId = generateId('u');
+                userIdMap[u.id] = newId;
+                const newUser = {
+                  ...u,
+                  id: newId,
+                  ownerId: uid
+                };
+                batch.set(doc(db, 'users', newId), newUser);
+                usersAdded++;
+              }
+            }
+          }
+
+          // 2. Handle Coasters
+          if (data.coasters && Array.isArray(data.coasters)) {
+            for (const c of data.coasters) {
+              const existing = coasters.find(e => 
+                cleanName(e.name).toLowerCase() === cleanName(c.name).toLowerCase() &&
+                cleanName(e.park).toLowerCase() === cleanName(c.park).toLowerCase()
+              );
+
+              if (existing) {
+                coasterIdMap[c.id] = existing.id;
+              } else {
+                const newId = generateId('c');
+                coasterIdMap[c.id] = newId;
+                const newC = {
+                  ...c,
+                  id: newId,
+                  manufacturer: normalizeManufacturer(c.manufacturer),
+                  park: normalizeParkName(c.park),
+                  country: normalizeCountry(c.country),
+                  isCustom: true
+                };
+                batch.set(doc(db, 'coasters', newId), newC);
+                coastersAdded++;
+              }
+            }
+          }
+
+          // 3. Handle Credits
+          if (data.credits && Array.isArray(data.credits)) {
+            for (const c of data.credits) {
+              const alreadyExists = credits.find(existing => existing.id === c.id);
+              if (!alreadyExists) {
+                const newCoasterId = coasterIdMap[c.coasterId] || c.coasterId;
+                const newUserId = userIdMap[c.userId] || (users.find(u => u.id === c.userId) ? c.userId : activeUser?.id || users[0]?.id);
+                
+                const newCredit = {
+                  ...c,
+                  coasterId: newCoasterId,
+                  userId: newUserId,
+                  ownerId: uid
+                };
+                batch.set(doc(db, 'credits', c.id), newCredit);
+                creditsAdded++;
+              }
+            }
+          }
+
+          // 4. Handle Wishlist
+          if (data.wishlist && Array.isArray(data.wishlist)) {
+            for (const w of data.wishlist) {
+              const alreadyExists = wishlist.find(existing => existing.id === w.id);
+              if (!alreadyExists) {
+                const newCoasterId = coasterIdMap[w.coasterId] || w.coasterId;
+                const newUserId = userIdMap[w.userId] || (users.find(u => u.id === w.userId) ? w.userId : activeUser?.id || users[0]?.id);
+                
+                const newWishlist = {
+                  ...w,
+                  coasterId: newCoasterId,
+                  userId: newUserId,
+                  ownerId: uid
+                };
+                batch.set(doc(db, 'wishlist', w.id), newWishlist);
+                wishlistAdded++;
+              }
+            }
+          }
+
+          if (coastersAdded > 0 || usersAdded > 0 || creditsAdded > 0 || wishlistAdded > 0) {
+            await batch.commit();
+            showNotification(`Import successful! Added ${usersAdded} users, ${coastersAdded} coasters, ${creditsAdded} credits, and ${wishlistAdded} wishlist items to your cloud account.`, "success");
+          } else {
+            showNotification("No new data found to import.", "info");
+          }
+        } else {
+          // --- LOCAL MODE IMPORT ---
+          const localUsers = [...users];
+          const localCredits = [...credits];
+          const localWishlist = [...wishlist];
+          const localCoasters = [...coasters];
+
+          let usersAdded = 0;
+          let coastersAdded = 0;
+          let creditsAdded = 0;
+          let wishlistAdded = 0;
+
+          const coasterIdMap: Record<string, string> = {};
+          const userIdMap: Record<string, string> = {};
+
+          if (data.users && Array.isArray(data.users)) {
+            data.users.forEach((u: any) => {
+              const existing = localUsers.find(e => e.name.toLowerCase() === u.name.toLowerCase());
+              if (existing) {
+                userIdMap[u.id] = existing.id;
+              } else {
+                const newId = generateId('u');
+                userIdMap[u.id] = newId;
+                localUsers.push({ ...u, id: newId, ownerId: 'local' });
+                usersAdded++;
+              }
+            });
+          }
+
+          if (data.coasters && Array.isArray(data.coasters)) {
+            data.coasters.forEach((c: any) => {
+              const existing = localCoasters.find(e => 
+                cleanName(e.name).toLowerCase() === cleanName(c.name).toLowerCase() &&
+                cleanName(e.park).toLowerCase() === cleanName(c.park).toLowerCase()
+              );
+              if (existing) {
+                coasterIdMap[c.id] = existing.id;
+              } else {
+                const newId = generateId('c');
+                coasterIdMap[c.id] = newId;
+                localCoasters.push({ ...c, id: newId, isCustom: true });
+                coastersAdded++;
+              }
+            });
+          }
+
+          if (data.credits && Array.isArray(data.credits)) {
+            data.credits.forEach((c: any) => {
+              if (!localCredits.some(existing => existing.id === c.id)) {
+                const newCoasterId = coasterIdMap[c.coasterId] || c.coasterId;
+                const newUserId = userIdMap[c.userId] || c.userId;
+                localCredits.push({ ...c, coasterId: newCoasterId, userId: newUserId, ownerId: 'local' });
+                creditsAdded++;
+              }
+            });
+          }
+
+          if (data.wishlist && Array.isArray(data.wishlist)) {
+            data.wishlist.forEach((w: any) => {
+              if (!localWishlist.some(existing => existing.id === w.id)) {
+                const newCoasterId = coasterIdMap[w.coasterId] || w.coasterId;
+                const newUserId = userIdMap[w.userId] || w.userId;
+                localWishlist.push({ ...w, coasterId: newCoasterId, userId: newUserId, ownerId: 'local' });
+                wishlistAdded++;
+              }
+            });
+          }
+
+          if (usersAdded > 0 || coastersAdded > 0 || creditsAdded > 0 || wishlistAdded > 0) {
+            setUsers(localUsers);
+            setCredits(localCredits);
+            setWishlist(localWishlist);
+            setCoasters(localCoasters);
+            
+            await storage.set('cc_users', localUsers);
+            await storage.set('cc_credits', localCredits);
+            await storage.set('cc_wishlist', localWishlist);
+            
+            showNotification(`Local import successful! Added ${usersAdded} users, ${coastersAdded} coasters, ${creditsAdded} credits, and ${wishlistAdded} wishlist items.`, "success");
+          } else {
+            showNotification("No new local data found to import.", "info");
+          }
+        }
+      } catch (err) {
+        console.error("Import failed", err);
+        showNotification("Import failed. Please check your JSON format.", "error");
+      }
+  };
+
+  const exportData = () => {
+    const data = {
+      users,
+      credits,
+      wishlist,
+      coasters: coasters.filter(c => c.isCustom),
+      exportDate: new Date().toISOString(),
+      version: '1.0.0'
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `CoasterCount_Backup_${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    showNotification("JSON Backup Exported", "success");
   };
 
   const getLocalDataStats = async () => {
@@ -983,6 +1196,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       updateCoasterImage,
       autoFetchCoasterImage,
       importData,
+      exportData,
       standardizeDatabase,
       clearStoragePhotos,
       showConfetti,

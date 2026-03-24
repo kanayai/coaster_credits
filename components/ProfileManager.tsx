@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { UserPlus, CheckCircle2, Smartphone, Share2, QrCode, Edit2, Save, X, FileSpreadsheet, Database, Download, Cloud, PaintBucket, Sparkles, Loader2, Copy, ExternalLink, Camera, ImageDown, Upload, Wrench, Share, FileJson, Trophy, FileText, Code2, Calendar, Gamepad2, Ticket, Info, AlertCircle } from 'lucide-react';
+import { UserPlus, CheckCircle2, Smartphone, Share2, QrCode, Edit2, Save, X, FileSpreadsheet, Database, Download, Cloud, PaintBucket, Sparkles, Loader2, Copy, ExternalLink, Camera, ImageDown, Upload, Wrench, Share, FileJson, Trophy, FileText, Code2, Calendar, Gamepad2, Ticket, Info, AlertCircle, ShieldAlert } from 'lucide-react';
 import { User } from '../types';
 import { AppTheme } from '../context/AppContext';
 import clsx from 'clsx';
@@ -79,6 +79,7 @@ const ProfileManager: React.FC = () => {
     coasters, 
     enrichDatabaseImages, 
     importData, 
+    exportData,
     standardizeDatabase, 
     changeView, 
     showNotification, 
@@ -413,10 +414,18 @@ const ProfileManager: React.FC = () => {
       )}
 
       <div>
-        <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-3">Data & Settings</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest">Data & Settings</h3>
+          <button 
+            onClick={() => changeView('DATA_RECOVERY')}
+            className="flex items-center gap-1.5 text-[10px] font-black text-primary uppercase tracking-widest hover:underline"
+          >
+            <ShieldAlert size={12} /> Data Recovery Hub
+          </button>
+        </div>
         <div className="grid grid-cols-2 gap-3">
             <button onClick={handleExportCSV} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col items-center gap-2 hover:bg-slate-750"><FileSpreadsheet size={24} className="text-emerald-500" /><span className="text-xs font-bold text-slate-300">Export CSV</span></button>
-            <label className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col items-center gap-2 hover:bg-slate-750 cursor-pointer"><Upload size={24} className="text-blue-500" /><span className="text-xs font-bold text-slate-300">Import JSON</span><input type="file" accept=".json" className="hidden" onChange={(e) => { if (e.target.files?.[0]) { const reader = new FileReader(); reader.onload = (ev) => importData(JSON.parse(ev.target?.result as string)); reader.readAsText(e.target.files[0]); } }} /></label>
+            <button onClick={exportData} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col items-center gap-2 hover:bg-slate-750"><FileJson size={24} className="text-blue-500" /><span className="text-xs font-bold text-slate-300">Export JSON</span></button>
             <button onClick={() => { setIsEnriching(true); enrichDatabaseImages().finally(() => setIsEnriching(false)); }} disabled={isEnriching} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col items-center gap-2 hover:bg-slate-750">{isEnriching ? <Loader2 size={24} className="animate-spin text-primary" /> : <ImageDown size={24} className="text-primary" />}<span className="text-xs font-bold text-slate-300">Fetch Photos</span></button>
              <button onClick={standardizeDatabase} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col items-center gap-2 hover:bg-slate-750"><Wrench size={24} className="text-amber-500" /><span className="text-xs font-bold text-slate-300">Clean DB</span></button>
         </div>

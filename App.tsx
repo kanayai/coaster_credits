@@ -11,6 +11,7 @@ import Rankings from './components/Rankings';
 import Milestones from './components/Milestones';
 import RetroGame from './components/RetroGame';
 import QueueHub from './components/QueueHub';
+import DataRecoveryHub from './components/DataRecoveryHub';
 
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -37,6 +38,7 @@ const AppContent: React.FC = () => {
       case 'MILESTONES': return <Milestones />;
       case 'GAME': return <RetroGame />;
       case 'QUEUE_HUB': return <QueueHub />;
+      case 'DATA_RECOVERY': return <DataRecoveryHub />;
       default: return <Dashboard key={activeUser?.id} />;
     }
   };

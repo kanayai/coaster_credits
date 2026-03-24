@@ -34,7 +34,8 @@ const Dashboard: React.FC = () => {
     logout,
     signIn,
     scanAllCredits,
-    addUser
+    addUser,
+    importData
   } = useAppContext();
 
   // Modal States
@@ -459,6 +460,33 @@ const Dashboard: React.FC = () => {
                 <p className="text-[10px] text-slate-500 italic">No missing data detected automatically. Try a manual refresh or check other profiles.</p>
               </div>
             )}
+          </div>
+
+          <div className="p-3 bg-slate-800/50 rounded-xl border border-slate-700/50 mb-4">
+            <p className="text-[10px] text-slate-400 mb-2 font-bold uppercase tracking-wider">Manual Import</p>
+            <label className="w-full bg-slate-700 hover:bg-slate-600 text-white text-[9px] font-bold py-2 rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer">
+              <Plus size={12} /> Import JSON Backup
+              <input 
+                type="file" 
+                accept=".json" 
+                className="hidden" 
+                onChange={(e) => {
+                  if (e.target.files?.[0]) {
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                      try {
+                        const json = JSON.parse(ev.target?.result as string);
+                        importData(json);
+                        setShowRecoveryOptions(false);
+                      } catch (err) {
+                        showNotification("Invalid JSON file.", "error");
+                      }
+                    };
+                    reader.readAsText(e.target.files[0]);
+                  }
+                }} 
+              />
+            </label>
           </div>
 
           <div className="p-3 bg-slate-800/50 rounded-xl border border-slate-700/50">
