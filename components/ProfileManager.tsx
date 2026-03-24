@@ -355,6 +355,35 @@ const ProfileManager: React.FC = () => {
               </div>
             </div>
 
+            {(() => {
+              const userIds = new Set(users.map(u => u.id));
+              const orphanedCount = credits.filter(c => !userIds.has(c.userId)).length;
+              if (orphanedCount > 0) {
+                return (
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl animate-pulse">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-[10px] font-bold text-amber-500 uppercase">Orphaned Credits</span>
+                      <span className="text-sm font-black text-amber-400">{orphanedCount}</span>
+                    </div>
+                    <p className="text-[9px] text-amber-200/60 mb-3 italic">These credits are missing their rider profile.</p>
+                    <button 
+                      onClick={async () => {
+                        const orphanedUserIds = [...new Set(credits.filter(c => !users.some(u => u.id === c.userId)).map(c => c.userId))];
+                        for (const uid of orphanedUserIds) {
+                          await addUser(`Recovered Profile (${uid.slice(-4)})`, undefined, uid);
+                        }
+                        showNotification("Profiles recovered!", "success");
+                      }}
+                      className="w-full py-2 bg-amber-600 hover:bg-amber-500 text-white text-[9px] font-bold rounded-lg transition-all"
+                    >
+                      Recover Profiles
+                    </button>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
             <div className="space-y-2">
               <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest px-1">Breakdown by Profile</p>
               {users.map(u => {

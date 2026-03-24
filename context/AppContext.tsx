@@ -64,7 +64,7 @@ interface AppContextType {
   
   // Actions
   switchUser: (userId: string) => void;
-  addUser: (name: string, photo?: File) => void;
+  addUser: (name: string, photo?: File, id?: string) => void;
   updateUser: (userId: string, newName: string, photo?: File) => void;
   saveHighScore: (score: number) => void;
   addCredit: (coasterId: string, date: string, notes: string, restraints: string, photos?: File[], variant?: string) => Promise<Credit | undefined>;
@@ -98,6 +98,7 @@ interface AppContextType {
   getLocalDataStats: () => Promise<{ users: number, credits: number, wishlist: number }>;
   forceMigrateLocalData: () => Promise<void>;
   manualRefresh: () => void;
+  scanAllCredits: () => Promise<void>;
   
   // Ranking Actions
   updateRankings: (rankings: RankingList) => void;
@@ -374,13 +375,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     showNotification(`Welcome back, ${users.find(u => u.id === userId)?.name}!`);
   };
 
-  const addUser = async (name: string, photo?: File) => {
+  const addUser = async (name: string, photo?: File, id?: string) => {
     let avatarUrl;
     if (photo) {
         avatarUrl = await compressImage(photo);
     }
     const newUser: User = {
-      id: generateId('u'),
+      id: id || generateId('u'),
       ownerId: currentUser?.uid || 'local',
       name,
       avatarColor: 'bg-emerald-500',
@@ -890,6 +891,44 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  const scanAllCredits = async () => {
+    if (!currentUser) return;
+    
+    // Check if user is the designated admin
+    const isAdmin = currentUser.email === "k.anaya.izquierdo@gmail.com";
+    if (!isAdmin) {
+      showNotification("Only admins can perform a global scan.", "error");
+      return;
+    }
+
+    setIsSyncing(true);
+    showNotification("Performing global data scan...", "info");
+
+    try {
+      const { getDocs } = await import('firebase/firestore');
+      const allCreditsSnapshot = await getDocs(collection(db, 'credits'));
+      const allCredits = allCreditsSnapshot.docs.map(doc => doc.data() as Credit);
+      
+      // Also fetch all users to check ownership
+      const allUsersSnapshot = await getDocs(collection(db, 'users'));
+      const allUsers = allUsersSnapshot.docs.map(doc => doc.data() as User);
+      
+      // Find credits that belong to the current user but might be missing ownerId
+      // This is tricky because we don't know which ones are theirs if ownerId is missing.
+      // But if they are an admin, they can see EVERYTHING.
+      
+      setCredits(allCredits);
+      setUsers(allUsers.length > 0 ? allUsers : INITIAL_USERS);
+      
+      showNotification(`Scan complete. Found ${allCredits.length} total credits in database.`, "success");
+    } catch (err) {
+      console.error("Global scan failed", err);
+      showNotification("Global scan failed. Check console for details.", "error");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   return (
     <AppContext.Provider value={{
       currentUser,
@@ -946,7 +985,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setAppTheme,
       getLocalDataStats,
       forceMigrateLocalData,
-      manualRefresh
+      manualRefresh,
+      scanAllCredits
     }}>
       {children}
     </AppContext.Provider>
