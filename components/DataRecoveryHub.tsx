@@ -300,9 +300,10 @@ const DataRecoveryHub: React.FC = () => {
                   </p>
                   <button 
                     onClick={forceMigrateLocalData}
-                    className="w-full py-4 rounded-2xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-amber-500/20 active:scale-95 flex items-center justify-center gap-2"
+                    disabled={isSyncing}
+                    className="w-full py-4 rounded-2xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-amber-500/20 active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
                   >
-                    <Cloud size={18} /> Push Local Data to Cloud
+                    {isSyncing ? <RefreshCw size={18} className="animate-spin" /> : <Cloud size={18} />} Push Local Data to Cloud
                   </button>
                 </div>
               </div>

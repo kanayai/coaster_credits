@@ -1078,44 +1078,61 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return;
     }
 
-    const stats = await getLocalDataStats();
-    if (stats.users === 0 && stats.credits === 0 && stats.wishlist === 0) {
-      showNotification("No local data found to migrate.", "info");
-      return;
-    }
-
-    const uid = currentUser.uid;
-    const localUsers = await storage.get<User[]>('cc_users');
-    const localCredits = await storage.get<Credit[]>('cc_credits');
-    const localWishlist = await storage.get<WishlistEntry[]>('cc_wishlist');
-
-    const batch = writeBatch(db);
-    const usersToMigrate = localUsers || INITIAL_USERS;
-
-    for (const u of usersToMigrate) {
-      batch.set(doc(db, 'users', u.id), { ...u, ownerId: uid });
-    }
-    if (localCredits) {
-      for (const c of localCredits) {
-        batch.set(doc(db, 'credits', c.id), { ...c, ownerId: uid });
-      }
-    }
-    if (localWishlist) {
-      for (const w of localWishlist) {
-        batch.set(doc(db, 'wishlist', w.id), { ...w, ownerId: uid });
-      }
-    }
-
+    setIsSyncing(true);
     try {
+      const stats = await getLocalDataStats();
+      if (stats.users === 0 && stats.credits === 0 && stats.wishlist === 0) {
+        showNotification("No local data found to migrate.", "info");
+        return;
+      }
+
+      const uid = currentUser.uid;
+      const localUsers = await storage.get<User[]>('cc_users');
+      const localCredits = await storage.get<Credit[]>('cc_credits');
+      const localWishlist = await storage.get<WishlistEntry[]>('cc_wishlist');
+
+      const batch = writeBatch(db);
+      const usersToMigrate = localUsers || INITIAL_USERS;
+
+      // To avoid permission errors with shared default IDs like 'u1', 
+      // we'll check if the user exists and if we own it.
+      // If we don't own it, we skip it to prevent the whole batch from failing.
+      const { getDoc, doc } = await import('firebase/firestore');
+      
+      for (const u of usersToMigrate) {
+        const userRef = doc(db, 'users', u.id);
+        const userSnap = await getDoc(userRef);
+        
+        if (!userSnap.exists() || userSnap.data()?.ownerId === uid) {
+          batch.set(userRef, { ...u, ownerId: uid });
+        } else {
+          console.warn(`Skipping migration of user ${u.id} as it is owned by another account.`);
+        }
+      }
+
+      if (localCredits) {
+        for (const c of localCredits) {
+          batch.set(doc(db, 'credits', c.id), { ...c, ownerId: uid });
+        }
+      }
+      if (localWishlist) {
+        for (const w of localWishlist) {
+          batch.set(doc(db, 'wishlist', w.id), { ...w, ownerId: uid });
+        }
+      }
+
       await batch.commit();
       await storage.set('cc_users', null);
       await storage.set('cc_credits', null);
       await storage.set('cc_wishlist', null);
+      
       showNotification("Manual migration successful!", "success");
       manualRefresh();
     } catch (err) {
       console.error("Manual migration failed", err);
-      showNotification("Migration failed. Please try again.", "error");
+      showNotification("Migration failed. Some data might be already owned by another account.", "error");
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -1186,24 +1203,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return;
       }
 
-      const newUsers: User[] = [...users];
+      const newUsersList: User[] = [];
+      const batch = writeBatch(db);
+      
       missingUserIds.forEach(id => {
-        newUsers.push({
+        const newUser: User = {
           id,
-          name: `Recovered Profile (${id.slice(-4)})`,
+          name: `Recovered Profile (${id.length > 4 ? id.slice(-4) : id})`,
           ownerId: currentUser.uid,
           avatarColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'][Math.floor(Math.random() * 6)]
-        });
+        };
+        newUsersList.push(newUser);
+        batch.set(doc(db, 'users', id), newUser);
       });
 
-      // Save to cloud
-      const batch = writeBatch(db);
-      newUsers.forEach(u => {
-        batch.set(doc(db, 'users', u.id), u);
-      });
       await batch.commit();
 
-      setUsers(newUsers);
+      setUsers(prev => [...prev, ...newUsersList]);
       showNotification(`Successfully reconstructed ${missingUserIds.size} profiles!`, "success");
     } catch (err) {
       console.error("Reconstruction failed", err);
