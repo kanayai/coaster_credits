@@ -1243,25 +1243,65 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
 
     setIsSyncing(true);
-    showNotification("Performing global data scan...", "info");
+    showNotification("Performing deep global data scan...", "info");
 
     try {
-      const { getDocs } = await import('firebase/firestore');
+      const { getDocs, collection } = await import('firebase/firestore');
+      
+      // 1. Scan ALL credits
       const allCreditsSnapshot = await getDocs(collection(db, 'credits'));
-      const allCredits = allCreditsSnapshot.docs.map(doc => doc.data() as Credit);
+      const allCredits = allCreditsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Credit));
       
-      // Also fetch all users to check ownership
+      // 2. Scan ALL users
       const allUsersSnapshot = await getDocs(collection(db, 'users'));
-      const allUsers = allUsersSnapshot.docs.map(doc => doc.data() as User);
+      const allUsers = allUsersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
+
+      // 3. Scan ALL wishlist
+      const allWishlistSnapshot = await getDocs(collection(db, 'wishlist'));
+      const allWishlist = allWishlistSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as WishlistEntry));
       
-      // Find credits that belong to the current user but might be missing ownerId
-      // This is tricky because we don't know which ones are theirs if ownerId is missing.
-      // But if they are an admin, they can see EVERYTHING.
+      // 4. Deep LocalStorage Scan (Looking for ANY legacy keys)
+      const legacyData: any = {};
+      const possibleKeys = [
+        'users', 'credits', 'wishlist', 'coasters', 'active_user_id',
+        'cc_users', 'cc_credits', 'cc_wishlist', 'cc_coasters', 'cc_active_user_id',
+        'coaster_data', 'my_credits', 'ride_log'
+      ];
       
+      possibleKeys.forEach(key => {
+        const val = localStorage.getItem(key);
+        if (val) {
+          try {
+            legacyData[key] = JSON.parse(val);
+          } catch {
+            legacyData[key] = val;
+          }
+        }
+      });
+
+      if (Object.keys(legacyData).length > 0) {
+        console.log("Found Legacy LocalStorage Data:", legacyData);
+      }
+      
+      // Identify orphaned credits
+      const existingUserIds = new Set(allUsers.map(u => u.id));
+      const orphanedCredits = allCredits.filter(c => !existingUserIds.has(c.userId));
+      
+      console.log(`Scan Results:
+        - Total Credits: ${allCredits.length}
+        - Total Users: ${allUsers.length}
+        - Orphaned Credits: ${orphanedCredits.length}
+        - Legacy Local Keys: ${Object.keys(legacyData).join(', ')}
+      `);
+
       setCredits(allCredits);
       setUsers(allUsers.length > 0 ? allUsers : INITIAL_USERS);
       
-      showNotification(`Scan complete. Found ${allCredits.length} total credits in database.`, "success");
+      if (orphanedCredits.length > 0) {
+        showNotification(`Scan complete. Found ${allCredits.length} credits, including ${orphanedCredits.length} orphaned ones!`, "success");
+      } else {
+        showNotification(`Scan complete. Found ${allCredits.length} total credits.`, "success");
+      }
     } catch (err) {
       console.error("Global scan failed", err);
       showNotification("Global scan failed. Check console for details.", "error");

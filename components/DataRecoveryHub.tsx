@@ -17,6 +17,7 @@ import {
   FileJson,
   History
 } from 'lucide-react';
+import { db } from '../firebase';
 import clsx from 'clsx';
 
 const DataRecoveryHub: React.FC = () => {
@@ -42,6 +43,9 @@ const DataRecoveryHub: React.FC = () => {
   const [isCheckingLocal, setIsCheckingLocal] = useState(false);
   const isAdmin = currentUser?.email === "k.anaya.izquierdo@gmail.com";
 
+  const [manualUserId, setManualUserId] = useState('');
+  const [isRepairing, setIsRepairing] = useState(false);
+
   useEffect(() => {
     const checkLocal = async () => {
       setIsCheckingLocal(true);
@@ -51,6 +55,68 @@ const DataRecoveryHub: React.FC = () => {
     };
     checkLocal();
   }, []);
+
+  const [storageAudit, setStorageAudit] = useState<{ key: string, size: number, type: 'local' | 'db' }[]>([]);
+
+  useEffect(() => {
+    const audit: { key: string, size: number, type: 'local' | 'db' }[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key) {
+        const val = localStorage.getItem(key) || '';
+        audit.push({ key, size: val.length, type: 'local' });
+      }
+    }
+
+    // Check IndexedDB
+    const checkDB = async () => {
+      try {
+        const dbName = 'CoasterCloudDB';
+        const request = indexedDB.open(dbName);
+        request.onsuccess = (e: any) => {
+          const db = e.target.result;
+          const stores = Array.from(db.objectStoreNames);
+          stores.forEach((storeName: any) => {
+            audit.push({ key: `DB: ${storeName}`, size: 0, type: 'db' });
+          });
+          setStorageAudit([...audit].sort((a, b) => b.size - a.size));
+        };
+      } catch (err) {
+        setStorageAudit([...audit].sort((a, b) => b.size - a.size));
+      }
+    };
+    checkDB();
+  }, []);
+
+  const handleManualRepair = async () => {
+    if (!manualUserId.trim()) {
+      showNotification("Please enter a User ID", "error");
+      return;
+    }
+    setIsRepairing(true);
+    try {
+      // We'll use the repairDatabase logic but for a specific ID
+      const { getDocs, query, where, collection, writeBatch, doc } = await import('firebase/firestore');
+      const q = query(collection(db, 'credits'), where('userId', '==', manualUserId.trim()));
+      const snap = await getDocs(q);
+      
+      if (snap.empty) {
+        showNotification("No credits found for this User ID", "info");
+      } else {
+        const batch = writeBatch(db);
+        snap.docs.forEach(docSnap => {
+          batch.update(docSnap.ref, { ownerId: currentUser?.uid });
+        });
+        await batch.commit();
+        showNotification(`Successfully reclaimed ${snap.size} credits!`, "success");
+        manualRefresh();
+      }
+    } catch (err) {
+      showNotification("Repair failed", "error");
+    } finally {
+      setIsRepairing(false);
+    }
+  };
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files?.[0]) {
@@ -164,6 +230,46 @@ const DataRecoveryHub: React.FC = () => {
                 >
                   <ShieldAlert size={14} /> Trigger Nuclear Reset
                 </button>
+              </div>
+
+              <div className="p-4 bg-slate-800/50 rounded-2xl border border-slate-700">
+                <h3 className="text-xs font-black text-white uppercase mb-1">Manual Profile Claim</h3>
+                <p className="text-[10px] text-slate-400 leading-relaxed mb-4">
+                  If you know the old User ID (e.g. "u1" or a random string), you can manually claim all credits associated with it.
+                </p>
+                <div className="flex gap-2">
+                  <input 
+                    type="text"
+                    value={manualUserId}
+                    onChange={(e) => setManualUserId(e.target.value)}
+                    placeholder="Enter User ID (e.g. u1)"
+                    className="flex-1 bg-black/40 border border-slate-700 rounded-xl px-4 py-2 text-xs text-white font-mono placeholder:text-slate-600 focus:outline-none focus:border-primary/50"
+                  />
+                  <button 
+                    onClick={handleManualRepair}
+                    disabled={isRepairing}
+                    className="px-4 py-2 rounded-xl bg-primary text-white text-[10px] font-black uppercase tracking-widest hover:bg-primary/80 transition-all disabled:opacity-50"
+                  >
+                    {isRepairing ? <RefreshCw size={14} className="animate-spin" /> : "Claim"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-4 bg-slate-800/50 rounded-2xl border border-slate-700">
+                <h3 className="text-xs font-black text-white uppercase mb-1">Browser Storage Audit</h3>
+                <p className="text-[10px] text-slate-400 leading-relaxed mb-4">
+                  These are the raw keys currently in your browser's local storage.
+                </p>
+                <div className="space-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+                  {storageAudit.length > 0 ? storageAudit.map((item, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-2 bg-black/20 rounded-lg border border-slate-800">
+                      <span className="text-[10px] font-mono text-slate-300 truncate max-w-[150px]">{item.key}</span>
+                      <span className="text-[10px] font-mono text-slate-500">{(item.size / 1024).toFixed(2)} KB</span>
+                    </div>
+                  )) : (
+                    <div className="text-[10px] text-slate-600 text-center py-4 italic">No local storage keys found.</div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
