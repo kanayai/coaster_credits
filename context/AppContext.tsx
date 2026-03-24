@@ -846,8 +846,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const importData = async (jsonData: any) => {
       try {
-        const data = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData;
+        let rawData = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData;
         
+        // Normalize data structure: if it's an array, assume it's a list of credits
+        let data: any = {};
+        if (Array.isArray(rawData)) {
+          data = { credits: rawData };
+        } else {
+          data = rawData;
+        }
+
         if (currentUser) {
           const uid = currentUser.uid;
           const batch = writeBatch(db);
@@ -867,8 +875,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               if (existing) {
                 userIdMap[u.id] = existing.id;
               } else {
-                const newId = generateId('u');
-                userIdMap[u.id] = newId;
+                const newId = u.id || generateId('u');
+                userIdMap[u.id || newId] = newId;
                 const newUser = {
                   ...u,
                   id: newId,
@@ -891,14 +899,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               if (existing) {
                 coasterIdMap[c.id] = existing.id;
               } else {
-                const newId = generateId('c');
-                coasterIdMap[c.id] = newId;
+                const newId = c.id || generateId('c');
+                coasterIdMap[c.id || newId] = newId;
                 const newC = {
                   ...c,
                   id: newId,
-                  manufacturer: normalizeManufacturer(c.manufacturer),
-                  park: normalizeParkName(c.park),
-                  country: normalizeCountry(c.country),
+                  manufacturer: normalizeManufacturer(c.manufacturer || 'Unknown'),
+                  park: normalizeParkName(c.park || 'Unknown Park'),
+                  country: normalizeCountry(c.country || 'Unknown'),
                   isCustom: true
                 };
                 batch.set(doc(db, 'coasters', newId), newC);
@@ -910,18 +918,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           // 3. Handle Credits
           if (data.credits && Array.isArray(data.credits)) {
             for (const c of data.credits) {
-              const alreadyExists = credits.find(existing => existing.id === c.id);
+              // Basic validation: must have a coaster reference
+              if (!c.coasterId && !c.coasterName) continue;
+
+              const creditId = c.id || generateId('cr');
+              const alreadyExists = credits.find(existing => existing.id === creditId);
+              
               if (!alreadyExists) {
                 const newCoasterId = coasterIdMap[c.coasterId] || c.coasterId;
                 const newUserId = userIdMap[c.userId] || (users.find(u => u.id === c.userId) ? c.userId : activeUser?.id || users[0]?.id);
                 
                 const newCredit = {
                   ...c,
+                  id: creditId,
                   coasterId: newCoasterId,
                   userId: newUserId,
-                  ownerId: uid
+                  ownerId: uid,
+                  date: c.date || new Date().toISOString(),
+                  rideCount: c.rideCount || 1
                 };
-                batch.set(doc(db, 'credits', c.id), newCredit);
+                batch.set(doc(db, 'credits', creditId), newCredit);
                 creditsAdded++;
               }
             }
@@ -930,18 +946,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           // 4. Handle Wishlist
           if (data.wishlist && Array.isArray(data.wishlist)) {
             for (const w of data.wishlist) {
-              const alreadyExists = wishlist.find(existing => existing.id === w.id);
+              if (!w.coasterId) continue;
+
+              const wishlistId = w.id || generateId('w');
+              const alreadyExists = wishlist.find(existing => existing.id === wishlistId);
+              
               if (!alreadyExists) {
                 const newCoasterId = coasterIdMap[w.coasterId] || w.coasterId;
                 const newUserId = userIdMap[w.userId] || (users.find(u => u.id === w.userId) ? w.userId : activeUser?.id || users[0]?.id);
                 
                 const newWishlist = {
                   ...w,
+                  id: wishlistId,
                   coasterId: newCoasterId,
                   userId: newUserId,
-                  ownerId: uid
+                  ownerId: uid,
+                  addedAt: w.addedAt || new Date().toISOString()
                 };
-                batch.set(doc(db, 'wishlist', w.id), newWishlist);
+                batch.set(doc(db, 'wishlist', wishlistId), newWishlist);
                 wishlistAdded++;
               }
             }
@@ -974,8 +996,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               if (existing) {
                 userIdMap[u.id] = existing.id;
               } else {
-                const newId = generateId('u');
-                userIdMap[u.id] = newId;
+                const newId = u.id || generateId('u');
+                userIdMap[u.id || newId] = newId;
                 localUsers.push({ ...u, id: newId, ownerId: 'local' });
                 usersAdded++;
               }
@@ -991,9 +1013,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               if (existing) {
                 coasterIdMap[c.id] = existing.id;
               } else {
-                const newId = generateId('c');
-                coasterIdMap[c.id] = newId;
-                localCoasters.push({ ...c, id: newId, isCustom: true });
+                const newId = c.id || generateId('c');
+                coasterIdMap[c.id || newId] = newId;
+                localCoasters.push({ 
+                  ...c, 
+                  id: newId, 
+                  isCustom: true,
+                  manufacturer: normalizeManufacturer(c.manufacturer || 'Unknown'),
+                  park: normalizeParkName(c.park || 'Unknown Park'),
+                  country: normalizeCountry(c.country || 'Unknown')
+                });
                 coastersAdded++;
               }
             });
@@ -1001,10 +1030,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
           if (data.credits && Array.isArray(data.credits)) {
             data.credits.forEach((c: any) => {
-              if (!localCredits.some(existing => existing.id === c.id)) {
+              const creditId = c.id || generateId('cr');
+              if (!localCredits.some(existing => existing.id === creditId)) {
                 const newCoasterId = coasterIdMap[c.coasterId] || c.coasterId;
-                const newUserId = userIdMap[c.userId] || c.userId;
-                localCredits.push({ ...c, coasterId: newCoasterId, userId: newUserId, ownerId: 'local' });
+                const newUserId = userIdMap[c.userId] || (localUsers.find(u => u.id === c.userId) ? c.userId : activeUser?.id || localUsers[0]?.id);
+                
+                localCredits.push({ 
+                  ...c, 
+                  id: creditId,
+                  coasterId: newCoasterId, 
+                  userId: newUserId, 
+                  ownerId: 'local',
+                  date: c.date || new Date().toISOString(),
+                  rideCount: c.rideCount || 1
+                });
                 creditsAdded++;
               }
             });
@@ -1012,10 +1051,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
           if (data.wishlist && Array.isArray(data.wishlist)) {
             data.wishlist.forEach((w: any) => {
-              if (!localWishlist.some(existing => existing.id === w.id)) {
+              const wishlistId = w.id || generateId('w');
+              if (!localWishlist.some(existing => existing.id === wishlistId)) {
                 const newCoasterId = coasterIdMap[w.coasterId] || w.coasterId;
-                const newUserId = userIdMap[w.userId] || w.userId;
-                localWishlist.push({ ...w, coasterId: newCoasterId, userId: newUserId, ownerId: 'local' });
+                const newUserId = userIdMap[w.userId] || (localUsers.find(u => u.id === w.userId) ? w.userId : activeUser?.id || localUsers[0]?.id);
+                
+                localWishlist.push({ 
+                  ...w, 
+                  id: wishlistId,
+                  coasterId: newCoasterId, 
+                  userId: newUserId, 
+                  ownerId: 'local',
+                  addedAt: w.addedAt || new Date().toISOString()
+                });
                 wishlistAdded++;
               }
             });
@@ -1030,6 +1078,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             await storage.set('cc_users', localUsers);
             await storage.set('cc_credits', localCredits);
             await storage.set('cc_wishlist', localWishlist);
+            await storage.set('cc_coasters', localCoasters.filter(c => c.isCustom));
             
             showNotification(`Local import successful! Added ${usersAdded} users, ${coastersAdded} coasters, ${creditsAdded} credits, and ${wishlistAdded} wishlist items.`, "success");
           } else {
@@ -1043,21 +1092,39 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const exportData = () => {
-    const data = {
-      users,
-      credits,
-      wishlist,
-      coasters: coasters.filter(c => c.isCustom),
-      exportDate: new Date().toISOString(),
-      version: '1.0.0'
-    };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `CoasterCount_Backup_${new Date().toISOString().split('T')[0]}.json`;
-    link.click();
-    showNotification("JSON Backup Exported", "success");
+    try {
+      const data = {
+        users,
+        credits,
+        wishlist,
+        coasters: coasters.filter(c => c.isCustom),
+        exportDate: new Date().toISOString(),
+        version: '1.1.0'
+      };
+      
+      const jsonString = JSON.stringify(data, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `CoasterCount_Backup_${new Date().toISOString().split('T')[0]}.json`;
+      
+      // Append to body to ensure it works in all environments
+      document.body.appendChild(link);
+      link.click();
+      
+      // Clean up
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }, 100);
+      
+      showNotification("JSON Backup Exported Successfully", "success");
+    } catch (err) {
+      console.error("Export failed", err);
+      showNotification("Export failed. Please try again.", "error");
+    }
   };
 
   const getLocalDataStats = async () => {
@@ -1112,12 +1179,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       if (localCredits) {
         for (const c of localCredits) {
-          batch.set(doc(db, 'credits', c.id), { ...c, ownerId: uid });
+          const creditRef = doc(db, 'credits', c.id);
+          const creditSnap = await getDoc(creditRef);
+          if (!creditSnap.exists() || creditSnap.data()?.ownerId === uid) {
+            batch.set(creditRef, { ...c, ownerId: uid });
+          }
         }
       }
       if (localWishlist) {
         for (const w of localWishlist) {
-          batch.set(doc(db, 'wishlist', w.id), { ...w, ownerId: uid });
+          const wishlistRef = doc(db, 'wishlist', w.id);
+          const wishlistSnap = await getDoc(wishlistRef);
+          if (!wishlistSnap.exists() || wishlistSnap.data()?.ownerId === uid) {
+            batch.set(wishlistRef, { ...w, ownerId: uid });
+          }
         }
       }
 
@@ -1206,21 +1281,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const newUsersList: User[] = [];
       const batch = writeBatch(db);
       
-      missingUserIds.forEach(id => {
-        const newUser: User = {
-          id,
-          name: `Recovered Profile (${id.length > 4 ? id.slice(-4) : id})`,
-          ownerId: currentUser.uid,
-          avatarColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'][Math.floor(Math.random() * 6)]
-        };
-        newUsersList.push(newUser);
-        batch.set(doc(db, 'users', id), newUser);
-      });
+      for (const id of Array.from(missingUserIds)) {
+        // Check if user already exists in Firestore (even if not in current state)
+        const userRef = doc(db, 'users', id);
+        const userSnap = await getDoc(userRef);
+        
+        if (!userSnap.exists()) {
+          const newUser: User = {
+            id,
+            name: `Recovered Profile (${id.length > 4 ? id.slice(-4) : id})`,
+            ownerId: currentUser.uid,
+            avatarColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'][Math.floor(Math.random() * 6)]
+          };
+          newUsersList.push(newUser);
+          batch.set(userRef, newUser);
+        }
+      }
 
-      await batch.commit();
-
-      setUsers(prev => [...prev, ...newUsersList]);
-      showNotification(`Successfully reconstructed ${missingUserIds.size} profiles!`, "success");
+      if (newUsersList.length > 0) {
+        await batch.commit();
+        setUsers(prev => [...prev, ...newUsersList]);
+        showNotification(`Successfully reconstructed ${newUsersList.length} profiles!`, "success");
+      } else {
+        showNotification("All missing profiles already exist in the database.", "info");
+      }
     } catch (err) {
       console.error("Reconstruction failed", err);
       showNotification("Reconstruction failed.", "error");
