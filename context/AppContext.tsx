@@ -98,6 +98,9 @@ interface AppContextType {
   // Recovery
   getLocalDataStats: () => Promise<{ users: number, credits: number, wishlist: number }>;
   forceMigrateLocalData: () => Promise<void>;
+  repairDatabase: () => Promise<void>;
+  reconstructMissingProfiles: () => Promise<void>;
+  nuclearReset: () => Promise<void>;
   manualRefresh: () => void;
   scanAllCredits: () => Promise<void>;
   
@@ -1109,9 +1112,123 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       await storage.set('cc_credits', null);
       await storage.set('cc_wishlist', null);
       showNotification("Manual migration successful!", "success");
+      manualRefresh();
     } catch (err) {
       console.error("Manual migration failed", err);
       showNotification("Migration failed. Please try again.", "error");
+    }
+  };
+
+  const repairDatabase = async () => {
+    if (!currentUser) return;
+    setIsSyncing(true);
+    showNotification("Repairing database links...", "info");
+
+    try {
+      const uid = currentUser.uid;
+      const batch = writeBatch(db);
+      let repairedCount = 0;
+
+      // 1. Find credits that belong to the user's profiles but have wrong/no ownerId
+      const userProfileIds = new Set(users.map(u => u.id));
+      
+      // We need to fetch all credits to find orphaned ones (Admin only or deep scan)
+      const { getDocs, query, where } = await import('firebase/firestore');
+      
+      // Try to find credits by userId (profile ID)
+      for (const profileId of userProfileIds) {
+        const q = query(collection(db, 'credits'), where('userId', '==', profileId));
+        const snap = await getDocs(q);
+        snap.docs.forEach(docSnap => {
+          const data = docSnap.data();
+          if (data.ownerId !== uid) {
+            batch.update(docSnap.ref, { ownerId: uid });
+            repairedCount++;
+          }
+        });
+      }
+
+      if (repairedCount > 0) {
+        await batch.commit();
+        showNotification(`Repaired ${repairedCount} data links!`, "success");
+        manualRefresh();
+      } else {
+        showNotification("No repairable data found.", "info");
+      }
+    } catch (err) {
+      console.error("Repair failed", err);
+      showNotification("Repair failed. Try the Global Scan.", "error");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const reconstructMissingProfiles = async () => {
+    if (!currentUser) return;
+    const isAdmin = currentUser.email === "k.anaya.izquierdo@gmail.com";
+    if (!isAdmin) return;
+
+    setIsSyncing(true);
+    showNotification("Reconstructing missing profiles...", "info");
+
+    try {
+      const missingUserIds = new Set<string>();
+      const existingUserIds = new Set(users.map(u => u.id));
+
+      credits.forEach(c => {
+        if (!existingUserIds.has(c.userId)) {
+          missingUserIds.add(c.userId);
+        }
+      });
+
+      if (missingUserIds.size === 0) {
+        showNotification("No missing profiles detected.", "info");
+        return;
+      }
+
+      const newUsers: User[] = [...users];
+      missingUserIds.forEach(id => {
+        newUsers.push({
+          id,
+          name: `Recovered Profile (${id.slice(-4)})`,
+          ownerId: currentUser.uid,
+          avatarColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'][Math.floor(Math.random() * 6)]
+        });
+      });
+
+      // Save to cloud
+      const batch = writeBatch(db);
+      newUsers.forEach(u => {
+        batch.set(doc(db, 'users', u.id), u);
+      });
+      await batch.commit();
+
+      setUsers(newUsers);
+      showNotification(`Successfully reconstructed ${missingUserIds.size} profiles!`, "success");
+    } catch (err) {
+      console.error("Reconstruction failed", err);
+      showNotification("Reconstruction failed.", "error");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const nuclearReset = async () => {
+    if (window.confirm("NUCLEAR OPTION: This will clear your local cache and force a complete re-sync from the cloud. No cloud data will be deleted. Continue?")) {
+      setIsSyncing(true);
+      try {
+        // Clear local storage
+        localStorage.clear();
+        // Keep auth session if possible, but clear data
+        await storage.set('cc_users', null);
+        await storage.set('cc_credits', null);
+        await storage.set('cc_wishlist', null);
+        
+        // Reload page to start fresh
+        window.location.reload();
+      } catch (err) {
+        showNotification("Reset failed", "error");
+      }
     }
   };
 
@@ -1210,6 +1327,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setAppTheme,
       getLocalDataStats,
       forceMigrateLocalData,
+      repairDatabase,
+      reconstructMissingProfiles,
+      nuclearReset,
       manualRefresh,
       scanAllCredits
     }}>

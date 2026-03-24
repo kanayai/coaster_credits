@@ -27,6 +27,9 @@ const DataRecoveryHub: React.FC = () => {
     changeView, 
     getLocalDataStats, 
     forceMigrateLocalData, 
+    repairDatabase,
+    reconstructMissingProfiles,
+    nuclearReset,
     manualRefresh, 
     scanAllCredits,
     importData,
@@ -117,6 +120,54 @@ const DataRecoveryHub: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Disaster Recovery Section */}
+        {currentUser && (
+          <div className="bg-slate-900 rounded-[32px] p-6 border border-slate-800 shadow-xl overflow-hidden relative">
+            <div className="absolute top-0 right-0 p-4 opacity-5">
+              <ShieldAlert size={120} />
+            </div>
+            
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-2 bg-red-500/20 rounded-xl text-red-400">
+                <AlertCircle size={20} />
+              </div>
+              <div>
+                <h2 className="text-lg font-black text-white uppercase tracking-tight">Disaster Recovery</h2>
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Fix missing or orphaned data</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="p-4 bg-slate-800/50 rounded-2xl border border-slate-700">
+                <h3 className="text-xs font-black text-white uppercase mb-1">Repair Data Links</h3>
+                <p className="text-[10px] text-slate-400 leading-relaxed mb-4">
+                  If you can see your profiles but your credits are missing, this tool will scan the cloud for any credits that match your profile IDs and re-link them to your account.
+                </p>
+                <button 
+                  onClick={repairDatabase}
+                  disabled={isSyncing}
+                  className="w-full py-3 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  <RefreshCw size={14} className={isSyncing ? "animate-spin" : ""} /> Run Deep Link Repair
+                </button>
+              </div>
+
+              <div className="p-4 bg-red-500/5 rounded-2xl border border-red-500/20">
+                <h3 className="text-xs font-black text-red-400 uppercase mb-1">Nuclear Option</h3>
+                <p className="text-[10px] text-red-200/40 leading-relaxed mb-4">
+                  Wipe local cache and force a complete fresh pull from the cloud. Use this if your app state feels "stuck" or corrupted.
+                </p>
+                <button 
+                  onClick={nuclearReset}
+                  className="w-full py-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 text-[10px] font-black uppercase tracking-widest transition-all border border-red-500/30 flex items-center justify-center gap-2"
+                >
+                  <ShieldAlert size={14} /> Trigger Nuclear Reset
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Local Data Recovery Section */}
         {currentUser && (
@@ -222,16 +273,26 @@ const DataRecoveryHub: React.FC = () => {
               </div>
             </div>
 
-            <button 
-              onClick={scanAllCredits}
-              disabled={isSyncing}
-              className="w-full py-4 rounded-2xl bg-red-500 hover:bg-red-600 text-white text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-red-500/20 active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
-            >
-              <Search size={18} /> Perform Global Database Scan
-            </button>
+            <div className="space-y-4">
+              <button 
+                onClick={scanAllCredits}
+                disabled={isSyncing}
+                className="w-full py-4 rounded-2xl bg-red-500 hover:bg-red-600 text-white text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-red-500/20 active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                <Search size={18} /> Perform Global Database Scan
+              </button>
+
+              <button 
+                onClick={reconstructMissingProfiles}
+                disabled={isSyncing || credits.length === 0}
+                className="w-full py-4 rounded-2xl bg-slate-800 hover:bg-slate-750 text-red-400 border border-red-500/30 text-xs font-black uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                <Database size={18} /> Reconstruct Missing Profiles
+              </button>
+            </div>
             
             <p className="text-[9px] text-red-400/60 mt-3 text-center italic">
-              This will fetch EVERY credit in the database regardless of ownerId. Use with caution.
+              Global Scan fetches ALL credits. Reconstruction creates profiles for orphaned credits.
             </p>
           </div>
         )}
