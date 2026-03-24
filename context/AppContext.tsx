@@ -846,14 +846,29 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const importData = async (jsonData: any) => {
       try {
-        let rawData = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData;
+        if (!jsonData) {
+          showNotification("No data provided for import.", "error");
+          return;
+        }
+
+        let rawData;
+        try {
+          rawData = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData;
+        } catch (parseErr) {
+          console.error("JSON Parse Error", parseErr);
+          showNotification("Invalid JSON format. Please check your file.", "error");
+          return;
+        }
         
         // Normalize data structure: if it's an array, assume it's a list of credits
         let data: any = {};
         if (Array.isArray(rawData)) {
           data = { credits: rawData };
-        } else {
+        } else if (typeof rawData === 'object' && rawData !== null) {
           data = rawData;
+        } else {
+          showNotification("Unsupported data format. Expected JSON object or array.", "error");
+          return;
         }
 
         if (currentUser) {
@@ -871,6 +886,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           // 1. Handle Users
           if (data.users && Array.isArray(data.users)) {
             for (const u of data.users) {
+              if (!u.name) continue;
               const existing = users.find(e => e.name.toLowerCase() === u.name.toLowerCase());
               if (existing) {
                 userIdMap[u.id] = existing.id;
@@ -880,7 +896,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 const newUser = {
                   ...u,
                   id: newId,
-                  ownerId: uid
+                  ownerId: uid,
+                  name: u.name,
+                  avatarColor: u.avatarColor || 'bg-blue-500'
                 };
                 batch.set(doc(db, 'users', newId), newUser);
                 usersAdded++;
@@ -891,6 +909,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           // 2. Handle Coasters
           if (data.coasters && Array.isArray(data.coasters)) {
             for (const c of data.coasters) {
+              if (!c.name || !c.park) continue;
               const existing = coasters.find(e => 
                 cleanName(e.name).toLowerCase() === cleanName(c.name).toLowerCase() &&
                 cleanName(e.park).toLowerCase() === cleanName(c.park).toLowerCase()
@@ -904,9 +923,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 const newC = {
                   ...c,
                   id: newId,
+                  name: c.name,
+                  park: normalizeParkName(c.park),
                   manufacturer: normalizeManufacturer(c.manufacturer || 'Unknown'),
-                  park: normalizeParkName(c.park || 'Unknown Park'),
                   country: normalizeCountry(c.country || 'Unknown'),
+                  type: c.type || 'Steel',
                   isCustom: true
                 };
                 batch.set(doc(db, 'coasters', newId), newC);
@@ -925,9 +946,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               const alreadyExists = credits.find(existing => existing.id === creditId);
               
               if (!alreadyExists) {
-                const newCoasterId = coasterIdMap[c.coasterId] || c.coasterId;
+                const newCoasterId = coasterIdMap[c.coasterId] || c.coasterId || 'unknown_coaster';
                 const newUserId = userIdMap[c.userId] || (users.find(u => u.id === c.userId) ? c.userId : activeUser?.id || users[0]?.id);
                 
+                if (!newCoasterId || !newUserId) continue;
+
                 const newCredit = {
                   ...c,
                   id: creditId,
@@ -952,9 +975,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               const alreadyExists = wishlist.find(existing => existing.id === wishlistId);
               
               if (!alreadyExists) {
-                const newCoasterId = coasterIdMap[w.coasterId] || w.coasterId;
+                const newCoasterId = coasterIdMap[w.coasterId] || w.coasterId || 'unknown_coaster';
                 const newUserId = userIdMap[w.userId] || (users.find(u => u.id === w.userId) ? w.userId : activeUser?.id || users[0]?.id);
                 
+                if (!newCoasterId || !newUserId) continue;
+
                 const newWishlist = {
                   ...w,
                   id: wishlistId,
@@ -992,13 +1017,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
           if (data.users && Array.isArray(data.users)) {
             data.users.forEach((u: any) => {
+              if (!u.name) return;
               const existing = localUsers.find(e => e.name.toLowerCase() === u.name.toLowerCase());
               if (existing) {
                 userIdMap[u.id] = existing.id;
               } else {
                 const newId = u.id || generateId('u');
                 userIdMap[u.id || newId] = newId;
-                localUsers.push({ ...u, id: newId, ownerId: 'local' });
+                localUsers.push({ 
+                  ...u, 
+                  id: newId, 
+                  ownerId: 'local',
+                  name: u.name,
+                  avatarColor: u.avatarColor || 'bg-blue-500'
+                });
                 usersAdded++;
               }
             });
@@ -1006,6 +1038,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
           if (data.coasters && Array.isArray(data.coasters)) {
             data.coasters.forEach((c: any) => {
+              if (!c.name || !c.park) return;
               const existing = localCoasters.find(e => 
                 cleanName(e.name).toLowerCase() === cleanName(c.name).toLowerCase() &&
                 cleanName(e.park).toLowerCase() === cleanName(c.park).toLowerCase()
@@ -1019,9 +1052,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                   ...c, 
                   id: newId, 
                   isCustom: true,
+                  name: c.name,
+                  park: normalizeParkName(c.park),
                   manufacturer: normalizeManufacturer(c.manufacturer || 'Unknown'),
-                  park: normalizeParkName(c.park || 'Unknown Park'),
-                  country: normalizeCountry(c.country || 'Unknown')
+                  country: normalizeCountry(c.country || 'Unknown'),
+                  type: c.type || 'Steel'
                 });
                 coastersAdded++;
               }
@@ -1030,11 +1065,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
           if (data.credits && Array.isArray(data.credits)) {
             data.credits.forEach((c: any) => {
+              if (!c.coasterId && !c.coasterName) return;
               const creditId = c.id || generateId('cr');
               if (!localCredits.some(existing => existing.id === creditId)) {
-                const newCoasterId = coasterIdMap[c.coasterId] || c.coasterId;
+                const newCoasterId = coasterIdMap[c.coasterId] || c.coasterId || 'unknown_coaster';
                 const newUserId = userIdMap[c.userId] || (localUsers.find(u => u.id === c.userId) ? c.userId : activeUser?.id || localUsers[0]?.id);
                 
+                if (!newCoasterId || !newUserId) return;
+
                 localCredits.push({ 
                   ...c, 
                   id: creditId,
@@ -1051,11 +1089,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
           if (data.wishlist && Array.isArray(data.wishlist)) {
             data.wishlist.forEach((w: any) => {
+              if (!w.coasterId) return;
               const wishlistId = w.id || generateId('w');
               if (!localWishlist.some(existing => existing.id === wishlistId)) {
-                const newCoasterId = coasterIdMap[w.coasterId] || w.coasterId;
+                const newCoasterId = coasterIdMap[w.coasterId] || w.coasterId || 'unknown_coaster';
                 const newUserId = userIdMap[w.userId] || (localUsers.find(u => u.id === w.userId) ? w.userId : activeUser?.id || localUsers[0]?.id);
                 
+                if (!newCoasterId || !newUserId) return;
+
                 localWishlist.push({ 
                   ...w, 
                   id: wishlistId,
@@ -1087,7 +1128,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
       } catch (err) {
         console.error("Import failed", err);
-        showNotification("Import failed. Please check your JSON format.", "error");
+        showNotification(`Import failed: ${err instanceof Error ? err.message : 'Unknown error'}`, "error");
       }
   };
 
