@@ -43,6 +43,7 @@ const Dashboard: React.FC = () => {
   const [sharingCreditData, setSharingCreditData] = useState<{ credit: Credit, coaster: Coaster } | null>(null);
   const [showProfileSwitcher, setShowProfileSwitcher] = useState(false);
   const [showRecoveryOptions, setShowRecoveryOptions] = useState(false);
+  const [showAdminTools, setShowAdminTools] = useState(false);
   const [localStats, setLocalStats] = useState<{ users: number, credits: number, wishlist: number } | null>(null);
   
   const [chartMetric, setChartMetric] = useState<ChartMetric>('MANUFACTURER');
@@ -317,6 +318,28 @@ const Dashboard: React.FC = () => {
           )}
         </div>
         <div className="flex gap-2">
+            {currentUser?.email === "k.anaya.izquierdo@gmail.com" && (
+              <button 
+                  onClick={() => setShowAdminTools(!showAdminTools)}
+                  className={clsx(
+                    "bg-indigo-900/30 p-2.5 rounded-xl text-indigo-400 hover:text-white border border-indigo-500/30 hover:border-indigo-500 transition-all",
+                    showAdminTools && "bg-indigo-600 text-white border-indigo-400"
+                  )}
+                  title="Admin Tools"
+              >
+                  <Wrench size={20} />
+              </button>
+            )}
+            <button 
+                onClick={() => setShowRecoveryOptions(!showRecoveryOptions)}
+                className={clsx(
+                  "bg-slate-800 p-2.5 rounded-xl text-slate-400 hover:text-white border border-slate-700 hover:border-slate-500 transition-all",
+                  showRecoveryOptions && "bg-primary/20 text-primary border-primary/50"
+                )}
+                title="Data Recovery Hub"
+            >
+                <Database size={20} />
+            </button>
             <button 
                 onClick={manualRefresh}
                 className={clsx(
@@ -340,6 +363,112 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
+      {/* Admin Tools Overlay */}
+      {showAdminTools && currentUser?.email === "k.anaya.izquierdo@gmail.com" && (
+        <div className="p-4 bg-indigo-500/10 border border-indigo-500/30 rounded-2xl animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Admin Recovery Tools</p>
+            <button onClick={() => setShowAdminTools(false)} className="text-indigo-400 hover:text-white"><Plus size={14} className="rotate-45" /></button>
+          </div>
+          <p className="text-[10px] text-slate-400 mb-3 italic">Scan the entire database for orphaned data that might be missing from your view.</p>
+          <button 
+            onClick={async () => {
+              await scanAllCredits();
+              setShowAdminTools(false);
+            }}
+            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black py-2.5 px-4 rounded-lg transition-all shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2"
+          >
+            <Wrench size={14} /> Global Database Scan
+          </button>
+        </div>
+      )}
+
+      {/* Data Recovery Hub Overlay */}
+      {showRecoveryOptions && (
+        <div className="p-5 bg-slate-900 border border-slate-700 rounded-[24px] shadow-xl animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Database size={16} className="text-primary" />
+              <h4 className="text-xs font-black text-white uppercase tracking-widest">Data Recovery Hub</h4>
+            </div>
+            <button onClick={() => setShowRecoveryOptions(false)} className="text-slate-500 hover:text-white"><Plus size={16} className="rotate-45" /></button>
+          </div>
+          
+          <div className="space-y-3 mb-4">
+            {syncAudit && syncAudit.local > 0 && (
+              <div className="flex items-center justify-between p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+                <div>
+                  <p className="text-[10px] font-bold text-blue-400 uppercase">Local Data Found</p>
+                  <p className="text-[9px] text-slate-500">{syncAudit.local} credits on this device</p>
+                </div>
+                <button 
+                  onClick={async () => {
+                    await forceMigrateLocalData();
+                    manualRefresh();
+                  }}
+                  className="bg-blue-600 hover:bg-blue-500 text-white text-[9px] font-bold py-1.5 px-3 rounded-lg transition-all"
+                >
+                  Sync to Cloud
+                </button>
+              </div>
+            )}
+
+            {syncAudit && syncAudit.totalCloud > 0 && (
+              <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <p className="text-[10px] font-bold text-emerald-400 uppercase">Cloud Data Found</p>
+                    <p className="text-[9px] text-slate-500">{syncAudit.totalCloud} total credits in your account</p>
+                  </div>
+                  <span className="text-sm font-black text-white">{syncAudit.totalCloud}</span>
+                </div>
+                
+                {syncAudit.orphaned > 0 ? (
+                  <div className="mt-2 pt-2 border-t border-emerald-500/20">
+                    <p className="text-[9px] text-amber-400 font-bold mb-2">⚠️ {syncAudit.orphaned} credits are "orphaned" (missing profile)</p>
+                    <button 
+                      onClick={async () => {
+                        const orphanedUserIds = [...new Set(credits.filter(c => !users.some(u => u.id === c.userId)).map(c => c.userId))];
+                        for (const uid of orphanedUserIds) {
+                          await addUser(`Recovered Profile (${uid.slice(-4)})`, undefined, uid);
+                        }
+                        showNotification("Profiles recovered! Switch profiles to see your data.", "success");
+                        manualRefresh();
+                      }}
+                      className="w-full bg-amber-600 hover:bg-amber-500 text-white text-[9px] font-bold py-2 rounded-lg transition-all"
+                    >
+                      Recreate Missing Profiles
+                    </button>
+                  </div>
+                ) : (
+                  <div className="mt-2 pt-2 border-t border-emerald-500/20">
+                    <p className="text-[9px] text-slate-400 mb-2">Your credits are linked to a different profile.</p>
+                    <button 
+                      onClick={() => changeView('PROFILE')}
+                      className="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-[9px] font-bold py-2 rounded-lg transition-all"
+                    >
+                      Switch to Correct Profile
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {(!syncAudit || (syncAudit.local === 0 && syncAudit.totalCloud === 0)) && (
+              <div className="p-4 text-center">
+                <p className="text-[10px] text-slate-500 italic">No missing data detected automatically. Try a manual refresh or check other profiles.</p>
+              </div>
+            )}
+          </div>
+
+          <div className="p-3 bg-slate-800/50 rounded-xl border border-slate-700/50">
+            <p className="text-[9px] text-slate-400 leading-relaxed">
+              <strong className="text-slate-200">Still missing data?</strong> If you used a different phone or browser, you must sign in on <strong className="text-primary">that specific device</strong> first to upload your data to the cloud.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Main Stats Card */}
       <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-[32px] p-6 shadow-2xl border border-slate-700 relative overflow-hidden group shrink-0">
           <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
@@ -349,100 +478,6 @@ const Dashboard: React.FC = () => {
           <div className="relative z-10 flex flex-col items-center text-center space-y-2 py-4">
                {uniqueCreditsCount === 0 && (
                  <div className="w-full mb-4 space-y-3">
-                    {/* Sync Audit / Data Recovery */}
-                    {syncAudit && (syncAudit.local > 0 || syncAudit.totalCloud > 0) && (
-                      <div className="p-5 bg-slate-900 border border-slate-700 rounded-[24px] shadow-xl animate-in fade-in zoom-in-95 duration-300">
-                        <div className="flex items-center justify-between mb-4">
-                          <div className="flex items-center gap-2">
-                            <Database size={16} className="text-primary" />
-                            <h4 className="text-xs font-black text-white uppercase tracking-widest">Data Recovery Hub</h4>
-                          </div>
-                          <div className="px-2 py-0.5 rounded bg-primary/10 text-[8px] font-black text-primary uppercase tracking-widest">Audit Mode</div>
-                        </div>
-                        
-                        <div className="space-y-3 mb-4">
-                          {syncAudit.local > 0 && (
-                            <div className="flex items-center justify-between p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
-                              <div>
-                                <p className="text-[10px] font-bold text-blue-400 uppercase">Local Data Found</p>
-                                <p className="text-[9px] text-slate-500">{syncAudit.local} credits on this device</p>
-                              </div>
-                              <button 
-                                onClick={async () => {
-                                  await forceMigrateLocalData();
-                                  manualRefresh();
-                                }}
-                                className="bg-blue-600 hover:bg-blue-500 text-white text-[9px] font-bold py-1.5 px-3 rounded-lg transition-all"
-                              >
-                                Sync to Cloud
-                              </button>
-                            </div>
-                          )}
-
-                          {syncAudit.totalCloud > 0 && uniqueCreditsCount === 0 && (
-                            <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-                              <div className="flex items-center justify-between mb-2">
-                                <div>
-                                  <p className="text-[10px] font-bold text-emerald-400 uppercase">Cloud Data Found</p>
-                                  <p className="text-[9px] text-slate-500">{syncAudit.totalCloud} total credits in your account</p>
-                                </div>
-                                <span className="text-sm font-black text-white">{syncAudit.totalCloud}</span>
-                              </div>
-                              
-                              {syncAudit.orphaned > 0 ? (
-                                <div className="mt-2 pt-2 border-t border-emerald-500/20">
-                                  <p className="text-[9px] text-amber-400 font-bold mb-2">⚠️ {syncAudit.orphaned} credits are "orphaned" (missing profile)</p>
-                                  <button 
-                                    onClick={async () => {
-                                      const orphanedUserIds = [...new Set(credits.filter(c => !users.some(u => u.id === c.userId)).map(c => c.userId))];
-                                      for (const uid of orphanedUserIds) {
-                                        await addUser(`Recovered Profile (${uid.slice(-4)})`, undefined, uid);
-                                      }
-                                      showNotification("Profiles recovered! Switch profiles to see your data.", "success");
-                                      manualRefresh();
-                                    }}
-                                    className="w-full bg-amber-600 hover:bg-amber-500 text-white text-[9px] font-bold py-2 rounded-lg transition-all"
-                                  >
-                                    Recreate Missing Profiles
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="mt-2 pt-2 border-t border-emerald-500/20">
-                                  <p className="text-[9px] text-slate-400 mb-2">Your credits are linked to a different profile.</p>
-                                  <button 
-                                    onClick={() => changeView('PROFILE')}
-                                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-[9px] font-bold py-2 rounded-lg transition-all"
-                                  >
-                                    Switch to Correct Profile
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="p-3 bg-slate-800/50 rounded-xl border border-slate-700/50">
-                          <p className="text-[9px] text-slate-400 leading-relaxed">
-                            <strong className="text-slate-200">Still missing data?</strong> If you used a different phone or browser, you must sign in on <strong className="text-primary">that specific device</strong> first to upload your data to the cloud.
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Admin Tools */}
-                    {currentUser?.email === "k.anaya.izquierdo@gmail.com" && (
-                      <div className="p-4 bg-indigo-500/10 border border-indigo-500/30 rounded-2xl">
-                        <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-2">Admin Recovery Tools</p>
-                        <p className="text-[10px] text-slate-400 mb-3 italic">As an admin, you can scan the entire database for orphaned data.</p>
-                        <button 
-                          onClick={scanAllCredits}
-                          className="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black py-2.5 px-4 rounded-lg transition-all shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2"
-                        >
-                          <Wrench size={14} /> Global Database Scan
-                        </button>
-                      </div>
-                    )}
-
                     {/* Not Logged In Warning */}
                     {!currentUser && uniqueCreditsCount === 0 && (
                       <div className="p-4 bg-primary/10 border border-primary/30 rounded-2xl">
