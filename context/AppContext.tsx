@@ -222,28 +222,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // --- INITIALIZATION & REAL-TIME SYNC ---
   useEffect(() => {
     const initializeAndSync = async () => {
-      // 1. First, ensure any old localStorage data is moved to IndexedDB
-      await storage.migrateFromLocalStorage();
+      try {
+        // 1. First, ensure any old localStorage data is moved to IndexedDB
+        await storage.migrateFromLocalStorage();
 
-      if (!currentUser) {
-        // --- LOCAL MODE ---
-        const localUsers = await storage.get<User[]>('cc_users');
-        const localCredits = await storage.get<Credit[]>('cc_credits');
-        const localWishlist = await storage.get<WishlistEntry[]>('cc_wishlist');
-        const localActiveId = await storage.get<string>('cc_active_user_id');
+        if (!currentUser) {
+          // --- LOCAL MODE ---
+          const localUsers = await storage.get<User[]>('cc_users');
+          const localCredits = await storage.get<Credit[]>('cc_credits');
+          const localWishlist = await storage.get<WishlistEntry[]>('cc_wishlist');
+          const localActiveId = await storage.get<string>('cc_active_user_id');
 
-        setUsers(localUsers && localUsers.length > 0 ? localUsers : INITIAL_USERS);
-        setCredits(localCredits || []);
-        setWishlist(localWishlist || []);
-        setActiveUserId(localActiveId || (localUsers && localUsers.length > 0 ? localUsers[0].id : INITIAL_USERS[0].id));
-        
-        setIsInitialized(true);
-        return;
-      }
+          setUsers(localUsers && localUsers.length > 0 ? localUsers : INITIAL_USERS);
+          setCredits(localCredits || []);
+          setWishlist(localWishlist || []);
+          setActiveUserId(localActiveId || (localUsers && localUsers.length > 0 ? localUsers[0].id : INITIAL_USERS[0].id));
+          
+          setIsInitialized(true);
+          setIsSyncing(false);
+          return;
+        }
 
-      // --- CLOUD MODE ---
-      const uid = currentUser.uid;
-      setIsSyncing(true);
+        // --- CLOUD MODE ---
+        const uid = currentUser.uid;
+        setIsSyncing(true);
 
       // Migration logic: If we have local data, move it to Firestore
       const localUsers = await storage.get<User[]>('cc_users');
@@ -335,6 +337,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'wishlist'));
 
       setIsInitialized(true);
+      
+      // Safety: ensure syncing spinner stops after 5s even if listeners are slow
+      setTimeout(() => setIsSyncing(false), 5000);
 
       return () => {
         unsubUsers();
@@ -342,6 +347,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         unsubCredits();
         unsubWishlist();
       };
+    } catch (err) {
+      console.error("Initialization failed", err);
+      setIsSyncing(false);
+      setIsInitialized(true);
+      return () => {};
+    }
     };
 
     const cleanupPromise = initializeAndSync();

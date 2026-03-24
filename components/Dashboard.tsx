@@ -269,7 +269,7 @@ const Dashboard: React.FC = () => {
               {activeUser.name}'s Dashboard
               <div className={clsx(
                 "w-1.5 h-1.5 rounded-full",
-                isSyncing ? "bg-amber-500 animate-spin" : "bg-emerald-500 animate-pulse"
+                isSyncing ? "bg-amber-500 animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.5)]" : "bg-emerald-500 animate-pulse"
               )} />
             </p>
           </button>
