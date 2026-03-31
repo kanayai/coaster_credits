@@ -913,13 +913,32 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 userIdMap[u.id || newId] = newId;
                 
                 // SELECTIVE FIELDS to avoid document size issues
+                // Also protect against massive base64 strings in avatarUrl
+                let avatarUrl = u.avatarUrl;
+                if (avatarUrl && avatarUrl.startsWith('data:image') && avatarUrl.length > 102400) {
+                  console.warn(`Avatar for user ${u.name} is too large (${avatarUrl.length} bytes), skipping to prevent document size errors.`);
+                  avatarUrl = undefined;
+                }
+
+                // Limit rankings size if they are absurdly large
+                let rankings = u.rankings;
+                if (rankings) {
+                  const limitArray = (arr: any[]) => (arr && arr.length > 2000) ? arr.slice(0, 2000) : arr;
+                  rankings = {
+                    ...rankings,
+                    overall: limitArray(rankings.overall),
+                    steel: limitArray(rankings.steel),
+                    wooden: limitArray(rankings.wooden)
+                  };
+                }
+
                 const newUser = clean({
                   id: newId,
                   ownerId: uid,
                   name: u.name,
                   avatarColor: u.avatarColor || 'bg-blue-500',
-                  avatarUrl: u.avatarUrl,
-                  rankings: u.rankings,
+                  avatarUrl: avatarUrl,
+                  rankings: rankings,
                   highScore: u.highScore
                 });
                 
@@ -1069,13 +1088,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               } else {
                 const newId = u.id || generateId('u');
                 userIdMap[u.id || newId] = newId;
+                // SELECTIVE FIELDS to avoid document size issues
+                let avatarUrl = u.avatarUrl;
+                if (avatarUrl && avatarUrl.startsWith('data:image') && avatarUrl.length > 102400) {
+                  avatarUrl = undefined;
+                }
+
+                let rankings = u.rankings;
+                if (rankings) {
+                  const limitArray = (arr: any[]) => (arr && arr.length > 2000) ? arr.slice(0, 2000) : arr;
+                  rankings = {
+                    ...rankings,
+                    overall: limitArray(rankings.overall),
+                    steel: limitArray(rankings.steel),
+                    wooden: limitArray(rankings.wooden)
+                  };
+                }
+
                 localUsers.push({ 
                   id: newId, 
                   ownerId: 'local',
                   name: u.name,
                   avatarColor: u.avatarColor || 'bg-blue-500',
-                  avatarUrl: u.avatarUrl,
-                  rankings: u.rankings,
+                  avatarUrl: avatarUrl,
+                  rankings: rankings,
                   highScore: u.highScore
                 });
                 usersAdded++;
