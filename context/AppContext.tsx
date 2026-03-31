@@ -892,6 +892,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             }
           };
 
+          // Helper to remove undefined fields for Firestore
+          const clean = (obj: any) => {
+            const newObj: any = {};
+            Object.keys(obj).forEach(key => {
+              if (obj[key] !== undefined) newObj[key] = obj[key];
+            });
+            return newObj;
+          };
+
           // 1. Handle Users
           if (data.users && Array.isArray(data.users)) {
             for (const u of data.users) {
@@ -904,7 +913,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 userIdMap[u.id || newId] = newId;
                 
                 // SELECTIVE FIELDS to avoid document size issues
-                const newUser: User = {
+                const newUser = clean({
                   id: newId,
                   ownerId: uid,
                   name: u.name,
@@ -912,7 +921,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                   avatarUrl: u.avatarUrl,
                   rankings: u.rankings,
                   highScore: u.highScore
-                };
+                });
                 
                 batch.set(doc(db, 'users', newId), newUser);
                 batchCount++;
@@ -938,7 +947,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 coasterIdMap[c.id || newId] = newId;
                 
                 // SELECTIVE FIELDS
-                const newC: Coaster = {
+                const newC = clean({
                   id: newId,
                   name: c.name,
                   park: normalizeParkName(c.park),
@@ -950,7 +959,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                   specs: c.specs,
                   variants: c.variants,
                   audioUrl: c.audioUrl
-                };
+                });
                 
                 batch.set(doc(db, 'coasters', newId), newC);
                 batchCount++;
@@ -975,7 +984,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 if (!newCoasterId || !newUserId) continue;
 
                 // SELECTIVE FIELDS
-                const newCredit: Credit = {
+                const newCredit = clean({
                   id: creditId,
                   coasterId: newCoasterId,
                   userId: newUserId,
@@ -987,7 +996,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                   notes: c.notes,
                   restraints: c.restraints,
                   variant: c.variant
-                };
+                });
                 
                 batch.set(doc(db, 'credits', creditId), newCredit);
                 batchCount++;
@@ -1012,14 +1021,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 if (!newCoasterId || !newUserId) continue;
 
                 // SELECTIVE FIELDS
-                const newWishlist: WishlistEntry = {
+                const newWishlist = clean({
                   id: wishlistId,
                   coasterId: newCoasterId,
                   userId: newUserId,
                   ownerId: uid,
                   addedAt: w.addedAt || new Date().toISOString(),
                   notes: w.notes
-                };
+                });
                 
                 batch.set(doc(db, 'wishlist', wishlistId), newWishlist);
                 batchCount++;
