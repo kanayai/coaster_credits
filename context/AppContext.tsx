@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import { User, Coaster, Credit, ViewState, WishlistEntry, RankingList } from '../types';
+import { User, Coaster, Credit, ViewState, WishlistEntry, RankingList, CoasterType } from '../types';
 import { INITIAL_COASTERS, INITIAL_USERS, normalizeManufacturer, cleanName, normalizeParkName, normalizeCountry } from '../constants';
 import { generateCoasterInfo, generateAppIcon, extractCoasterFromUrl } from '../services/geminiService';
 import { fetchCoasterImageFromWiki } from '../services/wikipediaService';
@@ -860,7 +860,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           return;
         }
         
-        // Normalize data structure: if it's an array, assume it's a list of credits
         let data: any = {};
         if (Array.isArray(rawData)) {
           data = { credits: rawData };
@@ -873,7 +872,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
         if (currentUser) {
           const uid = currentUser.uid;
-          const batch = writeBatch(db);
           
           const coasterIdMap: Record<string, string> = {};
           const userIdMap: Record<string, string> = {};
@@ -882,6 +880,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           let usersAdded = 0;
           let creditsAdded = 0;
           let wishlistAdded = 0;
+
+          // Helper for batching
+          let batch = writeBatch(db);
+          let batchCount = 0;
+          const commitBatchIfNeeded = async (force = false) => {
+            if (batchCount >= 450 || (force && batchCount > 0)) {
+              await batch.commit();
+              batch = writeBatch(db);
+              batchCount = 0;
+            }
+          };
 
           // 1. Handle Users
           if (data.users && Array.isArray(data.users)) {
@@ -893,15 +902,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               } else {
                 const newId = u.id || generateId('u');
                 userIdMap[u.id || newId] = newId;
-                const newUser = {
-                  ...u,
+                
+                // SELECTIVE FIELDS to avoid document size issues
+                const newUser: User = {
                   id: newId,
                   ownerId: uid,
                   name: u.name,
-                  avatarColor: u.avatarColor || 'bg-blue-500'
+                  avatarColor: u.avatarColor || 'bg-blue-500',
+                  avatarUrl: u.avatarUrl,
+                  rankings: u.rankings,
+                  highScore: u.highScore
                 };
+                
                 batch.set(doc(db, 'users', newId), newUser);
+                batchCount++;
                 usersAdded++;
+                await commitBatchIfNeeded();
               }
             }
           }
@@ -920,18 +936,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               } else {
                 const newId = c.id || generateId('c');
                 coasterIdMap[c.id || newId] = newId;
-                const newC = {
-                  ...c,
+                
+                // SELECTIVE FIELDS
+                const newC: Coaster = {
                   id: newId,
                   name: c.name,
                   park: normalizeParkName(c.park),
                   manufacturer: normalizeManufacturer(c.manufacturer || 'Unknown'),
                   country: normalizeCountry(c.country || 'Unknown'),
-                  type: c.type || 'Steel',
-                  isCustom: true
+                  type: c.type || CoasterType.Steel,
+                  isCustom: true,
+                  imageUrl: c.imageUrl,
+                  specs: c.specs,
+                  variants: c.variants,
+                  audioUrl: c.audioUrl
                 };
+                
                 batch.set(doc(db, 'coasters', newId), newC);
+                batchCount++;
                 coastersAdded++;
+                await commitBatchIfNeeded();
               }
             }
           }
@@ -939,7 +963,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           // 3. Handle Credits
           if (data.credits && Array.isArray(data.credits)) {
             for (const c of data.credits) {
-              // Basic validation: must have a coaster reference
               if (!c.coasterId && !c.coasterName) continue;
 
               const creditId = c.id || generateId('cr');
@@ -951,17 +974,25 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 
                 if (!newCoasterId || !newUserId) continue;
 
-                const newCredit = {
-                  ...c,
+                // SELECTIVE FIELDS
+                const newCredit: Credit = {
                   id: creditId,
                   coasterId: newCoasterId,
                   userId: newUserId,
                   ownerId: uid,
                   date: c.date || new Date().toISOString(),
-                  rideCount: c.rideCount || 1
+                  rideCount: c.rideCount || 1,
+                  photoUrl: c.photoUrl,
+                  gallery: c.gallery,
+                  notes: c.notes,
+                  restraints: c.restraints,
+                  variant: c.variant
                 };
+                
                 batch.set(doc(db, 'credits', creditId), newCredit);
+                batchCount++;
                 creditsAdded++;
+                await commitBatchIfNeeded();
               }
             }
           }
@@ -980,22 +1011,27 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 
                 if (!newCoasterId || !newUserId) continue;
 
-                const newWishlist = {
-                  ...w,
+                // SELECTIVE FIELDS
+                const newWishlist: WishlistEntry = {
                   id: wishlistId,
                   coasterId: newCoasterId,
                   userId: newUserId,
                   ownerId: uid,
-                  addedAt: w.addedAt || new Date().toISOString()
+                  addedAt: w.addedAt || new Date().toISOString(),
+                  notes: w.notes
                 };
+                
                 batch.set(doc(db, 'wishlist', wishlistId), newWishlist);
+                batchCount++;
                 wishlistAdded++;
+                await commitBatchIfNeeded();
               }
             }
           }
 
+          await commitBatchIfNeeded(true);
+          
           if (coastersAdded > 0 || usersAdded > 0 || creditsAdded > 0 || wishlistAdded > 0) {
-            await batch.commit();
             showNotification(`Import successful! Added ${usersAdded} users, ${coastersAdded} coasters, ${creditsAdded} credits, and ${wishlistAdded} wishlist items to your cloud account.`, "success");
           } else {
             showNotification("No new data found to import.", "info");
@@ -1025,11 +1061,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 const newId = u.id || generateId('u');
                 userIdMap[u.id || newId] = newId;
                 localUsers.push({ 
-                  ...u, 
                   id: newId, 
                   ownerId: 'local',
                   name: u.name,
-                  avatarColor: u.avatarColor || 'bg-blue-500'
+                  avatarColor: u.avatarColor || 'bg-blue-500',
+                  avatarUrl: u.avatarUrl,
+                  rankings: u.rankings,
+                  highScore: u.highScore
                 });
                 usersAdded++;
               }
@@ -1049,14 +1087,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 const newId = c.id || generateId('c');
                 coasterIdMap[c.id || newId] = newId;
                 localCoasters.push({ 
-                  ...c, 
                   id: newId, 
                   isCustom: true,
                   name: c.name,
                   park: normalizeParkName(c.park),
                   manufacturer: normalizeManufacturer(c.manufacturer || 'Unknown'),
                   country: normalizeCountry(c.country || 'Unknown'),
-                  type: c.type || 'Steel'
+                  type: c.type || CoasterType.Steel,
+                  imageUrl: c.imageUrl,
+                  specs: c.specs,
+                  variants: c.variants,
+                  audioUrl: c.audioUrl
                 });
                 coastersAdded++;
               }
@@ -1074,13 +1115,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 if (!newCoasterId || !newUserId) return;
 
                 localCredits.push({ 
-                  ...c, 
                   id: creditId,
                   coasterId: newCoasterId, 
                   userId: newUserId, 
                   ownerId: 'local',
                   date: c.date || new Date().toISOString(),
-                  rideCount: c.rideCount || 1
+                  rideCount: c.rideCount || 1,
+                  photoUrl: c.photoUrl,
+                  gallery: c.gallery,
+                  notes: c.notes,
+                  restraints: c.restraints,
+                  variant: c.variant
                 });
                 creditsAdded++;
               }
@@ -1098,12 +1143,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 if (!newCoasterId || !newUserId) return;
 
                 localWishlist.push({ 
-                  ...w, 
                   id: wishlistId,
                   coasterId: newCoasterId, 
                   userId: newUserId, 
                   ownerId: 'local',
-                  addedAt: w.addedAt || new Date().toISOString()
+                  addedAt: w.addedAt || new Date().toISOString(),
+                  notes: w.notes
                 });
                 wishlistAdded++;
               }
