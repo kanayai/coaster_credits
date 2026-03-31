@@ -172,11 +172,12 @@ const AddCredit: React.FC = () => {
       );
   };
 
-  const handleMagicSearch = async () => {
-      if (!searchTerm) return;
+  const handleMagicSearch = async (queryOverride?: string) => {
+      const query = queryOverride || searchTerm;
+      if (!query) return;
       setIsAiSearching(true);
       setAiDiscoveryResults([]);
-      const results = await searchOnlineCoaster(searchTerm);
+      const results = await searchOnlineCoaster(query);
       setIsAiSearching(false);
       
       if (results && results.length > 0) {
@@ -652,6 +653,17 @@ const AddCredit: React.FC = () => {
                                <button onClick={handleCloneSelected} className="text-[10px] font-bold uppercase bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded text-white flex items-center gap-1 transition-colors">
                                    <Copy size={10} /> Clone
                                </button>
+                               <button 
+                                   onClick={() => {
+                                       const query = `${selectedCoaster.name} variants at ${selectedCoaster.park}`;
+                                       setSearchTerm(query);
+                                       setSelectedCoaster(null);
+                                       handleMagicSearch(query);
+                                   }} 
+                                   className="text-[10px] font-bold uppercase bg-indigo-600 hover:bg-indigo-500 px-2 py-1 rounded text-white flex items-center gap-1 transition-colors"
+                               >
+                                   <Sparkles size={10} /> Find Variants
+                               </button>
                           </div>
                       </div>
                   </div>
@@ -979,7 +991,7 @@ const AddCredit: React.FC = () => {
             {(searchTerm || filteredCoasters.length === 0) && aiDiscoveryResults.length === 0 && (
                 <div className="text-center py-8 space-y-4">
                     <button 
-                        onClick={handleMagicSearch} 
+                        onClick={() => handleMagicSearch()} 
                         disabled={isAiSearching || !searchTerm} 
                         className={clsx(
                             "w-full py-4 rounded-2xl flex items-center justify-center gap-3 font-bold text-sm transition-all shadow-xl active:scale-95",
