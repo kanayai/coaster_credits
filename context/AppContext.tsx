@@ -892,24 +892,81 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             }
           };
 
-          // Helper to remove undefined fields for Firestore
-          const clean = (obj: any) => {
-            const newObj: any = {};
-            Object.keys(obj).forEach(key => {
-              if (obj[key] !== undefined) newObj[key] = obj[key];
-            });
-            return newObj;
+          // Helper to remove undefined/null/empty fields and normalize types for Firestore
+          const clean = (obj: any): any => {
+            if (obj === null || obj === undefined) return undefined;
+            
+            // Handle Arrays
+            if (Array.isArray(obj)) {
+              return obj.map(v => clean(v)).filter(v => v !== undefined);
+            }
+            
+            // Handle Objects
+            if (typeof obj === 'object') {
+              const newObj: any = {};
+              let hasData = false;
+              
+              Object.keys(obj).forEach(key => {
+                const val = obj[key];
+                
+                // Skip empty values
+                if (val === undefined || val === null || val === '') return;
+                
+                // Special handling for specific fields
+                if (key === 'date' || key === 'addedAt') {
+                  try {
+                    const d = new Date(val);
+                    if (!isNaN(d.getTime())) {
+                      newObj[key] = d.toISOString();
+                      hasData = true;
+                    }
+                  } catch (e) {
+                    // Keep original if date parsing fails, rules will catch it
+                    newObj[key] = val;
+                    hasData = true;
+                  }
+                } else if (key === 'rideCount' || key === 'highScore' || key === 'inversions') {
+                  const num = Math.floor(Number(val));
+                  if (!isNaN(num)) {
+                    newObj[key] = num;
+                    hasData = true;
+                  }
+                } else {
+                  const cleanedVal = clean(val);
+                  if (cleanedVal !== undefined) {
+                    newObj[key] = cleanedVal;
+                    hasData = true;
+                  }
+                }
+              });
+              
+              return hasData ? newObj : undefined;
+            }
+            
+            // Handle Primitives
+            return obj;
           };
 
           // 1. Handle Users
           if (data.users && Array.isArray(data.users)) {
             for (const u of data.users) {
               if (!u.name) continue;
+              
+              // Check if this user already exists in our local state (synced from cloud)
               const existing = users.find(e => e.name.toLowerCase() === u.name.toLowerCase());
+              
               if (existing) {
                 userIdMap[u.id] = existing.id;
               } else {
-                const newId = u.id || generateId('u');
+                // For the primary user 'u1', we might want to map it to a more unique ID 
+                // to avoid collisions in a shared database environment
+                let newId = u.id || generateId('u');
+                
+                // If it's the default 'u1', make it unique to this owner
+                if (newId === 'u1') {
+                  newId = `u_${uid.substring(0, 8)}`;
+                }
+                
                 userIdMap[u.id || newId] = newId;
                 
                 // SELECTIVE FIELDS to avoid document size issues
@@ -1086,8 +1143,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               if (existing) {
                 userIdMap[u.id] = existing.id;
               } else {
-                const newId = u.id || generateId('u');
-                userIdMap[u.id || newId] = newId;
                 // SELECTIVE FIELDS to avoid document size issues
                 let avatarUrl = u.avatarUrl;
                 if (avatarUrl && avatarUrl.startsWith('data:image') && avatarUrl.length > 102400) {
@@ -1104,6 +1159,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     wooden: limitArray(rankings.wooden)
                   };
                 }
+
+                let newId = u.id || generateId('u');
+                if (newId === 'u1') {
+                  newId = `u_local_${generateId('u').substring(0, 4)}`;
+                }
+                userIdMap[u.id || newId] = newId;
 
                 localUsers.push({ 
                   id: newId, 
