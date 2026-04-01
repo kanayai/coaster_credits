@@ -9,8 +9,8 @@ This guide details how to take **CoasterCount Pro** from a local development pro
 
 Before deploying anywhere, you must address two critical areas: **Data Storage** and **API Security**.
 
-### 1. Data Persistence (The "Local Storage" Problem)
-*   **Current State:** The app uses `localStorage`. Data lives **only** on the user's phone browser. If they clear cache, uninstall the app, or switch phones, **their data is lost**.
+### 1. Data Persistence (The "Browser Storage" Problem)
+*   **Current State:** The app uses browser storage for local mode and Firebase for cloud mode. Local-only data can still be lost if a user clears browser data or switches devices without syncing.
 *   **Production Requirement:** To launch on App Stores, you strongly should implement a Cloud Backend.
 *   **Recommended Stack:**
     *   **Firebase (Google):** Easiest integration. Provides Authentication (Google/Apple Sign-in) and Firestore (Database) for free.
@@ -18,7 +18,7 @@ Before deploying anywhere, you must address two critical areas: **Data Storage**
     *   *Why?* This allows users to "Log In" and restore their credits on any device.
 
 ### 2. API Key Security
-*   **Current State:** The `API_KEY` is in the frontend code.
+*   **Current State:** The Gemini key is exposed to the frontend bundle as `GEMINI_API_KEY` with legacy support for `API_KEY`.
 *   **The Risk:** If you publish this to the App Store, hackers can extract your key and use your quota.
 *   **Solution:** Create a simple "Proxy Server" (using Vercel Functions or Cloudflare Workers). The app calls your server, and your server calls Gemini. This keeps the key hidden on the server.
 
@@ -35,7 +35,7 @@ This makes your app accessible via a URL (e.g., `coastercount.com`) and installa
 ### 2. Steps to Deploy
 1.  Push your code to **GitHub**.
 2.  Log in to Vercel/Netlify and import the repository.
-3.  **Environment Variables:** In the dashboard settings, add your `API_KEY`.
+3.  **Environment Variables:** In the dashboard settings, add your `GEMINI_API_KEY`.
 4.  Click **Deploy**.
 5.  **Result:** You now have a live URL. Users can open it on Safari (iOS) or Chrome (Android) and tap "Add to Home Screen" to install it.
 
@@ -135,4 +135,3 @@ Both Apple and Google **require** the following links on your store listing:
 | **Web / PWA** | Free | Easy | Minutes |
 | **Google Play** | $25 (One-time) | Medium | ~1 Week |
 | **Apple App Store** | $99 / Year | Hard | ~1 Week |
-

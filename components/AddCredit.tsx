@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Coaster, CoasterType, Credit } from '../types';
 import { Search, Plus, Calendar, Sparkles, Loader2, Filter, Bookmark, BookmarkCheck, PlusCircle, ArrowLeft as BackIcon, Zap, Ruler, ArrowUp, History, Trash2, Clock, CheckCircle2, Globe, Info, X, Palmtree, ChevronRight, ListChecks, CheckSquare, Square, Check, Edit2, Copy, AlertCircle, Link, Image as ImageIcon, ArrowDownCircle, Images, BookmarkPlus, BookmarkMinus, Split, Camera, MessageSquare, Lock } from 'lucide-react';
@@ -82,6 +82,7 @@ const AddCredit: React.FC = () => {
   const [restraints, setRestraints] = useState('');
   const [selectedVariant, setSelectedVariant] = useState<string>('');
   const [photos, setPhotos] = useState<File[]>([]);
+  const submitTapGuardRef = useRef(false);
 
   // Effect: Handle Deep Link from Wishlist/Other views
   useEffect(() => {
@@ -352,14 +353,26 @@ const AddCredit: React.FC = () => {
             triggerConfetti();
         }
         
-        const coasterRef = selectedCoaster;
         setSelectedCoaster(null); 
-        
-        // Trigger Share Modal
-        if (newCredit) {
-           setSharingCreditData({ credit: newCredit, coaster: coasterRef });
-        }
     }
+  };
+
+  const handleConfirmLog = () => {
+    if (submitTapGuardRef.current) return;
+    submitTapGuardRef.current = true;
+
+    const activeElement = document.activeElement as HTMLElement | null;
+    activeElement?.blur();
+
+    // On mobile browsers, the first tap after typing can dismiss the keyboard
+    // without reliably triggering the action. Delay the actual submit slightly
+    // so the tap still results in a log.
+    window.setTimeout(() => {
+      processLog();
+      window.setTimeout(() => {
+        submitTapGuardRef.current = false;
+      }, 300);
+    }, 50);
   };
 
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -669,7 +682,13 @@ const AddCredit: React.FC = () => {
                   </div>
 
                   {/* Form */}
-                  <div className="space-y-5">
+                  <form
+                      className="space-y-5"
+                      onSubmit={(e) => {
+                          e.preventDefault();
+                          handleConfirmLog();
+                      }}
+                  >
                        {/* Date Input */}
                        <div className="space-y-1.5">
                            <label className="text-xs font-bold uppercase text-slate-500 flex items-center gap-1.5 ml-1">
@@ -759,11 +778,16 @@ const AddCredit: React.FC = () => {
                                className="w-full bg-slate-800 border border-slate-700 rounded-xl p-4 text-white placeholder:text-slate-600 text-sm h-32 resize-none focus:ring-1 focus:ring-primary outline-none transition-all"
                            />
                        </div>
-                  </div>
+                  </form>
 
                   <div className="pt-4 pb-8">
                       <button 
-                          onClick={processLog}
+                          type="button"
+                          onPointerDown={(e) => {
+                              e.preventDefault();
+                              handleConfirmLog();
+                          }}
+                          onClick={handleConfirmLog}
                           className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-2xl font-bold text-lg shadow-xl shadow-primary/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                       >
                           <CheckCircle2 size={24} />

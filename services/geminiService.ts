@@ -1,11 +1,12 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
+import { GEMINI_API_KEY } from '../config/clientConfig';
 import { Coaster, CoasterType } from '../types';
 
 let genAI: GoogleGenAI | null = null;
 
-if (process.env.API_KEY) {
-  genAI = new GoogleGenAI({ apiKey: process.env.API_KEY });
+if (GEMINI_API_KEY) {
+  genAI = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 }
 
 export const generateCoasterInfo = async (searchTerm: string): Promise<Partial<Coaster>[] | null> => {

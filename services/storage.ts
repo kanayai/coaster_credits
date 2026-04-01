@@ -1,15 +1,18 @@
 
-const DB_NAME = 'CoasterCountDB';
-const STORE_NAME = 'app_data';
+import {
+  STORAGE_DB_NAME,
+  STORAGE_MIGRATION_KEYS,
+  STORAGE_STORE_NAME,
+} from '../config/clientConfig';
 
 const openDB = (): Promise<IDBDatabase> => {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 1);
+    const request = indexedDB.open(STORAGE_DB_NAME, 1);
     
     request.onupgradeneeded = (event) => {
       const db = (event.target as IDBOpenDBRequest).result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME);
+      if (!db.objectStoreNames.contains(STORAGE_STORE_NAME)) {
+        db.createObjectStore(STORAGE_STORE_NAME);
       }
     };
     
@@ -26,8 +29,8 @@ export const storage = {
     try {
         const db = await openDB();
         return new Promise((resolve, reject) => {
-        const transaction = db.transaction(STORE_NAME, 'readonly');
-        const store = transaction.objectStore(STORE_NAME);
+        const transaction = db.transaction(STORAGE_STORE_NAME, 'readonly');
+        const store = transaction.objectStore(STORAGE_STORE_NAME);
         const request = store.get(key);
         request.onsuccess = () => resolve(request.result as T || null);
         request.onerror = () => reject(request.error);
@@ -42,8 +45,8 @@ export const storage = {
     try {
         const db = await openDB();
         return new Promise((resolve, reject) => {
-        const transaction = db.transaction(STORE_NAME, 'readwrite');
-        const store = transaction.objectStore(STORE_NAME);
+        const transaction = db.transaction(STORAGE_STORE_NAME, 'readwrite');
+        const store = transaction.objectStore(STORAGE_STORE_NAME);
         const request = store.put(value, key);
         request.onsuccess = () => resolve();
         request.onerror = () => reject(request.error);
@@ -57,8 +60,8 @@ export const storage = {
   async clear(): Promise<void> {
       const db = await openDB();
       return new Promise((resolve, reject) => {
-          const transaction = db.transaction(STORE_NAME, 'readwrite');
-          const store = transaction.objectStore(STORE_NAME);
+          const transaction = db.transaction(STORAGE_STORE_NAME, 'readwrite');
+          const store = transaction.objectStore(STORAGE_STORE_NAME);
           const request = store.clear();
           request.onsuccess = () => resolve();
           request.onerror = () => reject(request.error);
@@ -66,11 +69,10 @@ export const storage = {
   },
 
   async migrateFromLocalStorage(): Promise<boolean> {
-      const keys = ['cc_users', 'cc_coasters', 'cc_credits', 'cc_wishlist', 'cc_active_user_id'];
       let migratedAny = false;
       
       try {
-        for (const key of keys) {
+        for (const key of STORAGE_MIGRATION_KEYS) {
             const item = localStorage.getItem(key);
             if (item) {
                 migratedAny = true;

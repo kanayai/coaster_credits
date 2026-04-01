@@ -1,5 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
+import {
+  STORAGE_DB_NAME,
+  STORAGE_MIGRATION_KEYS,
+  STORAGE_STORE_NAME,
+} from '../config/clientConfig';
 import { useAppContext } from '../context/AppContext';
 import { 
   Database, 
@@ -71,17 +76,29 @@ const DataRecoveryHub: React.FC = () => {
     // Check IndexedDB
     const checkDB = async () => {
       try {
-        const dbName = 'CoasterCloudDB';
-        const request = indexedDB.open(dbName);
+        const request = indexedDB.open(STORAGE_DB_NAME);
         request.onsuccess = (e: any) => {
           const db = e.target.result;
           const stores = Array.from(db.objectStoreNames);
+          if (!stores.includes(STORAGE_STORE_NAME)) {
+            audit.push({ key: `DB: ${STORAGE_STORE_NAME} (missing)`, size: 0, type: 'db' });
+          }
           stores.forEach((storeName: any) => {
             audit.push({ key: `DB: ${storeName}`, size: 0, type: 'db' });
+          });
+          STORAGE_MIGRATION_KEYS.forEach((key) => {
+            if (!audit.some(item => item.key === key)) {
+              audit.push({ key: `${key} (not present)`, size: 0, type: 'local' });
+            }
           });
           setStorageAudit([...audit].sort((a, b) => b.size - a.size));
         };
       } catch (err) {
+        STORAGE_MIGRATION_KEYS.forEach((key) => {
+          if (!audit.some(item => item.key === key)) {
+            audit.push({ key: `${key} (not present)`, size: 0, type: 'local' });
+          }
+        });
         setStorageAudit([...audit].sort((a, b) => b.size - a.size));
       }
     };

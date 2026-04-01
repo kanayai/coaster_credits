@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAppContext } from '../context/AppContext';
+import { GEMINI_API_KEY } from '../config/clientConfig';
 import { ArrowLeft, Gamepad2, BrainCircuit, Mic2, HelpCircle, Trophy, RefreshCw, Zap, Ticket, Loader2, Sparkles, AlertCircle, CheckCircle2, Timer, X, Search, Hash, Copy, Percent, Play, Volume2, VolumeX } from 'lucide-react';
 import clsx from 'clsx';
 import { GoogleGenAI, Type } from "@google/genai";
@@ -561,14 +562,14 @@ const TriviaGame: React.FC<{ onExit: () => void }> = ({ onExit }) => {
     useEffect(() => {
         unlockAudio();
         const loadQuestions = async () => {
-            if (!process.env.API_KEY) {
+            if (!GEMINI_API_KEY) {
                 setQuestions(FALLBACK_QUESTIONS);
                 setGameState('PLAYING');
                 return;
             }
 
             try {
-                const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+                const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
                 const response = await ai.models.generateContent({
                     model: 'gemini-3-flash-preview',
                     contents: "Generate 5 difficult multiple-choice trivia questions about roller coasters, theme parks, and manufacturers. Return JSON.",
