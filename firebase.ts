@@ -39,6 +39,22 @@ export interface FirestoreErrorInfo {
   }
 }
 
+// Filter out undefined properties for Firestore
+export function cleanForFirestore<T extends object>(obj: T): T {
+  const result: any = Array.isArray(obj) ? [] : {};
+  Object.keys(obj).forEach((key) => {
+    const val = (obj as any)[key];
+    if (val !== undefined) {
+      if (val !== null && typeof val === 'object' && !(val instanceof Date)) {
+        result[key] = cleanForFirestore(val);
+      } else {
+        result[key] = val;
+      }
+    }
+  });
+  return result as T;
+}
+
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),

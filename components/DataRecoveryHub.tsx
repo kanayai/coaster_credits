@@ -8,11 +8,9 @@ import {
 import { useAppContext } from '../context/AppContext';
 import { 
   Database, 
-  Cloud, 
   Download, 
   Upload, 
   AlertCircle, 
-  CheckCircle2, 
   Info, 
   ChevronLeft, 
   RefreshCw, 
@@ -20,7 +18,9 @@ import {
   Search,
   HardDrive,
   FileJson,
-  History
+  ImageDown,
+  Wrench,
+  Loader2
 } from 'lucide-react';
 import { db } from '../firebase';
 import clsx from 'clsx';
@@ -31,35 +31,24 @@ const DataRecoveryHub: React.FC = () => {
     credits, 
     users, 
     changeView, 
-    getLocalDataStats, 
-    forceMigrateLocalData, 
     repairDatabase,
     reconstructMissingProfiles,
     nuclearReset,
     manualRefresh, 
     scanAllCredits,
+    enrichDatabaseImages,
+    standardizeDatabase,
     importData,
     exportData,
     isSyncing,
     showNotification
   } = useAppContext();
 
-  const [localStats, setLocalStats] = useState<{ users: number, credits: number, wishlist: number } | null>(null);
-  const [isCheckingLocal, setIsCheckingLocal] = useState(false);
   const isAdmin = currentUser?.email === "k.anaya.izquierdo@gmail.com";
 
   const [manualUserId, setManualUserId] = useState('');
   const [isRepairing, setIsRepairing] = useState(false);
-
-  useEffect(() => {
-    const checkLocal = async () => {
-      setIsCheckingLocal(true);
-      const stats = await getLocalDataStats();
-      setLocalStats(stats);
-      setIsCheckingLocal(false);
-    };
-    checkLocal();
-  }, []);
+  const [isEnriching, setIsEnriching] = useState(false);
 
   const [storageAudit, setStorageAudit] = useState<{ key: string, size: number, type: 'local' | 'db' }[]>([]);
 
@@ -161,8 +150,8 @@ const DataRecoveryHub: React.FC = () => {
           <ChevronLeft size={24} />
         </button>
         <div>
-          <h1 className="text-3xl font-black text-white italic tracking-tight">DATA RECOVERY HUB</h1>
-          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Advanced Tools & Troubleshooting</p>
+          <h1 className="text-3xl font-black text-white italic tracking-tight">BACKUPS & ADVANCED TOOLS</h1>
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Backups, diagnostics, and admin recovery</p>
         </div>
       </div>
 
@@ -174,7 +163,7 @@ const DataRecoveryHub: React.FC = () => {
         )}>
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
-              {currentUser ? <Cloud size={14} className="text-emerald-400" /> : <HardDrive size={14} className="text-amber-400" />}
+              {currentUser ? <Database size={14} className="text-emerald-400" /> : <HardDrive size={14} className="text-amber-400" />}
               Current Mode: {currentUser ? "Cloud Synchronized" : "Local Storage Only"}
             </div>
             {currentUser && (
@@ -204,8 +193,28 @@ const DataRecoveryHub: React.FC = () => {
           </div>
         </div>
 
-        {/* Disaster Recovery Section */}
-        {currentUser && (
+        {!isAdmin && (
+          <div className="bg-slate-900 rounded-[32px] p-6 border border-slate-800 shadow-xl">
+            <div className="flex gap-3">
+              <Info size={18} className="text-blue-400 shrink-0 mt-0.5" />
+              <div>
+                <h2 className="text-lg font-black text-white uppercase tracking-tight">Restore Local Data</h2>
+                <p className="text-xs text-slate-400 leading-relaxed mt-2">
+                  The normal restore flow now lives in your profile screen under <span className="text-slate-200 font-bold">Sync & Restore</span>.
+                </p>
+                <button
+                  onClick={() => changeView('PROFILE')}
+                  className="mt-4 px-4 py-2 rounded-xl bg-primary text-white text-[10px] font-black uppercase tracking-widest hover:bg-primary/80 transition-all"
+                >
+                  Back to Profile
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Admin Recovery Section */}
+        {isAdmin && (
           <div className="bg-slate-900 rounded-[32px] p-6 border border-slate-800 shadow-xl overflow-hidden relative">
             <div className="absolute top-0 right-0 p-4 opacity-5">
               <ShieldAlert size={120} />
@@ -216,43 +225,43 @@ const DataRecoveryHub: React.FC = () => {
                 <AlertCircle size={20} />
               </div>
               <div>
-                <h2 className="text-lg font-black text-white uppercase tracking-tight">Disaster Recovery</h2>
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Fix missing or orphaned data</p>
+                <h2 className="text-lg font-black text-white uppercase tracking-tight">Admin Recovery Tools</h2>
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Repair, rebuild, and cache reset</p>
               </div>
             </div>
 
             <div className="space-y-4">
               <div className="p-4 bg-slate-800/50 rounded-2xl border border-slate-700">
-                <h3 className="text-xs font-black text-white uppercase mb-1">Repair Data Links</h3>
+                <h3 className="text-xs font-black text-white uppercase mb-1">Reconnect Missing Credits</h3>
                 <p className="text-[10px] text-slate-400 leading-relaxed mb-4">
-                  If you can see your profiles but your credits are missing, this tool will scan the cloud for any credits that match your profile IDs and re-link them to your account.
+                  Use this when the rider profiles exist but some cloud credits are not showing inside the account correctly.
                 </p>
                 <button 
                   onClick={repairDatabase}
                   disabled={isSyncing}
                   className="w-full py-3 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                 >
-                  <RefreshCw size={14} className={isSyncing ? "animate-spin" : ""} /> Run Deep Link Repair
+                  <RefreshCw size={14} className={isSyncing ? "animate-spin" : ""} /> Repair Cloud Data Links
                 </button>
               </div>
 
               <div className="p-4 bg-red-500/5 rounded-2xl border border-red-500/20">
-                <h3 className="text-xs font-black text-red-400 uppercase mb-1">Nuclear Option</h3>
+                <h3 className="text-xs font-black text-red-400 uppercase mb-1">Reset Local Cache</h3>
                 <p className="text-[10px] text-red-200/40 leading-relaxed mb-4">
-                  Wipe local cache and force a complete fresh pull from the cloud. Use this if your app state feels "stuck" or corrupted.
+                  Clear this device&apos;s cached copy and force a fresh download from the cloud if the app feels stuck or out of date.
                 </p>
                 <button 
                   onClick={nuclearReset}
                   className="w-full py-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 text-[10px] font-black uppercase tracking-widest transition-all border border-red-500/30 flex items-center justify-center gap-2"
                 >
-                  <ShieldAlert size={14} /> Trigger Nuclear Reset
+                  <ShieldAlert size={14} /> Reset Local Cache
                 </button>
               </div>
 
               <div className="p-4 bg-slate-800/50 rounded-2xl border border-slate-700">
-                <h3 className="text-xs font-black text-white uppercase mb-1">Manual Profile Claim</h3>
+                <h3 className="text-xs font-black text-white uppercase mb-1">Claim Credits by Profile ID</h3>
                 <p className="text-[10px] text-slate-400 leading-relaxed mb-4">
-                  If you know the old User ID (e.g. "u1" or a random string), you can manually claim all credits associated with it.
+                  If you know an older rider profile ID, you can reassign matching cloud credits into the current account.
                 </p>
                 <div className="flex gap-2">
                   <input 
@@ -272,6 +281,24 @@ const DataRecoveryHub: React.FC = () => {
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <button 
+                  onClick={scanAllCredits}
+                  disabled={isSyncing}
+                  className="w-full py-4 rounded-2xl bg-red-500 hover:bg-red-600 text-white text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-red-500/20 active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  <Search size={18} /> Scan All Cloud Credits
+                </button>
+
+                <button 
+                  onClick={reconstructMissingProfiles}
+                  disabled={isSyncing || credits.length === 0}
+                  className="w-full py-4 rounded-2xl bg-slate-800 hover:bg-slate-750 text-red-400 border border-red-500/30 text-xs font-black uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  <Database size={18} /> Rebuild Missing Profiles
+                </button>
+              </div>
+
               <div className="p-4 bg-slate-800/50 rounded-2xl border border-slate-700">
                 <h3 className="text-xs font-black text-white uppercase mb-1">Browser Storage Audit</h3>
                 <p className="text-[10px] text-slate-400 leading-relaxed mb-4">
@@ -289,50 +316,6 @@ const DataRecoveryHub: React.FC = () => {
                 </div>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* Local Data Recovery Section */}
-        {currentUser && (
-          <div className="bg-slate-900 rounded-[32px] p-6 border border-slate-800 shadow-xl">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-primary/20 rounded-xl text-primary">
-                <History size={20} />
-              </div>
-              <div>
-                <h2 className="text-lg font-black text-white uppercase tracking-tight">Local Data Recovery</h2>
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Restore data from this browser</p>
-              </div>
-            </div>
-
-            {localStats && (localStats.credits > 0 || localStats.users > 0) ? (
-              <div className="space-y-4">
-                <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl">
-                  <div className="flex items-center gap-2 mb-2 text-amber-400">
-                    <AlertCircle size={16} />
-                    <span className="text-xs font-bold uppercase tracking-wider">Unsynced Data Found</span>
-                  </div>
-                  <p className="text-xs text-amber-100/70 leading-relaxed mb-4">
-                    We found {localStats.credits} credits and {localStats.users} profiles stored locally on this device that are not yet in your cloud account.
-                  </p>
-                  <button 
-                    onClick={forceMigrateLocalData}
-                    disabled={isSyncing}
-                    className="w-full py-4 rounded-2xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-amber-500/20 active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
-                  >
-                    {isSyncing ? <RefreshCw size={18} className="animate-spin" /> : <Cloud size={18} />} Push Local Data to Cloud
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="p-8 bg-black/20 rounded-2xl border border-white/5 text-center">
-                <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center mx-auto mb-3 text-slate-600">
-                  <CheckCircle2 size={24} />
-                </div>
-                <p className="text-sm font-bold text-slate-400">No unsynced local data detected.</p>
-                <p className="text-[10px] text-slate-600 mt-1 uppercase tracking-widest">Your device is clean!</p>
-              </div>
-            )}
           </div>
         )}
 
@@ -384,42 +367,49 @@ const DataRecoveryHub: React.FC = () => {
           </div>
         </div>
 
-        {/* Admin Tools Section */}
-        {isAdmin && (
-          <div className="bg-red-500/5 rounded-[32px] p-6 border border-red-500/20 shadow-xl">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="p-2 bg-red-500/20 rounded-xl text-red-400">
-                <ShieldAlert size={20} />
-              </div>
-              <div>
-                <h2 className="text-lg font-black text-red-200 uppercase tracking-tight">Admin Recovery Tools</h2>
-                <p className="text-[10px] font-bold text-red-500/60 uppercase tracking-widest">Danger Zone / Global Scan</p>
-              </div>
+        <div className="bg-slate-900 rounded-[32px] p-6 border border-slate-800 shadow-xl">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-2 bg-amber-500/20 rounded-xl text-amber-400">
+              <Wrench size={20} />
             </div>
-
-            <div className="space-y-4">
-              <button 
-                onClick={scanAllCredits}
-                disabled={isSyncing}
-                className="w-full py-4 rounded-2xl bg-red-500 hover:bg-red-600 text-white text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-red-500/20 active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                <Search size={18} /> Perform Global Database Scan
-              </button>
-
-              <button 
-                onClick={reconstructMissingProfiles}
-                disabled={isSyncing || credits.length === 0}
-                className="w-full py-4 rounded-2xl bg-slate-800 hover:bg-slate-750 text-red-400 border border-red-500/30 text-xs font-black uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                <Database size={18} /> Reconstruct Missing Profiles
-              </button>
+            <div>
+              <h2 className="text-lg font-black text-white uppercase tracking-tight">Maintenance</h2>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Photos and data cleanup</p>
             </div>
-            
-            <p className="text-[9px] text-red-400/60 mt-3 text-center italic">
-              Global Scan fetches ALL credits. Reconstruction creates profiles for orphaned credits.
-            </p>
           </div>
-        )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <button 
+              onClick={() => {
+                setIsEnriching(true);
+                enrichDatabaseImages().finally(() => setIsEnriching(false));
+              }}
+              disabled={isEnriching}
+              className="flex flex-col items-center justify-center gap-3 p-6 rounded-2xl bg-slate-800 border border-slate-700 hover:bg-slate-750 transition-all group disabled:opacity-50"
+            >
+              <div className="p-3 bg-primary/10 rounded-xl text-primary group-hover:scale-110 transition-transform">
+                {isEnriching ? <Loader2 size={24} className="animate-spin" /> : <ImageDown size={24} />}
+              </div>
+              <div className="text-center">
+                <span className="block text-sm font-black text-white uppercase tracking-tight">Fetch Photos</span>
+                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Fill missing coaster images</span>
+              </div>
+            </button>
+
+            <button 
+              onClick={standardizeDatabase}
+              className="flex flex-col items-center justify-center gap-3 p-6 rounded-2xl bg-slate-800 border border-slate-700 hover:bg-slate-750 transition-all group"
+            >
+              <div className="p-3 bg-amber-500/10 rounded-xl text-amber-400 group-hover:scale-110 transition-transform">
+                <Wrench size={24} />
+              </div>
+              <div className="text-center">
+                <span className="block text-sm font-black text-white uppercase tracking-tight">Clean Names</span>
+                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Standardize parks and manufacturers</span>
+              </div>
+            </button>
+          </div>
+        </div>
 
         {/* Help & Support */}
         <div className="p-6 text-center">

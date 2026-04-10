@@ -119,11 +119,13 @@ export const initializeAndSyncApp = async ({
 
     if (!currentUser) {
       const localUsers = await storage.get<User[]>('cc_users');
+      const localCoasters = await storage.get<Coaster[]>('cc_coasters');
       const localCredits = await storage.get<Credit[]>('cc_credits');
       const localWishlist = await storage.get<WishlistEntry[]>('cc_wishlist');
       const localActiveId = await storage.get<string>('cc_active_user_id');
 
       setUsers(localUsers && localUsers.length > 0 ? localUsers : INITIAL_USERS);
+      setCoasters([...INITIAL_COASTERS, ...(localCoasters || [])]);
       setCredits(localCredits || []);
       setWishlist(localWishlist || []);
       setActiveUserId(
@@ -139,11 +141,13 @@ export const initializeAndSyncApp = async ({
     setIsSyncing(true);
 
     const localUsers = await storage.get<User[]>('cc_users');
+    const localCoasters = await storage.get<Coaster[]>('cc_coasters');
     const localCredits = await storage.get<Credit[]>('cc_credits');
     const localWishlist = await storage.get<WishlistEntry[]>('cc_wishlist');
 
     const usersToMigrate = localUsers || INITIAL_USERS;
     const hasDataToMigrate =
+      (localCoasters && localCoasters.length > 0) ||
       (localCredits && localCredits.length > 0) ||
       (localWishlist && localWishlist.length > 0) ||
       (localUsers && localUsers.length > 0);
@@ -154,26 +158,35 @@ export const initializeAndSyncApp = async ({
 
       for (const user of usersToMigrate) {
         const userRef = doc(db, 'users', user.id);
-        batch.set(userRef, { ...user, ownerId: uid });
+        batch.set(userRef, cleanForFirestore({ ...user, ownerId: uid }));
+      }
+
+      if (localCoasters) {
+        for (const coaster of localCoasters) {
+          if (!coaster.isCustom) continue;
+          const coasterRef = doc(db, 'coasters', coaster.id);
+          batch.set(coasterRef, cleanForFirestore(coaster));
+        }
       }
 
       if (localCredits) {
         for (const credit of localCredits) {
           const creditRef = doc(db, 'credits', credit.id);
-          batch.set(creditRef, { ...credit, ownerId: uid });
+          batch.set(creditRef, cleanForFirestore({ ...credit, ownerId: uid }));
         }
       }
 
       if (localWishlist) {
         for (const wishlistEntry of localWishlist) {
           const wishlistRef = doc(db, 'wishlist', wishlistEntry.id);
-          batch.set(wishlistRef, { ...wishlistEntry, ownerId: uid });
+          batch.set(wishlistRef, cleanForFirestore({ ...wishlistEntry, ownerId: uid }));
         }
       }
 
       try {
         await batch.commit();
         await storage.set('cc_users', null);
+        await storage.set('cc_coasters', null);
         await storage.set('cc_credits', null);
         await storage.set('cc_wishlist', null);
         showNotification('Cloud sync complete!', 'success');

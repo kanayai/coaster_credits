@@ -114,7 +114,7 @@ interface AppContextType {
   setAppTheme: (theme: AppTheme) => void;
   
   // Recovery
-  getLocalDataStats: () => Promise<{ users: number, credits: number, wishlist: number }>;
+  getLocalDataStats: () => Promise<{ users: number, credits: number, wishlist: number, coasters: number }>;
   forceMigrateLocalData: () => Promise<void>;
   repairDatabase: () => Promise<void>;
   reconstructMissingProfiles: () => Promise<void>;
@@ -286,6 +286,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     coasters,
     credits,
     wishlist,
+    setCoasters,
     setCredits,
     setWishlist,
     showNotification,
@@ -381,11 +382,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const autoFetchCoasterImage = async (coasterId: string) => {
-      return autoFetchCoasterImageDomainAction(coasters, coasterId);
+      return autoFetchCoasterImageDomainAction(mutationContext, coasterId);
   };
 
   const updateCoasterImage = async (coasterId: string, imageUrl: string) => {
-      return updateCoasterImageDomainAction(coasterId, imageUrl);
+      return updateCoasterImageDomainAction(mutationContext, coasterId, imageUrl);
   };
 
   const standardizeDatabase = async () => {

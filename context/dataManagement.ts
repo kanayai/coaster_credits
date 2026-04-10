@@ -12,6 +12,7 @@ import {
   updateDoc,
   writeBatch,
   type FirebaseUser,
+  cleanForFirestore,
 } from '../firebase';
 import { storage } from '../services/storage';
 
@@ -117,7 +118,7 @@ export const addUserAction = async (
 
   if (currentUser) {
     try {
-      await setDoc(doc(db, 'users', newUser.id), newUser);
+      await setDoc(doc(db, 'users', newUser.id), cleanForFirestore(newUser));
       switchUser(newUser.id);
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, `users/${newUser.id}`);
@@ -212,17 +213,34 @@ export const updateRankingsAction = async (
 };
 
 export const standardizeDatabaseAction = async (
-  context: Pick<BaseDataContext, 'coasters' | 'showNotification'>
+  context: Pick<BaseDataContext, 'coasters' | 'currentUser' | 'setCoasters' | 'showNotification'>
 ) => {
-  const { coasters, showNotification } = context;
+  const { coasters, currentUser, setCoasters, showNotification } = context;
+  const standardizedCoasters = coasters.map((coaster) => ({
+    ...coaster,
+    manufacturer: normalizeManufacturer(coaster.manufacturer),
+    park: normalizeParkName(coaster.park),
+    country: normalizeCountry(coaster.country),
+  }));
+
+  if (!currentUser) {
+    setCoasters(standardizedCoasters);
+    await storage.set(
+      'cc_coasters',
+      standardizedCoasters.filter((coaster) => coaster.isCustom)
+    );
+    showNotification('Local coaster database standardized.', 'success');
+    return;
+  }
+
   const batch = writeBatch(db);
   let count = 0;
-  coasters.forEach((coaster) => {
+  standardizedCoasters.forEach((coaster) => {
     if (coaster.isCustom) {
       batch.update(doc(db, 'coasters', coaster.id), {
-        manufacturer: normalizeManufacturer(coaster.manufacturer),
-        park: normalizeParkName(coaster.park),
-        country: normalizeCountry(coaster.country),
+        manufacturer: coaster.manufacturer,
+        park: coaster.park,
+        country: coaster.country,
       });
       count++;
     }
@@ -239,14 +257,22 @@ export const standardizeDatabaseAction = async (
 };
 
 export const clearStoragePhotosAction = async (
-  context: Pick<BaseDataContext, 'credits' | 'showNotification'>
+  context: Pick<BaseDataContext, 'credits' | 'currentUser' | 'setCredits' | 'showNotification'>
 ) => {
-  const { credits, showNotification } = context;
+  const { credits, currentUser, setCredits, showNotification } = context;
   if (
     window.confirm(
       'This will remove all uploaded photos from logs to free up space. Text data remains. Continue?'
     )
   ) {
+    if (!currentUser) {
+      const updatedCredits = credits.map((credit) => ({ ...credit, photoUrl: null, gallery: [] }));
+      setCredits(updatedCredits);
+      await storage.set('cc_credits', updatedCredits);
+      showNotification('Local storage cleared.', 'success');
+      return;
+    }
+
     const batch = writeBatch(db);
     credits.forEach((credit) => {
       batch.update(doc(db, 'credits', credit.id), { photoUrl: null, gallery: [] });
@@ -368,7 +394,7 @@ export const importDataAction = async (
               highScore: u.highScore,
             });
 
-            batch.set(doc(db, 'users', newId), newUser);
+            batch.set(doc(db, 'users', newId), cleanForFirestore(newUser));
             batchCount++;
             usersAdded++;
             await commitBatchIfNeeded();
@@ -404,7 +430,7 @@ export const importDataAction = async (
               audioUrl: c.audioUrl,
             });
 
-            batch.set(doc(db, 'coasters', newId), newCoaster);
+            batch.set(doc(db, 'coasters', newId), cleanForFirestore(newCoaster));
             batchCount++;
             coastersAdded++;
             await commitBatchIfNeeded();
@@ -439,7 +465,7 @@ export const importDataAction = async (
               variant: c.variant,
             });
 
-            batch.set(doc(db, 'credits', creditId), newCredit);
+            batch.set(doc(db, 'credits', creditId), cleanForFirestore(newCredit));
             batchCount++;
             creditsAdded++;
             await commitBatchIfNeeded();
@@ -469,7 +495,7 @@ export const importDataAction = async (
               notes: w.notes,
             });
 
-            batch.set(doc(db, 'wishlist', wishlistId), newWishlist);
+            batch.set(doc(db, 'wishlist', wishlistId), cleanForFirestore(newWishlist));
             batchCount++;
             wishlistAdded++;
             await commitBatchIfNeeded();
@@ -678,10 +704,12 @@ export const exportDataAction = (
 
 export const getLocalDataStatsAction = async () => {
   const localUsers = await storage.get<User[]>('cc_users');
+  const localCoasters = await storage.get<Coaster[]>('cc_coasters');
   const localCredits = await storage.get<Credit[]>('cc_credits');
   const localWishlist = await storage.get<WishlistEntry[]>('cc_wishlist');
   return {
     users: localUsers?.length || 0,
+    coasters: localCoasters?.length || 0,
     credits: localCredits?.length || 0,
     wishlist: localWishlist?.length || 0,
   };
@@ -702,13 +730,14 @@ export const forceMigrateLocalDataAction = async (
   setIsSyncing(true);
   try {
     const stats = await getLocalDataStatsAction();
-    if (stats.users === 0 && stats.credits === 0 && stats.wishlist === 0) {
+    if (stats.users === 0 && stats.coasters === 0 && stats.credits === 0 && stats.wishlist === 0) {
       showNotification('No local data found to migrate.', 'info');
       return;
     }
 
     const uid = currentUser.uid;
     const localUsers = await storage.get<User[]>('cc_users');
+    const localCoasters = await storage.get<Coaster[]>('cc_coasters');
     const localCredits = await storage.get<Credit[]>('cc_credits');
     const localWishlist = await storage.get<WishlistEntry[]>('cc_wishlist');
 
@@ -720,9 +749,20 @@ export const forceMigrateLocalDataAction = async (
       const userRef = makeDoc(db, 'users', user.id);
       const userSnap = await loadDoc(userRef);
       if (!userSnap.exists() || userSnap.data()?.ownerId === uid) {
-        batch.set(userRef, { ...user, ownerId: uid });
+        batch.set(userRef, cleanForFirestore({ ...user, ownerId: uid }));
       } else {
         console.warn(`Skipping migration of user ${user.id} as it is owned by another account.`);
+      }
+    }
+
+    if (localCoasters) {
+      for (const coaster of localCoasters) {
+        if (!coaster.isCustom) continue;
+        const coasterRef = makeDoc(db, 'coasters', coaster.id);
+        const coasterSnap = await loadDoc(coasterRef);
+        if (!coasterSnap.exists()) {
+          batch.set(coasterRef, cleanForFirestore(coaster));
+        }
       }
     }
 
@@ -731,7 +771,7 @@ export const forceMigrateLocalDataAction = async (
         const creditRef = makeDoc(db, 'credits', credit.id);
         const creditSnap = await loadDoc(creditRef);
         if (!creditSnap.exists() || creditSnap.data()?.ownerId === uid) {
-          batch.set(creditRef, { ...credit, ownerId: uid });
+          batch.set(creditRef, cleanForFirestore({ ...credit, ownerId: uid }));
         }
       }
     }
@@ -741,13 +781,14 @@ export const forceMigrateLocalDataAction = async (
         const wishlistRef = makeDoc(db, 'wishlist', wishlistEntry.id);
         const wishlistSnap = await loadDoc(wishlistRef);
         if (!wishlistSnap.exists() || wishlistSnap.data()?.ownerId === uid) {
-          batch.set(wishlistRef, { ...wishlistEntry, ownerId: uid });
+          batch.set(wishlistRef, cleanForFirestore({ ...wishlistEntry, ownerId: uid }));
         }
       }
     }
 
     await batch.commit();
     await storage.set('cc_users', null);
+    await storage.set('cc_coasters', null);
     await storage.set('cc_credits', null);
     await storage.set('cc_wishlist', null);
     showNotification('Manual migration successful!', 'success');
@@ -846,7 +887,7 @@ export const reconstructMissingProfilesAction = async (
           ],
         };
         newUsersList.push(newUser);
-        batch.set(userRef, newUser);
+        batch.set(userRef, cleanForFirestore(newUser));
       }
     }
 
@@ -878,6 +919,7 @@ export const nuclearResetAction = async (
     try {
       localStorage.clear();
       await storage.set('cc_users', null);
+      await storage.set('cc_coasters', null);
       await storage.set('cc_credits', null);
       await storage.set('cc_wishlist', null);
       window.location.reload();

@@ -1,8 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { UserPlus, CheckCircle2, Smartphone, Share2, QrCode, Edit2, Save, X, FileSpreadsheet, Database, Download, Cloud, PaintBucket, Sparkles, Loader2, Copy, ExternalLink, Camera, ImageDown, Upload, Wrench, Share, FileJson, Trophy, FileText, Code2, Calendar, Gamepad2, Ticket, Info, AlertCircle, ShieldAlert } from 'lucide-react';
-import { User } from '../types';
+import { UserPlus, CheckCircle2, Edit2, Save, X, FileSpreadsheet, Database, Cloud, Loader2, FileJson, Trophy, Calendar, Gamepad2, Ticket, Info, AlertCircle, ShieldAlert } from 'lucide-react';
 import { AppTheme } from '../context/AppContext';
 import clsx from 'clsx';
 
@@ -77,10 +76,7 @@ const ProfileManager: React.FC = () => {
     updateUser, 
     credits, 
     coasters, 
-    enrichDatabaseImages, 
-    importData, 
     exportData,
-    standardizeDatabase, 
     changeView, 
     showNotification, 
     appTheme, 
@@ -95,11 +91,11 @@ const ProfileManager: React.FC = () => {
   } = useAppContext();
   const [isAdding, setIsAdding] = useState(false);
   const [newUserName, setNewUserName] = useState('');
-  const [isEnriching, setIsEnriching] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
-  const [localStats, setLocalStats] = useState<{ users: number, credits: number, wishlist: number } | null>(null);
+  const [localStats, setLocalStats] = useState<{ users: number, credits: number, wishlist: number, coasters: number } | null>(null);
   const [isCheckingLocal, setIsCheckingLocal] = useState(false);
+  const isAdmin = currentUser?.email === 'k.anaya.izquierdo@gmail.com';
 
   useEffect(() => {
     const checkLocal = async () => {
@@ -138,7 +134,13 @@ const ProfileManager: React.FC = () => {
   ];
 
   return (
-    <div className="animate-fade-in space-y-8 pb-8">
+    <div className="animate-fade-in space-y-10 pb-8">
+      <section className="space-y-3">
+        <div>
+          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Account</p>
+          <h2 className="text-2xl font-bold text-white tracking-tight">Cloud Sync</h2>
+        </div>
+
       {/* Cloud Account Section */}
       <div className={clsx(
         "rounded-3xl p-6 border shadow-xl transition-all duration-500",
@@ -203,9 +205,13 @@ const ProfileManager: React.FC = () => {
           </div>
         )}
       </div>
+      </section>
 
-      <div className="space-y-6">
-        <h2 className="text-2xl font-bold">Rider Profiles</h2>
+      <section className="space-y-4">
+        <div>
+          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Profiles</p>
+          <h2 className="text-2xl font-bold text-white tracking-tight">Rider Profiles</h2>
+        </div>
         <div className="grid grid-cols-1 gap-3">
           {users.map(user => (
                 <div key={user.id} onClick={() => editingUserId !== user.id && switchUser(user.id)} className={`flex items-center p-4 rounded-xl border transition-all cursor-pointer ${user.id === activeUser?.id ? 'bg-primary/10 border-primary' : 'bg-slate-800 border-slate-700'}`}>
@@ -235,22 +241,13 @@ const ProfileManager: React.FC = () => {
         ) : (
             <button onClick={() => setIsAdding(true)} className="w-full py-4 rounded-xl border border-dashed border-slate-600 text-slate-400 font-bold flex items-center justify-center gap-2 hover:bg-slate-800"><UserPlus size={20} /> Add New Profile</button>
         )}
-      </div>
+      </section>
 
-      {activeUser && (
-        <div onClick={() => changeView('QUEUE_HUB')} className="bg-gradient-to-r from-purple-900 to-pink-900 rounded-[24px] p-6 border border-pink-500/30 relative overflow-hidden group cursor-pointer shadow-xl">
-            <div className="absolute top-0 right-0 p-8 opacity-20"><Ticket size={100} /></div>
-            <div className="relative z-10">
-                <div className="flex items-center gap-2 mb-2"><div className="bg-white/20 p-1.5 rounded-lg text-white backdrop-blur"><Gamepad2 size={16} /></div><span className="text-[10px] font-bold text-pink-300 uppercase tracking-widest">Queue Hub</span></div>
-                <h3 className="text-2xl font-black text-white italic">WAITING IN LINE?</h3>
-                <p className="text-xs text-pink-200 mt-1">Games, trivia & jokes to kill time!</p>
-                <div className="mt-4 flex items-center gap-3"><div className="bg-black/30 backdrop-blur px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-2"><Trophy size={14} className="text-yellow-400" /><span className="text-sm font-bold text-white font-mono">{activeUser.highScore || 0}</span></div><button className="bg-white text-purple-900 px-4 py-2 rounded-lg text-xs font-bold uppercase hover:bg-pink-100">Enter Hub</button></div>
-            </div>
-        </div>
-      )}
-
-      <div>
-         <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-3">App Appearance</h3>
+      <section className="space-y-3">
+         <div>
+           <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Appearance</p>
+           <h3 className="text-2xl font-bold text-white tracking-tight">Theme</h3>
+         </div>
          <div className="grid grid-cols-5 gap-3">
              {THEME_OPTIONS.map((theme) => (
                  <button key={theme.id} onClick={() => setAppTheme(theme.id)} className={clsx("flex flex-col items-center gap-2 p-2 rounded-xl border transition-all", appTheme === theme.id ? "bg-slate-800 border-white/30" : "border-transparent opacity-60")}>
@@ -259,88 +256,97 @@ const ProfileManager: React.FC = () => {
                  </button>
              ))}
          </div>
-      </div>
+      </section>
 
       {activeUser && (
-        <div><h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-3">Ride Activity</h3><ActivityHeatmap /></div>
+        <section className="space-y-3">
+          <div>
+            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Activity</p>
+            <h3 className="text-2xl font-bold text-white tracking-tight">Ride History</h3>
+          </div>
+          <ActivityHeatmap />
+        </section>
       )}
 
-      {/* Sync Troubleshooting */}
+      {/* Sync & Restore */}
       <div className="bg-slate-900/50 rounded-3xl p-6 border border-slate-800/50">
         <div className="flex items-center gap-2 mb-4 text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
-          <Info size={14} className="text-primary" /> Sync Troubleshooting
+          <Info size={14} className="text-primary" /> Sync & Restore
         </div>
 
-        {currentUser && credits.length === 0 && (
-          <div className="mb-6 p-5 bg-amber-500/10 border border-amber-500/30 rounded-3xl animate-fade-in">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-amber-500/20 rounded-xl text-amber-400">
-                <AlertCircle size={20} />
-              </div>
+        <div className="mb-6 p-5 bg-slate-950/50 border border-slate-800 rounded-3xl">
+          {!currentUser ? (
+            <div className="space-y-3">
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Sign in above to sync your data across devices. Until then, everything stays only in this browser.
+              </p>
+              <p className="text-[10px] text-slate-500 leading-relaxed">
+                If you used another phone or browser before, sign in there first to upload that device&apos;s local data.
+              </p>
+            </div>
+          ) : isCheckingLocal || !localStats ? (
+            <div className="flex items-center gap-3 text-slate-400">
+              <Loader2 size={18} className="animate-spin" />
               <div>
-                <h4 className="text-sm font-black text-amber-200 uppercase tracking-widest">Missing your data?</h4>
-                <p className="text-[10px] font-bold text-amber-500/60 uppercase tracking-wider">Let's try to recover it</p>
+                <p className="text-xs font-bold text-white">Checking this browser for unsynced local data</p>
+                <p className="text-[10px] uppercase tracking-widest text-slate-500">Please wait</p>
               </div>
             </div>
-            
-            <p className="text-xs text-amber-100/70 leading-relaxed mb-4">
-              If you had credits before signing in, they are stored locally on <strong className="text-amber-200">this specific browser</strong>. We can try to move them to your cloud account now.
-            </p>
-
-            {localStats && (localStats.credits > 0 || localStats.users > 0) ? (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between px-4 py-2 bg-black/20 rounded-xl border border-white/5">
-                   <span className="text-[10px] font-bold text-slate-400 uppercase">Local Credits Found</span>
-                   <span className="text-sm font-black text-amber-400 font-mono">{localStats.credits}</span>
+          ) : localStats.credits > 0 || localStats.users > 0 || localStats.coasters > 0 ? (
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-amber-500/20 rounded-xl text-amber-400">
+                  <AlertCircle size={18} />
                 </div>
-                <button 
-                  onClick={forceMigrateLocalData}
-                  className="w-full py-3 rounded-2xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-amber-500/20 active:scale-95 flex items-center justify-center gap-2"
-                >
-                  <Cloud size={16} /> Restore Local Data to Cloud
-                </button>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-3">
-                <div className="p-3 bg-black/20 rounded-xl border border-white/5 text-center">
-                  <p className="text-[10px] font-bold text-amber-500/50 uppercase italic">No local data detected on this device.</p>
+                <div>
+                  <h4 className="text-sm font-black text-amber-200 uppercase tracking-widest">Local data found on this browser</h4>
+                  <p className="text-xs text-amber-100/70 leading-relaxed mt-1">
+                    {localStats.credits} credits, {localStats.users} profiles, and {localStats.coasters} custom coasters can be restored to your cloud account.
+                  </p>
                 </div>
-                <p className="text-[10px] text-slate-500 leading-relaxed italic">
-                  Note: If you used a different phone or browser, you must sign in on <strong className="text-slate-400">that device</strong> first to sync your data.
-                </p>
               </div>
-            )}
-          </div>
-        )}
+              <button 
+                onClick={forceMigrateLocalData}
+                className="w-full py-3 rounded-2xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-amber-500/20 active:scale-95 flex items-center justify-center gap-2"
+              >
+                <Cloud size={16} /> Restore Local Data to Cloud
+              </button>
+              <p className="text-[10px] text-slate-500 leading-relaxed">
+                This only restores data stored in this browser. Data from another device must be uploaded from that device first.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm font-bold text-emerald-300">No unsynced local data found on this browser.</p>
+              <p className="text-[10px] text-slate-500 leading-relaxed">
+                If something is missing, first confirm you are using the same Google account and the correct rider profile.
+              </p>
+            </div>
+          )}
+        </div>
 
         <div className="space-y-4">
           <div className="flex items-start gap-3">
             <div className="w-5 h-5 rounded-full bg-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-400 shrink-0 mt-0.5">1</div>
             <p className="text-xs text-slate-400 leading-relaxed">
-              <strong className="text-slate-200">Data missing on mobile?</strong> Ensure you are signed in with the <em className="text-primary not-italic font-bold underline decoration-primary/30 underline-offset-2">same Google account</em> on both devices.
+              <strong className="text-slate-200">Use the same Google account</strong> on every device where you want your data to appear.
             </p>
           </div>
           <div className="flex items-start gap-3">
             <div className="w-5 h-5 rounded-full bg-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-400 shrink-0 mt-0.5">2</div>
             <p className="text-xs text-slate-400 leading-relaxed">
-              <strong className="text-slate-200">Check your profile.</strong> If you have multiple profiles, you might need to <em className="text-primary not-italic font-bold underline decoration-primary/30 underline-offset-2">switch to the correct one</em> above.
-            </p>
-          </div>
-          <div className="flex items-start gap-3">
-            <div className="w-5 h-5 rounded-full bg-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-400 shrink-0 mt-0.5">3</div>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              <strong className="text-slate-200">Still not seeing it?</strong> Try signing out and signing back in to trigger a fresh cloud sync.
+              <strong className="text-slate-200">Check the active rider profile.</strong> Credits can exist in the account but belong to a different profile.
             </p>
           </div>
         </div>
       </div>
 
       {/* Cloud Data Audit */}
-      {currentUser && (
+      {currentUser && isAdmin && (
         <div className="bg-slate-900/50 rounded-3xl p-6 border border-slate-800/50 mb-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
-              <Database size={14} className="text-primary" /> Cloud Data Audit
+              <Database size={14} className="text-primary" /> Admin Account Summary
             </div>
             <div className="px-2 py-0.5 rounded bg-primary/10 text-[8px] font-black text-primary uppercase tracking-widest">Live</div>
           </div>
@@ -363,10 +369,10 @@ const ProfileManager: React.FC = () => {
                 return (
                   <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl animate-pulse">
                     <div className="flex justify-between items-center mb-2">
-                      <span className="text-[10px] font-bold text-amber-500 uppercase">Orphaned Credits</span>
+                      <span className="text-[10px] font-bold text-amber-500 uppercase">Credits Without a Profile</span>
                       <span className="text-sm font-black text-amber-400">{orphanedCount}</span>
                     </div>
-                    <p className="text-[9px] text-amber-200/60 mb-3 italic">These credits are missing their rider profile.</p>
+                    <p className="text-[9px] text-amber-200/60 mb-3 italic">These credits exist in the account but are not attached to any rider profile yet.</p>
                     <button 
                       onClick={async () => {
                         const orphanedUserIds = [...new Set(credits.filter(c => !users.some(u => u.id === c.userId)).map(c => c.userId))];
@@ -407,29 +413,48 @@ const ProfileManager: React.FC = () => {
             </div>
 
             <p className="text-[9px] text-slate-500 italic leading-relaxed px-1">
-              If the total count above is correct but your dashboard is empty, simply switch to the correct profile using the menu at the top of the Dashboard.
+              If the total count here looks right but the dashboard is empty, switch to the rider profile that already owns those credits.
             </p>
           </div>
         </div>
       )}
 
-      <div>
+      <section className="space-y-3">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest">Data & Settings</h3>
+          <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest">Exports</h3>
           <button 
             onClick={() => changeView('DATA_RECOVERY')}
             className="flex items-center gap-1.5 text-[10px] font-black text-primary uppercase tracking-widest hover:underline"
           >
-            <ShieldAlert size={12} /> Data Recovery Hub
+            <ShieldAlert size={12} /> Backups & Tools
           </button>
         </div>
         <div className="grid grid-cols-2 gap-3">
             <button onClick={handleExportCSV} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col items-center gap-2 hover:bg-slate-750"><FileSpreadsheet size={24} className="text-emerald-500" /><span className="text-xs font-bold text-slate-300">Export CSV</span></button>
-            <button onClick={exportData} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col items-center gap-2 hover:bg-slate-750"><FileJson size={24} className="text-blue-500" /><span className="text-xs font-bold text-slate-300">Export JSON</span></button>
-            <button onClick={() => { setIsEnriching(true); enrichDatabaseImages().finally(() => setIsEnriching(false)); }} disabled={isEnriching} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col items-center gap-2 hover:bg-slate-750">{isEnriching ? <Loader2 size={24} className="animate-spin text-primary" /> : <ImageDown size={24} className="text-primary" />}<span className="text-xs font-bold text-slate-300">Fetch Photos</span></button>
-             <button onClick={standardizeDatabase} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col items-center gap-2 hover:bg-slate-750"><Wrench size={24} className="text-amber-500" /><span className="text-xs font-bold text-slate-300">Clean DB</span></button>
+            <button onClick={exportData} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col items-center gap-2 hover:bg-slate-750"><FileJson size={24} className="text-blue-500" /><span className="text-xs font-bold text-slate-300">Backup JSON</span></button>
         </div>
-      </div>
+        <p className="text-[10px] text-slate-500 leading-relaxed mt-3 px-1">
+          Restore, import, photo tools, and cleanup are grouped under <span className="text-slate-300 font-bold">Backups & Tools</span>.
+        </p>
+      </section>
+
+      {activeUser && (
+        <section className="space-y-3">
+          <div>
+            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Extras</p>
+            <h3 className="text-2xl font-bold text-white tracking-tight">Queue Hub</h3>
+          </div>
+          <div onClick={() => changeView('QUEUE_HUB')} className="bg-gradient-to-r from-purple-900 to-pink-900 rounded-[24px] p-5 border border-pink-500/30 relative overflow-hidden group cursor-pointer shadow-xl">
+              <div className="absolute top-0 right-0 p-6 opacity-20"><Ticket size={84} /></div>
+              <div className="relative z-10">
+                  <div className="flex items-center gap-2 mb-2"><div className="bg-white/20 p-1.5 rounded-lg text-white backdrop-blur"><Gamepad2 size={16} /></div><span className="text-[10px] font-bold text-pink-300 uppercase tracking-widest">Optional</span></div>
+                  <h3 className="text-xl font-black text-white italic">Queue Hub</h3>
+                  <p className="text-xs text-pink-200 mt-1">Mini-games and downtime extras while you wait in line.</p>
+                  <div className="mt-4 flex items-center gap-3"><div className="bg-black/30 backdrop-blur px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-2"><Trophy size={14} className="text-yellow-400" /><span className="text-sm font-bold text-white font-mono">{activeUser.highScore || 0}</span></div><button className="bg-white text-purple-900 px-4 py-2 rounded-lg text-xs font-bold uppercase hover:bg-pink-100">Open</button></div>
+              </div>
+          </div>
+        </section>
+      )}
     </div>
   );
 };

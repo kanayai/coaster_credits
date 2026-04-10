@@ -15,6 +15,7 @@ import {
   updateDoc,
   writeBatch,
   type FirebaseUser,
+  cleanForFirestore,
 } from '../firebase';
 import { generateAppIcon, generateCoasterInfo, extractCoasterFromUrl } from '../services/geminiService';
 import { storage } from '../services/storage';
@@ -32,12 +33,20 @@ interface DomainContext {
   coasters: Coaster[];
   credits: Credit[];
   wishlist: WishlistEntry[];
+  setCoasters: Dispatch<SetStateAction<Coaster[]>>;
   setCredits: Dispatch<SetStateAction<Credit[]>>;
   setWishlist: Dispatch<SetStateAction<WishlistEntry[]>>;
   showNotification: ShowNotification;
   generateId: GenerateId;
   compressImage: CompressImage;
 }
+
+const persistCustomCoasters = async (coasters: Coaster[]) => {
+  await storage.set(
+    'cc_coasters',
+    coasters.filter((coaster) => coaster.isCustom)
+  );
+};
 
 export const isInWishlistForUser = (
   activeUser: User | null,
@@ -101,7 +110,7 @@ export const addCreditAction = async (
 
   if (currentUser) {
     try {
-      await setDoc(doc(db, 'credits', newCredit.id), newCredit);
+      await setDoc(doc(db, 'credits', newCredit.id), cleanForFirestore(newCredit));
       await removeFromWishlistAction(
         { ...context, credits, wishlist, setWishlist },
         coasterId,
@@ -153,14 +162,14 @@ export const updateCreditAction = async (
 
   if (currentUser) {
     try {
-      await updateDoc(doc(db, 'credits', creditId), {
+      await updateDoc(doc(db, 'credits', creditId), cleanForFirestore({
         date,
         notes,
         restraints,
         photoUrl: mainPhotoUrl,
         gallery: newGallery,
         variant,
-      });
+      }));
       showNotification('Log updated successfully', 'success');
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `credits/${creditId}`);
@@ -203,10 +212,13 @@ export const deleteCreditAction = async (context: DomainContext, creditId: strin
 };
 
 export const addNewCoasterAction = async (
-  context: Pick<DomainContext, 'coasters' | 'generateId' | 'showNotification'>,
+  context: Pick<
+    DomainContext,
+    'coasters' | 'currentUser' | 'generateId' | 'setCoasters' | 'showNotification'
+  >,
   coasterData: Omit<Coaster, 'id'>
 ) => {
-  const { coasters, generateId, showNotification } = context;
+  const { coasters, currentUser, generateId, setCoasters, showNotification } = context;
   const exists = coasters.find(
     (coaster) =>
       cleanName(coaster.name).toLowerCase() === cleanName(coasterData.name).toLowerCase() &&
@@ -227,21 +239,29 @@ export const addNewCoasterAction = async (
     isCustom: true,
   };
 
-  try {
-    await setDoc(doc(db, 'coasters', newCoaster.id), newCoaster);
-    return newCoaster;
-  } catch (err) {
-    handleFirestoreError(err, OperationType.CREATE, `coasters/${newCoaster.id}`);
-    return newCoaster;
+  if (currentUser) {
+    try {
+      await setDoc(doc(db, 'coasters', newCoaster.id), cleanForFirestore(newCoaster));
+      return newCoaster;
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, `coasters/${newCoaster.id}`);
+      return newCoaster;
+    }
   }
+
+  const updatedCoasters = [...coasters, newCoaster];
+  setCoasters(updatedCoasters);
+  await persistCustomCoasters(updatedCoasters);
+  showNotification('Custom coaster saved locally!', 'success');
+  return newCoaster;
 };
 
 export const editCoasterAction = async (
-  context: Pick<DomainContext, 'coasters' | 'showNotification'>,
+  context: Pick<DomainContext, 'coasters' | 'currentUser' | 'setCoasters' | 'showNotification'>,
   id: string,
   updates: Partial<Coaster>
 ) => {
-  const { coasters, showNotification } = context;
+  const { coasters, currentUser, setCoasters, showNotification } = context;
   const coaster = coasters.find((item) => item.id === id);
   if (!coaster) return;
 
@@ -250,21 +270,31 @@ export const editCoasterAction = async (
   if (updates.park) updated.park = normalizeParkName(updates.park);
   if (updates.country) updated.country = normalizeCountry(updates.country);
 
-  try {
-    await updateDoc(doc(db, 'coasters', id), updated);
-    showNotification('Coaster details updated', 'success');
-  } catch (err) {
-    handleFirestoreError(err, OperationType.UPDATE, `coasters/${id}`);
+  if (currentUser) {
+    try {
+      await updateDoc(doc(db, 'coasters', id), updated);
+      showNotification('Coaster details updated', 'success');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `coasters/${id}`);
+    }
+    return;
   }
+
+  const updatedCoasters = coasters.map((item) => (item.id === id ? updated : item));
+  setCoasters(updatedCoasters);
+  await persistCustomCoasters(updatedCoasters);
+  showNotification('Local coaster details updated', 'success');
 };
 
 export const addMultipleCoastersAction = async (
-  context: Pick<DomainContext, 'coasters' | 'generateId' | 'showNotification'>,
+  context: Pick<
+    DomainContext,
+    'coasters' | 'currentUser' | 'generateId' | 'setCoasters' | 'showNotification'
+  >,
   newCoasters: Omit<Coaster, 'id'>[]
 ) => {
-  const { coasters, generateId, showNotification } = context;
-  const batch = writeBatch(db);
-  let count = 0;
+  const { coasters, currentUser, generateId, setCoasters, showNotification } = context;
+  const createdCoasters: Coaster[] = [];
 
   newCoasters.forEach((coaster) => {
     const exists = coasters.find(
@@ -273,18 +303,33 @@ export const addMultipleCoastersAction = async (
         cleanName(existing.park).toLowerCase() === cleanName(coaster.park).toLowerCase()
     );
     if (!exists) {
-      const id = generateId('c');
-      const newCoaster = {
+      createdCoasters.push({
         ...coaster,
-        id,
+        id: generateId('c'),
         manufacturer: normalizeManufacturer(coaster.manufacturer),
         park: normalizeParkName(coaster.park),
         country: normalizeCountry(coaster.country),
         isCustom: true,
-      };
-      batch.set(doc(db, 'coasters', id), newCoaster);
-      count++;
+      });
     }
+  });
+
+  if (createdCoasters.length === 0) return;
+
+  if (!currentUser) {
+    const updatedCoasters = [...coasters, ...createdCoasters];
+    setCoasters(updatedCoasters);
+    await persistCustomCoasters(updatedCoasters);
+    showNotification(`Imported ${createdCoasters.length} new coasters locally!`, 'success');
+    return;
+  }
+
+  const batch = writeBatch(db);
+  let count = 0;
+
+  createdCoasters.forEach((coaster) => {
+    batch.set(doc(db, 'coasters', coaster.id), cleanForFirestore(coaster));
+    count++;
   });
 
   if (count > 0) {
@@ -305,7 +350,7 @@ export const addToWishlistAction = async (context: DomainContext, coasterId: str
   }
 
   if (!isInWishlistForUser(activeUser, wishlist, coasterId)) {
-    const entry: WishlistEntry = {
+    const newEntry: WishlistEntry = {
       id: generateId('w'),
       userId: activeUser.id,
       ownerId: currentUser?.uid || 'local',
@@ -315,13 +360,13 @@ export const addToWishlistAction = async (context: DomainContext, coasterId: str
 
     if (currentUser) {
       try {
-        await setDoc(doc(db, 'wishlist', entry.id), entry);
+        await setDoc(doc(db, 'wishlist', newEntry.id), cleanForFirestore(newEntry));
         showNotification('Added to Bucket List', 'success');
       } catch (err) {
-        handleFirestoreError(err, OperationType.CREATE, `wishlist/${entry.id}`);
+        handleFirestoreError(err, OperationType.CREATE, `wishlist/${newEntry.id}`);
       }
     } else {
-      const updatedWishlist = [...wishlist, entry];
+      const updatedWishlist = [...wishlist, newEntry];
       setWishlist(updatedWishlist);
       await storage.set('cc_wishlist', updatedWishlist);
       showNotification('Added to local Bucket List', 'success');
@@ -357,23 +402,38 @@ export const removeFromWishlistAction = async (
   }
 };
 
-export const updateCoasterImageAction = async (coasterId: string, imageUrl: string) => {
-  try {
-    await updateDoc(doc(db, 'coasters', coasterId), { imageUrl });
-  } catch (err) {
-    handleFirestoreError(err, OperationType.UPDATE, `coasters/${coasterId}`);
+export const updateCoasterImageAction = async (
+  context: Pick<DomainContext, 'coasters' | 'currentUser' | 'setCoasters'>,
+  coasterId: string,
+  imageUrl: string
+) => {
+  const { coasters, currentUser, setCoasters } = context;
+  if (currentUser) {
+    try {
+      await updateDoc(doc(db, 'coasters', coasterId), { imageUrl });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `coasters/${coasterId}`);
+    }
+    return;
   }
+
+  const updatedCoasters = coasters.map((coaster) =>
+    coaster.id === coasterId ? { ...coaster, imageUrl } : coaster
+  );
+  setCoasters(updatedCoasters);
+  await persistCustomCoasters(updatedCoasters);
 };
 
 export const autoFetchCoasterImageAction = async (
-  coasters: Coaster[],
+  context: Pick<DomainContext, 'coasters' | 'currentUser' | 'setCoasters'>,
   coasterId: string
 ) => {
+  const { coasters } = context;
   const coaster = coasters.find((item) => item.id === coasterId);
   if (!coaster) return null;
   const url = await fetchCoasterImageFromWiki(coaster.name, coaster.park);
   if (url) {
-    await updateCoasterImageAction(coasterId, url);
+    await updateCoasterImageAction(context, coasterId, url);
   }
   return url;
 };
