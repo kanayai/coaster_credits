@@ -13,6 +13,8 @@ import {
   writeBatch,
   type FirebaseUser,
   cleanForFirestore,
+  isValidFirestoreDocId,
+  isValidFirestoreOwnerId,
 } from '../firebase';
 import { storage } from '../services/storage';
 
@@ -726,6 +728,10 @@ export const forceMigrateLocalDataAction = async (
     showNotification('You must be signed in to migrate data to the cloud.', 'error');
     return;
   }
+  if (!isValidFirestoreOwnerId(currentUser.uid)) {
+    showNotification('Invalid account state. Please sign in again.', 'error');
+    return;
+  }
 
   setIsSyncing(true);
   try {
@@ -746,18 +752,17 @@ export const forceMigrateLocalDataAction = async (
     const { getDoc: loadDoc, doc: makeDoc } = await import('firebase/firestore');
 
     for (const user of usersToMigrate) {
+      if (!isValidFirestoreDocId(user.id)) continue;
       const userRef = makeDoc(db, 'users', user.id);
       const userSnap = await loadDoc(userRef);
       if (!userSnap.exists() || userSnap.data()?.ownerId === uid) {
         batch.set(userRef, cleanForFirestore({ ...user, ownerId: uid }));
-      } else {
-        console.warn(`Skipping migration of user ${user.id} as it is owned by another account.`);
       }
     }
 
     if (localCoasters) {
       for (const coaster of localCoasters) {
-        if (!coaster.isCustom) continue;
+        if (!coaster.isCustom || !isValidFirestoreDocId(coaster.id)) continue;
         const coasterRef = makeDoc(db, 'coasters', coaster.id);
         const coasterSnap = await loadDoc(coasterRef);
         if (!coasterSnap.exists()) {
@@ -768,6 +773,7 @@ export const forceMigrateLocalDataAction = async (
 
     if (localCredits) {
       for (const credit of localCredits) {
+        if (!isValidFirestoreDocId(credit.id)) continue;
         const creditRef = makeDoc(db, 'credits', credit.id);
         const creditSnap = await loadDoc(creditRef);
         if (!creditSnap.exists() || creditSnap.data()?.ownerId === uid) {
@@ -778,6 +784,7 @@ export const forceMigrateLocalDataAction = async (
 
     if (localWishlist) {
       for (const wishlistEntry of localWishlist) {
+        if (!isValidFirestoreDocId(wishlistEntry.id)) continue;
         const wishlistRef = makeDoc(db, 'wishlist', wishlistEntry.id);
         const wishlistSnap = await loadDoc(wishlistRef);
         if (!wishlistSnap.exists() || wishlistSnap.data()?.ownerId === uid) {
@@ -954,47 +961,8 @@ export const scanAllCreditsAction = async (
     const allUsersSnapshot = await getDocs(loadCollection(db, 'users'));
     const allUsers = allUsersSnapshot.docs.map((docSnap) => ({ ...docSnap.data(), id: docSnap.id } as User));
 
-    const legacyData: any = {};
-    const possibleKeys = [
-      'users',
-      'credits',
-      'wishlist',
-      'coasters',
-      'active_user_id',
-      'cc_users',
-      'cc_credits',
-      'cc_wishlist',
-      'cc_coasters',
-      'cc_active_user_id',
-      'coaster_data',
-      'my_credits',
-      'ride_log',
-    ];
-
-    possibleKeys.forEach((key) => {
-      const val = localStorage.getItem(key);
-      if (val) {
-        try {
-          legacyData[key] = JSON.parse(val);
-        } catch {
-          legacyData[key] = val;
-        }
-      }
-    });
-
-    if (Object.keys(legacyData).length > 0) {
-      console.log('Found Legacy LocalStorage Data:', legacyData);
-    }
-
     const existingUserIds = new Set(allUsers.map((u) => u.id));
     const orphanedCredits = allCredits.filter((credit) => !existingUserIds.has(credit.userId));
-
-    console.log(`Scan Results:
-      - Total Credits: ${allCredits.length}
-      - Total Users: ${allUsers.length}
-      - Orphaned Credits: ${orphanedCredits.length}
-      - Legacy Local Keys: ${Object.keys(legacyData).join(', ')}
-    `);
 
     setCredits(allCredits);
     setUsers(allUsers.length > 0 ? allUsers : INITIAL_USERS);
@@ -1009,7 +977,7 @@ export const scanAllCreditsAction = async (
     }
   } catch (err) {
     console.error('Global scan failed', err);
-    showNotification('Global scan failed. Check console for details.', 'error');
+    showNotification('Global scan failed. Please try again.', 'error');
   } finally {
     setIsSyncing(false);
   }

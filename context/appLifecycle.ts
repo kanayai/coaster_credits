@@ -15,6 +15,9 @@ import {
   setDoc,
   signInWithPopup,
   signOut,
+  cleanForFirestore,
+  isValidFirestoreDocId,
+  isValidFirestoreOwnerId,
   where,
   writeBatch,
 } from '../firebase';
@@ -47,6 +50,8 @@ interface InitializationParams {
   setCoasters: Dispatch<SetStateAction<Coaster[]>>;
   setIsInitialized: Dispatch<SetStateAction<boolean>>;
   showNotification: ShowNotification;
+  onSyncSuccess: () => void;
+  onSyncError: () => void;
 }
 
 export const subscribeToAuthState = ({
@@ -113,6 +118,8 @@ export const initializeAndSyncApp = async ({
   setCoasters,
   setIsInitialized,
   showNotification,
+  onSyncSuccess,
+  onSyncError,
 }: InitializationParams): Promise<(() => void) | void> => {
   try {
     await storage.migrateFromLocalStorage();
@@ -138,6 +145,13 @@ export const initializeAndSyncApp = async ({
     }
 
     const uid = currentUser.uid;
+    if (!isValidFirestoreOwnerId(uid)) {
+      setIsSyncing(false);
+      setIsInitialized(true);
+      onSyncError();
+      showNotification('Unable to sync cloud data due to invalid account state.', 'error');
+      return;
+    }
     setIsSyncing(true);
 
     const localUsers = await storage.get<User[]>('cc_users');
@@ -157,13 +171,14 @@ export const initializeAndSyncApp = async ({
       const batch = writeBatch(db);
 
       for (const user of usersToMigrate) {
+        if (!isValidFirestoreDocId(user.id)) continue;
         const userRef = doc(db, 'users', user.id);
         batch.set(userRef, cleanForFirestore({ ...user, ownerId: uid }));
       }
 
       if (localCoasters) {
         for (const coaster of localCoasters) {
-          if (!coaster.isCustom) continue;
+          if (!coaster.isCustom || !isValidFirestoreDocId(coaster.id)) continue;
           const coasterRef = doc(db, 'coasters', coaster.id);
           batch.set(coasterRef, cleanForFirestore(coaster));
         }
@@ -171,6 +186,7 @@ export const initializeAndSyncApp = async ({
 
       if (localCredits) {
         for (const credit of localCredits) {
+          if (!isValidFirestoreDocId(credit.id)) continue;
           const creditRef = doc(db, 'credits', credit.id);
           batch.set(creditRef, cleanForFirestore({ ...credit, ownerId: uid }));
         }
@@ -178,6 +194,7 @@ export const initializeAndSyncApp = async ({
 
       if (localWishlist) {
         for (const wishlistEntry of localWishlist) {
+          if (!isValidFirestoreDocId(wishlistEntry.id)) continue;
           const wishlistRef = doc(db, 'wishlist', wishlistEntry.id);
           batch.set(wishlistRef, cleanForFirestore({ ...wishlistEntry, ownerId: uid }));
         }
@@ -189,9 +206,11 @@ export const initializeAndSyncApp = async ({
         await storage.set('cc_coasters', null);
         await storage.set('cc_credits', null);
         await storage.set('cc_wishlist', null);
+        onSyncSuccess();
         showNotification('Cloud sync complete!', 'success');
       } catch (err) {
         console.error('Migration failed', err);
+        onSyncError();
         showNotification('Cloud sync encountered an issue. Some data might not be synced yet.', 'error');
       }
     }
@@ -214,10 +233,12 @@ export const initializeAndSyncApp = async ({
           setUsers(INITIAL_USERS);
           setActiveUserId(INITIAL_USERS[0].id);
         }
+        onSyncSuccess();
         setIsSyncing(false);
       },
       (err) => {
         handleFirestoreError(err, OperationType.LIST, 'users');
+        onSyncError();
         setIsSyncing(false);
       }
     );
@@ -262,6 +283,7 @@ export const initializeAndSyncApp = async ({
     };
   } catch (err) {
     console.error('Initialization failed', err);
+    onSyncError();
     setIsSyncing(false);
     setIsInitialized(true);
     return () => {};

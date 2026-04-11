@@ -86,6 +86,8 @@ const ProfileManager: React.FC = () => {
     logout,
     isAuthLoading,
     isSyncing,
+    syncStatus,
+    lastSyncAt,
     getLocalDataStats,
     forceMigrateLocalData
   } = useAppContext();
@@ -132,6 +134,9 @@ const ProfileManager: React.FC = () => {
       { id: 'rose', label: 'Rose', color: 'bg-rose-500' },
       { id: 'amber', label: 'Amber', color: 'bg-amber-500' },
   ];
+  const lastSyncLabel = lastSyncAt
+    ? new Date(lastSyncAt).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short' })
+    : 'Never';
 
   return (
     <div className="animate-fade-in space-y-10 pb-8">
@@ -160,6 +165,14 @@ const ProfileManager: React.FC = () => {
             </div>
           )}
         </div>
+        {currentUser && (
+          <div className={clsx(
+            "mb-4 text-[10px] font-bold uppercase tracking-wider",
+            syncStatus === 'error' ? "text-rose-400" : "text-slate-500"
+          )}>
+            {isSyncing ? 'Syncing cloud data...' : syncStatus === 'error' ? 'Cloud sync issue detected' : `Last cloud sync ${lastSyncLabel}`}
+          </div>
+        )}
         
         {currentUser ? (
           <div className="flex items-center justify-between">

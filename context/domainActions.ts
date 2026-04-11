@@ -16,6 +16,9 @@ import {
   writeBatch,
   type FirebaseUser,
   cleanForFirestore,
+  isValidFirestoreDocId,
+  isValidFirestoreOwnerId,
+  isValidIsoDate,
 } from '../firebase';
 import { generateAppIcon, generateCoasterInfo, extractCoasterFromUrl } from '../services/geminiService';
 import { storage } from '../services/storage';
@@ -109,6 +112,16 @@ export const addCreditAction = async (
   };
 
   if (currentUser) {
+    if (
+      !isValidFirestoreDocId(newCredit.id) ||
+      !isValidFirestoreDocId(newCredit.userId) ||
+      !isValidFirestoreDocId(newCredit.coasterId) ||
+      !isValidFirestoreOwnerId(newCredit.ownerId) ||
+      !isValidIsoDate(newCredit.date)
+    ) {
+      showNotification('Unable to save this credit due to invalid data.', 'error');
+      return;
+    }
     try {
       await setDoc(doc(db, 'credits', newCredit.id), cleanForFirestore(newCredit));
       await removeFromWishlistAction(
@@ -161,6 +174,10 @@ export const updateCreditAction = async (
   }
 
   if (currentUser) {
+    if (!isValidFirestoreDocId(creditId) || !isValidIsoDate(date)) {
+      showNotification('Unable to update this credit due to invalid data.', 'error');
+      return;
+    }
     try {
       await updateDoc(doc(db, 'credits', creditId), cleanForFirestore({
         date,
@@ -240,6 +257,10 @@ export const addNewCoasterAction = async (
   };
 
   if (currentUser) {
+    if (!isValidFirestoreDocId(newCoaster.id)) {
+      showNotification('Unable to save this coaster due to invalid data.', 'error');
+      return newCoaster;
+    }
     try {
       await setDoc(doc(db, 'coasters', newCoaster.id), cleanForFirestore(newCoaster));
       return newCoaster;
@@ -271,6 +292,10 @@ export const editCoasterAction = async (
   if (updates.country) updated.country = normalizeCountry(updates.country);
 
   if (currentUser) {
+    if (!isValidFirestoreDocId(id)) {
+      showNotification('Unable to update coaster due to invalid data.', 'error');
+      return;
+    }
     try {
       await updateDoc(doc(db, 'coasters', id), updated);
       showNotification('Coaster details updated', 'success');
@@ -328,6 +353,7 @@ export const addMultipleCoastersAction = async (
   let count = 0;
 
   createdCoasters.forEach((coaster) => {
+    if (!isValidFirestoreDocId(coaster.id)) return;
     batch.set(doc(db, 'coasters', coaster.id), cleanForFirestore(coaster));
     count++;
   });
@@ -359,6 +385,16 @@ export const addToWishlistAction = async (context: DomainContext, coasterId: str
     };
 
     if (currentUser) {
+      if (
+        !isValidFirestoreDocId(newEntry.id) ||
+        !isValidFirestoreDocId(newEntry.userId) ||
+        !isValidFirestoreDocId(newEntry.coasterId) ||
+        !isValidFirestoreOwnerId(newEntry.ownerId) ||
+        !isValidIsoDate(newEntry.addedAt)
+      ) {
+        showNotification('Unable to add this wishlist entry due to invalid data.', 'error');
+        return;
+      }
       try {
         await setDoc(doc(db, 'wishlist', newEntry.id), cleanForFirestore(newEntry));
         showNotification('Added to Bucket List', 'success');
@@ -409,6 +445,9 @@ export const updateCoasterImageAction = async (
 ) => {
   const { coasters, currentUser, setCoasters } = context;
   if (currentUser) {
+    if (!isValidFirestoreDocId(coasterId)) {
+      return;
+    }
     try {
       await updateDoc(doc(db, 'coasters', coasterId), { imageUrl });
     } catch (err) {

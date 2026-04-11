@@ -1,0 +1,257 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const mockStorage = {
+  migrateFromLocalStorage: vi.fn(),
+  get: vi.fn(),
+  set: vi.fn(),
+};
+
+const mockSignOut = vi.fn();
+const mockWriteBatchSet = vi.fn();
+const mockWriteBatchCommit = vi.fn();
+const mockWriteBatch = vi.fn(() => ({
+  set: mockWriteBatchSet,
+  commit: mockWriteBatchCommit,
+}));
+
+const mockDoc = vi.fn((dbRef: unknown, collectionName: string, id: string) => ({ collectionName, id }));
+const mockCollection = vi.fn((dbRef: unknown, collectionName: string) => ({ collectionName }));
+const mockWhere = vi.fn((field: string, op: string, value: string) => ({ field, op, value }));
+const mockQuery = vi.fn((ref: unknown, ...clauses: unknown[]) => ({ ref, clauses }));
+const mockOnSnapshot = vi.fn();
+const mockHandleFirestoreError = vi.fn();
+
+const stripUndefined = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(stripUndefined);
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    Object.entries(value as Record<string, unknown>).forEach(([key, inner]) => {
+      if (inner !== undefined) out[key] = stripUndefined(inner);
+    });
+    return out;
+  }
+  return value;
+};
+
+vi.mock('../services/storage', () => ({ storage: mockStorage }));
+
+vi.mock('../firebase', () => ({
+  auth: {},
+  db: { name: 'db' },
+  googleProvider: { setCustomParameters: vi.fn() },
+  FirebaseUser: {},
+  signOut: mockSignOut,
+  signInWithPopup: vi.fn(),
+  onAuthStateChanged: vi.fn(),
+  collection: mockCollection,
+  onSnapshot: mockOnSnapshot,
+  query: mockQuery,
+  where: mockWhere,
+  setDoc: vi.fn(),
+  doc: mockDoc,
+  writeBatch: mockWriteBatch,
+  handleFirestoreError: mockHandleFirestoreError,
+  OperationType: {
+    CREATE: 'create',
+    UPDATE: 'update',
+    DELETE: 'delete',
+    LIST: 'list',
+    GET: 'get',
+    WRITE: 'write',
+  },
+  cleanForFirestore: stripUndefined,
+  isValidFirestoreDocId: vi.fn(() => true),
+  isValidFirestoreOwnerId: vi.fn(() => true),
+}));
+
+describe('cloud sync QA: app lifecycle', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockStorage.migrateFromLocalStorage.mockResolvedValue(false);
+    mockStorage.get.mockResolvedValue(null);
+    mockStorage.set.mockResolvedValue(undefined);
+    mockSignOut.mockResolvedValue(undefined);
+    mockWriteBatchCommit.mockResolvedValue(undefined);
+
+    const unsub = vi.fn();
+    mockOnSnapshot.mockImplementation((target: unknown, onNext?: (snap: any) => void) => {
+      if (typeof onNext === 'function') {
+        onNext({ docs: [] });
+      }
+      return unsub;
+    });
+  });
+
+  it('login init in local mode loads local data and active profile', async () => {
+    const { initializeAndSyncApp } = await import('../context/appLifecycle');
+
+    mockStorage.get.mockImplementation(async (key: string) => {
+      if (key === 'cc_users') return [{ id: 'u_local', ownerId: 'local', name: 'Local Rider', avatarColor: 'bg-sky-500' }];
+      if (key === 'cc_coasters') return [{ id: 'c_local', name: 'Local Coaster', park: 'Local Park', country: 'UK', type: 'Steel', manufacturer: 'Mack', isCustom: true }];
+      if (key === 'cc_credits') return [{ id: 'cr_local', ownerId: 'local', userId: 'u_local', coasterId: 'c_local', date: '2026-04-11', rideCount: 1 }];
+      if (key === 'cc_wishlist') return [{ id: 'w_local', ownerId: 'local', userId: 'u_local', coasterId: 'c_local', addedAt: '2026-04-11' }];
+      if (key === 'cc_active_user_id') return 'u_local';
+      return null;
+    });
+
+    const setUsers = vi.fn();
+    const setCoasters = vi.fn();
+    const setCredits = vi.fn();
+    const setWishlist = vi.fn();
+    const setActiveUserId = vi.fn();
+    const setIsInitialized = vi.fn();
+    const setIsSyncing = vi.fn();
+
+    await initializeAndSyncApp({
+      currentUser: null,
+      setUsers,
+      setCoasters,
+      setCredits,
+      setWishlist,
+      setActiveUserId,
+      setIsInitialized,
+      setIsSyncing,
+      showNotification: vi.fn(),
+      onSyncSuccess: vi.fn(),
+      onSyncError: vi.fn(),
+    });
+
+    expect(setUsers).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'u_local', name: 'Local Rider' }),
+    ]);
+    expect(setCoasters).toHaveBeenCalledWith(expect.arrayContaining([
+      expect.objectContaining({ id: 'c_local' }),
+    ]));
+    expect(setCredits).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'cr_local' }),
+    ]);
+    expect(setWishlist).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'w_local' }),
+    ]);
+    expect(setActiveUserId).toHaveBeenCalledWith('u_local');
+    expect(setIsInitialized).toHaveBeenCalledWith(true);
+    expect(setIsSyncing).toHaveBeenLastCalledWith(false);
+  });
+
+  it('logout clears in-memory session and notifies user', async () => {
+    const { logoutCurrentSession } = await import('../context/appLifecycle');
+
+    const setActiveUserId = vi.fn();
+    const setUsers = vi.fn();
+    const setCredits = vi.fn();
+    const setWishlist = vi.fn();
+    const showNotification = vi.fn();
+
+    await logoutCurrentSession({
+      setActiveUserId,
+      setUsers,
+      setCredits,
+      setWishlist,
+      showNotification,
+    });
+
+    expect(mockSignOut).toHaveBeenCalledTimes(1);
+    expect(setActiveUserId).toHaveBeenCalledWith(null);
+    expect(setUsers).toHaveBeenCalledWith([]);
+    expect(setCredits).toHaveBeenCalledWith([]);
+    expect(setWishlist).toHaveBeenCalledWith([]);
+    expect(showNotification).toHaveBeenCalledWith('Signed out', 'info');
+  });
+
+  it('offline local data migrates to cloud on sign-in and clears local cache', async () => {
+    const { initializeAndSyncApp } = await import('../context/appLifecycle');
+
+    mockStorage.get.mockImplementation(async (key: string) => {
+      if (key === 'cc_users') return [{ id: 'u1', ownerId: 'local', name: 'Offline User', avatarColor: 'bg-emerald-500' }];
+      if (key === 'cc_coasters') return [{ id: 'c1', name: 'Custom', park: 'Park', country: 'UK', type: 'Steel', manufacturer: 'B&M', isCustom: true }];
+      if (key === 'cc_credits') return [{ id: 'cr1', ownerId: 'local', userId: 'u1', coasterId: 'c1', date: '2026-04-10', rideCount: 1, photoUrl: undefined }];
+      if (key === 'cc_wishlist') return [{ id: 'w1', ownerId: 'local', userId: 'u1', coasterId: 'c1', addedAt: '2026-04-10', notes: undefined }];
+      if (key === 'cc_active_user_id') return 'u1';
+      return null;
+    });
+
+    mockOnSnapshot.mockImplementation((target: any, onNext?: (snap: any) => void) => {
+      if (typeof onNext === 'function') {
+        if (target?.ref?.collectionName === 'users' || target?.ref?.collectionName === undefined) {
+          onNext({
+            docs: [
+              {
+                data: () => ({ id: 'u1', ownerId: 'uid-cloud', name: 'Offline User', avatarColor: 'bg-emerald-500' }),
+              },
+            ],
+          });
+        } else {
+          onNext({ docs: [] });
+        }
+      }
+      return vi.fn();
+    });
+
+    const showNotification = vi.fn();
+    const setIsSyncing = vi.fn();
+
+    await initializeAndSyncApp({
+      currentUser: { uid: 'uid-cloud' } as any,
+      setUsers: vi.fn(),
+      setCoasters: vi.fn(),
+      setCredits: vi.fn(),
+      setWishlist: vi.fn(),
+      setActiveUserId: vi.fn(),
+      setIsInitialized: vi.fn(),
+      setIsSyncing,
+      showNotification,
+      onSyncSuccess: vi.fn(),
+      onSyncError: vi.fn(),
+    });
+
+    expect(mockWriteBatchSet).toHaveBeenCalled();
+    const serializedWrites = mockWriteBatchSet.mock.calls.map((call) => call[1]);
+    expect(serializedWrites).toEqual(expect.arrayContaining([
+      expect.objectContaining({ ownerId: 'uid-cloud' }),
+    ]));
+
+    const flattened = JSON.stringify(serializedWrites);
+    expect(flattened).not.toContain('undefined');
+
+    expect(mockStorage.set).toHaveBeenCalledWith('cc_users', null);
+    expect(mockStorage.set).toHaveBeenCalledWith('cc_coasters', null);
+    expect(mockStorage.set).toHaveBeenCalledWith('cc_credits', null);
+    expect(mockStorage.set).toHaveBeenCalledWith('cc_wishlist', null);
+    expect(showNotification).toHaveBeenCalledWith('Cloud sync complete!', 'success');
+    expect(setIsSyncing).toHaveBeenCalledWith(true);
+    expect(setIsSyncing).toHaveBeenCalledWith(false);
+  });
+
+  it('reconnect failure path surfaces Firestore LIST error and exits syncing', async () => {
+    const { initializeAndSyncApp } = await import('../context/appLifecycle');
+
+    mockOnSnapshot.mockImplementation((target: any, onNext?: (snap: any) => void, onError?: (err: Error) => void) => {
+      const isUsersListener = target?.ref?.collectionName === 'users' || target?.ref?.collectionName === undefined;
+      if (isUsersListener && typeof onError === 'function') {
+        onError(new Error('offline'));
+      } else if (typeof onNext === 'function') {
+        onNext({ docs: [] });
+      }
+      return vi.fn();
+    });
+
+    const setIsSyncing = vi.fn();
+
+    await initializeAndSyncApp({
+      currentUser: { uid: 'uid-cloud' } as any,
+      setUsers: vi.fn(),
+      setCoasters: vi.fn(),
+      setCredits: vi.fn(),
+      setWishlist: vi.fn(),
+      setActiveUserId: vi.fn(),
+      setIsInitialized: vi.fn(),
+      setIsSyncing,
+      showNotification: vi.fn(),
+      onSyncSuccess: vi.fn(),
+      onSyncError: vi.fn(),
+    });
+
+    expect(mockHandleFirestoreError).toHaveBeenCalledWith(expect.any(Error), 'list', 'users');
+    expect(setIsSyncing).toHaveBeenCalledWith(false);
+  });
+});

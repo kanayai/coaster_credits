@@ -39,21 +39,53 @@ export interface FirestoreErrorInfo {
   }
 }
 
-// Filter out undefined properties for Firestore
-export function cleanForFirestore<T extends object>(obj: T): T {
-  const result: any = Array.isArray(obj) ? [] : {};
-  Object.keys(obj).forEach((key) => {
-    const val = (obj as any)[key];
-    if (val !== undefined) {
-      if (val !== null && typeof val === 'object' && !(val instanceof Date)) {
-        result[key] = cleanForFirestore(val);
-      } else {
-        result[key] = val;
+const hasOwn = Object.prototype.hasOwnProperty;
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  Object.prototype.toString.call(value) === '[object Object]';
+
+const sanitizeFirestoreValue = (value: unknown): unknown => {
+  if (value === undefined) return undefined;
+  if (value === null || value instanceof Date) return value;
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => sanitizeFirestoreValue(item))
+      .filter((item) => item !== undefined);
+  }
+
+  if (isPlainObject(value)) {
+    const result: Record<string, unknown> = {};
+    Object.keys(value).forEach((key) => {
+      if (!hasOwn.call(value, key)) return;
+      const sanitized = sanitizeFirestoreValue(value[key]);
+      if (sanitized !== undefined) {
+        result[key] = sanitized;
       }
-    }
-  });
-  return result as T;
+    });
+    return result;
+  }
+
+  return value;
+};
+
+// Filter out undefined properties for Firestore.
+export function cleanForFirestore<T>(obj: T): T {
+  return sanitizeFirestoreValue(obj) as T;
 }
+
+// Firestore document IDs cannot be empty and cannot include '/' path separators.
+export const isValidFirestoreDocId = (value: unknown): value is string =>
+  typeof value === 'string' && value.trim().length > 0 && !value.includes('/');
+
+export const isValidFirestoreOwnerId = (value: unknown): value is string =>
+  typeof value === 'string' && value.trim().length > 0;
+
+export const isValidIsoDate = (value: unknown): value is string =>
+  typeof value === 'string' && !Number.isNaN(new Date(value).getTime());
+
+export const isValidFirestoreWritePayload = (value: unknown): value is object =>
+  value !== null && typeof value === 'object';
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
   const errInfo: FirestoreErrorInfo = {

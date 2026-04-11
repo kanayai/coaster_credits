@@ -53,6 +53,7 @@ export interface Notification {
 }
 
 export type AppTheme = 'sky' | 'emerald' | 'violet' | 'rose' | 'amber';
+export type SyncStatus = 'idle' | 'syncing' | 'ok' | 'error';
 
 interface AppContextType {
   // Auth
@@ -61,6 +62,8 @@ interface AppContextType {
   logout: () => Promise<void>;
   isAuthLoading: boolean;
   isSyncing: boolean;
+  syncStatus: SyncStatus;
+  lastSyncAt: string | null;
 
   activeUser: User | null;
   users: User[];
@@ -166,6 +169,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
+  const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
   const [activeUserId, setActiveUserId] = useState<string | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [coasters, setCoasters] = useState<Coaster[]>(INITIAL_COASTERS);
@@ -182,6 +187,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const manualRefresh = useCallback(() => {
     setRefreshKey(prev => prev + 1);
     setIsSyncing(true);
+    setSyncStatus('syncing');
     showNotification("Refreshing cloud data...", "info");
   }, []);
   const [appTheme, setAppTheme] = useState<AppTheme>('sky');
@@ -210,6 +216,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setWishlist,
       showNotification,
     });
+    setSyncStatus('idle');
+    setLastSyncAt(null);
   };
 
   // --- INITIALIZATION & REAL-TIME SYNC ---
@@ -224,11 +232,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setCoasters,
       setIsInitialized,
       showNotification,
+      onSyncSuccess: () => {
+        setSyncStatus('ok');
+        setLastSyncAt(new Date().toISOString());
+      },
+      onSyncError: () => {
+        setSyncStatus('error');
+      },
     });
     return () => {
       cleanupPromise.then(cleanup => cleanup && typeof cleanup === 'function' && cleanup());
     };
   }, [currentUser, refreshKey]);
+
+  useEffect(() => {
+    if (!currentUser) {
+      setSyncStatus('idle');
+      return;
+    }
+    if (isSyncing) {
+      setSyncStatus('syncing');
+    }
+  }, [currentUser, isSyncing]);
 
   // Theme persistence
   useEffect(() => {
@@ -436,6 +461,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       logout,
       isAuthLoading,
       isSyncing,
+      syncStatus,
+      lastSyncAt,
       activeUser,
       users,
       coasters,

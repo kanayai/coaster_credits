@@ -26,6 +26,8 @@ const Dashboard: React.FC = () => {
     setAnalyticsFilter, 
     appTheme,
     isSyncing,
+    syncStatus,
+    lastSyncAt,
     manualRefresh,
     currentUser,
     logout,
@@ -141,6 +143,9 @@ const Dashboard: React.FC = () => {
   const recentCredit = userCredits.length > 0 ? userCredits[0] : null;
   const recentCoaster = recentCredit ? coasters.find(c => c.id === recentCredit.coasterId) : null;
   const recentImage = recentCredit?.photoUrl || recentCoaster?.imageUrl;
+  const lastSyncLabel = lastSyncAt
+    ? new Date(lastSyncAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : 'Never';
 
   const handleStartParkSession = () => {
       if (!navigator.geolocation) {
@@ -233,6 +238,12 @@ const Dashboard: React.FC = () => {
                 "w-1.5 h-1.5 rounded-full",
                 isSyncing ? "bg-amber-500 animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.5)]" : "bg-emerald-500 animate-pulse"
               )} />
+            </div>
+            <div className={clsx(
+              "text-[10px] font-bold uppercase tracking-wider mt-1",
+              syncStatus === 'error' ? 'text-rose-400' : 'text-slate-500'
+            )}>
+              {isSyncing ? 'Syncing cloud data...' : syncStatus === 'error' ? 'Cloud sync issue' : `Last cloud sync ${lastSyncLabel}`}
             </div>
           </button>
 
