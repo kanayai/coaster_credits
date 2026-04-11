@@ -35,7 +35,8 @@ images:
 substitutions:
   _REGION: us-west1
   _SERVICE: coastercount-pro
-  _IMAGE: us-west1-docker.pkg.dev/$PROJECT_ID/coastercount/coastercount-pro:$SHORT_SHA
+  _IMAGE: us-west1-docker.pkg.dev/gen-lang-client-0691213576/coastercount/coastercount-pro:latest
+
 
 availableSecrets:
   secretManager:
