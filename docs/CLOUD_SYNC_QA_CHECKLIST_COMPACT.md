@@ -102,6 +102,37 @@ Expected:
 - Current behavior: last-write-wins unless explicit merge logic is added.
 - No document corruption.
 
+## Manual Multi-Device Run Log
+
+### Scenario 5 Log (Multi-Device Same Account)
+| Field | Value |
+| --- | --- |
+| Device 1 |  |
+| Device 2 |  |
+| Account Used |  |
+| Start Time |  |
+| End Time |  |
+| Result | `PASS` / `FAIL` / `BLOCKED` |
+| Evidence Links |  |
+| Observed Issues |  |
+| Follow-up Ticket |  |
+
+### Scenario 7 Log (Conflict Observation)
+| Field | Value |
+| --- | --- |
+| Device 1 |  |
+| Device 2 |  |
+| Entity Edited (credit/wishlist/etc.) |  |
+| Field Edited |  |
+| Edit Timestamp (Device 1) |  |
+| Edit Timestamp (Device 2) |  |
+| Final Stored Value |  |
+| Expected Behavior | Last-write-wins (current) |
+| Result | `PASS` / `FAIL` / `BLOCKED` |
+| Evidence Links |  |
+| Observed Issues |  |
+| Follow-up Ticket |  |
+
 ## Release Sign-Off
 | Check | Status |
 | --- | --- |
