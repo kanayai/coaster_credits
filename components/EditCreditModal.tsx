@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { X, Camera, Save, Lock, Sparkles, Loader2, Edit3, AlertTriangle, Link, ArrowDownCircle, Trash2, CheckCircle2, Star, Plus, Music } from 'lucide-react';
+import { X, Camera, Save, Lock, Sparkles, Loader2, Edit3, AlertTriangle, Link, ArrowDownCircle, Trash2, CheckCircle2, Star, Plus, Music, ImageDown } from 'lucide-react';
 import { Credit, Coaster, CoasterType } from '../types';
 import clsx from 'clsx';
 
@@ -12,7 +12,7 @@ interface EditCreditModalProps {
 }
 
 const EditCreditModal: React.FC<EditCreditModalProps> = ({ credit, coaster, onClose }) => {
-  const { updateCredit, editCoaster, autoFetchCoasterImage, extractFromUrl, showNotification } = useAppContext();
+  const { updateCredit, editCoaster, autoFetchCoasterImage, fetchWebPhotoForCredit, extractFromUrl, showNotification } = useAppContext();
   
   // Credit Log State
   const [date, setDate] = useState(credit.date);
@@ -32,6 +32,7 @@ const EditCreditModal: React.FC<EditCreditModalProps> = ({ credit, coaster, onCl
   const [audioUrl, setAudioUrl] = useState(coaster.audioUrl || '');
 
   const [isFetchingImage, setIsFetchingImage] = useState(false);
+  const [isFetchingEntryImage, setIsFetchingEntryImage] = useState(false);
   const [localCoasterImage, setLocalCoasterImage] = useState(coaster.imageUrl);
   
   // URL Extraction State
@@ -119,6 +120,19 @@ const EditCreditModal: React.FC<EditCreditModalProps> = ({ credit, coaster, onCl
       setIsFetchingImage(false);
       if (url) {
           setLocalCoasterImage(url);
+      }
+  };
+
+  const handleFetchEntryPhoto = async () => {
+      setIsFetchingEntryImage(true);
+      try {
+          const url = await fetchWebPhotoForCredit(credit.id, coaster.id);
+          if (url) {
+              setCurrentMainPhoto(url);
+              setLocalCoasterImage(url);
+          }
+      } finally {
+          setIsFetchingEntryImage(false);
       }
   };
 
@@ -376,6 +390,20 @@ const EditCreditModal: React.FC<EditCreditModalProps> = ({ credit, coaster, onCl
                     </div>
                  </div>
               )}
+              <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-400">Fix this entry photo directly</span>
+                  <button
+                    type="button"
+                    onClick={handleFetchEntryPhoto}
+                    disabled={isFetchingEntryImage}
+                    className="text-blue-400 hover:text-blue-300 text-xs font-bold flex items-center gap-1 disabled:opacity-60"
+                  >
+                    {isFetchingEntryImage ? <Loader2 size={12} className="animate-spin" /> : <ImageDown size={12} />}
+                    Fetch For Entry
+                  </button>
+                </div>
+              </div>
               
               <div>
                   <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5 flex items-center gap-1">

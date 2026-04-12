@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { X, Calendar, MapPin, Tag, Edit2, Share2, Ruler, Zap, Activity, Repeat, Music, ExternalLink, Palmtree, PlusCircle, CheckCircle2, Loader2, ImageDown } from 'lucide-react';
 import { Credit, Coaster } from '../types';
@@ -21,8 +21,13 @@ const RideDetailModal: React.FC<RideDetailModalProps> = ({ credit, coaster, onCl
   const [isAddingAudio, setIsAddingAudio] = useState(false);
   const [newAudioUrl, setNewAudioUrl] = useState('');
   const [isFetchingWebPhoto, setIsFetchingWebPhoto] = useState(false);
+  const [entryImageOverride, setEntryImageOverride] = useState<string | null>(null);
 
   const hasAudio = !!coaster.audioUrl;
+  const displayImage = useMemo(
+    () => entryImageOverride || credit?.photoUrl || coaster.imageUrl || 'https://images.unsplash.com/photo-1544669049-29177114210d?q=80&w=1080&auto=format&fit=crop',
+    [entryImageOverride, credit?.photoUrl, coaster.imageUrl]
+  );
   
   // Helper to determine if the URL is a SoundCloud URL
   const isSoundCloud = (url: string) => url.includes('soundcloud.com');
@@ -40,7 +45,7 @@ const RideDetailModal: React.FC<RideDetailModalProps> = ({ credit, coaster, onCl
         {/* Header Image Area */}
         <div className="h-48 sm:h-64 relative shrink-0">
           <img 
-            src={credit?.photoUrl || coaster.imageUrl || 'https://images.unsplash.com/photo-1544669049-29177114210d?q=80&w=1080&auto=format&fit=crop'} 
+            src={displayImage} 
             className="w-full h-full object-cover" 
             alt={coaster.name}
           />
@@ -153,7 +158,10 @@ const RideDetailModal: React.FC<RideDetailModalProps> = ({ credit, coaster, onCl
                                 onClick={async () => {
                                     setIsFetchingWebPhoto(true);
                                     try {
-                                        await fetchWebPhotoForCredit(credit.id, coaster.id);
+                                        const fetchedUrl = await fetchWebPhotoForCredit(credit.id, coaster.id);
+                                        if (fetchedUrl) {
+                                            setEntryImageOverride(fetchedUrl);
+                                        }
                                     } finally {
                                         setIsFetchingWebPhoto(false);
                                     }

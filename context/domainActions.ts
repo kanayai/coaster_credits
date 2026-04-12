@@ -477,10 +477,6 @@ export const autoFetchCoasterImageAction = async (
   return url;
 };
 
-const isGenericImageUrl = (url?: string | null) =>
-  !!url &&
-  (url.includes('picsum.photos') || url.includes('images.unsplash.com/photo-1544669049-29177114210d'));
-
 export const fetchWebPhotoForCreditAction = async (
   context: Pick<
     DomainContext,
@@ -505,9 +501,7 @@ export const fetchWebPhotoForCreditAction = async (
   await updateCoasterImageAction(context, coasterId, url);
 
   const credit = credits.find((item) => item.id === creditId);
-  const shouldUpdateCreditPhoto = !!credit && (!credit.photoUrl || isGenericImageUrl(credit.photoUrl));
-
-  if (shouldUpdateCreditPhoto) {
+  if (credit) {
     if (currentUser) {
       if (!isValidFirestoreDocId(creditId)) {
         showNotification('Invalid credit ID; could not update log photo.', 'error');
