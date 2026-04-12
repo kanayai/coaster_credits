@@ -97,6 +97,16 @@ const trimRankings = (rankings: any) => {
   };
 };
 
+const isFirestoreAllowedUrl = (value: unknown): value is string =>
+  typeof value === 'string' &&
+  (/^https?:\/\//.test(value) || /^data:image\//.test(value) || /^\//.test(value));
+
+const sanitizeGallery = (value: unknown): string[] | undefined => {
+  if (!Array.isArray(value)) return undefined;
+  const cleaned = value.filter((item): item is string => isFirestoreAllowedUrl(item));
+  return cleaned.length > 0 ? cleaned : undefined;
+};
+
 export const addUserAction = async (
   context: Pick<
     BaseDataContext,
@@ -350,6 +360,30 @@ export const importDataAction = async (
       const uid = currentUser.uid;
       const coasterIdMap: Record<string, string> = {};
       const userIdMap: Record<string, string> = {};
+      const collectionPrefixes: Record<'users' | 'coasters' | 'credits' | 'wishlist', string> = {
+        users: 'u',
+        coasters: 'c',
+        credits: 'cr',
+        wishlist: 'w',
+      };
+
+      const resolveSafeImportId = async (
+        collectionName: 'users' | 'coasters' | 'credits' | 'wishlist',
+        incomingId: unknown,
+        ownerScoped: boolean
+      ) => {
+        const fallback = () => generateId(collectionPrefixes[collectionName]);
+        if (!isValidFirestoreDocId(incomingId)) return fallback();
+        try {
+          const existingSnap = await getDoc(doc(db, collectionName, incomingId));
+          if (!existingSnap.exists()) return incomingId;
+          const existingData = existingSnap.data() as { ownerId?: string } | undefined;
+          if (ownerScoped && existingData?.ownerId === uid) return incomingId;
+          return fallback();
+        } catch {
+          return fallback();
+        }
+      };
 
       let coastersAdded = 0;
       let usersAdded = 0;
@@ -374,11 +408,13 @@ export const importDataAction = async (
           if (existing) {
             userIdMap[u.id] = existing.id;
           } else {
-            let newId = u.id || generateId('u');
-            if (newId === 'u1') newId = `u_${uid.substring(0, 8)}`;
+            const newId = await resolveSafeImportId('users', u.id, true);
             userIdMap[u.id || newId] = newId;
 
             let avatarUrl = u.avatarUrl;
+            if (!isFirestoreAllowedUrl(avatarUrl)) {
+              avatarUrl = undefined;
+            }
             if (avatarUrl && avatarUrl.startsWith('data:image') && avatarUrl.length > 102400) {
               console.warn(
                 `Avatar for user ${u.name} is too large (${avatarUrl.length} bytes), skipping to prevent document size errors.`
@@ -416,7 +452,7 @@ export const importDataAction = async (
           if (existing) {
             coasterIdMap[c.id] = existing.id;
           } else {
-            const newId = c.id || generateId('c');
+            const newId = await resolveSafeImportId('coasters', c.id, false);
             coasterIdMap[c.id || newId] = newId;
             const newCoaster = cleanImportedData({
               id: newId,
@@ -426,10 +462,10 @@ export const importDataAction = async (
               country: normalizeCountry(c.country || 'Unknown'),
               type: c.type || CoasterType.Steel,
               isCustom: true,
-              imageUrl: c.imageUrl,
+              imageUrl: isFirestoreAllowedUrl(c.imageUrl) ? c.imageUrl : undefined,
               specs: c.specs,
               variants: c.variants,
-              audioUrl: c.audioUrl,
+              audioUrl: isFirestoreAllowedUrl(c.audioUrl) ? c.audioUrl : undefined,
             });
 
             batch.set(doc(db, 'coasters', newId), cleanForFirestore(newCoaster));
@@ -443,7 +479,7 @@ export const importDataAction = async (
       if (data.credits && Array.isArray(data.credits)) {
         for (const c of data.credits) {
           if (!c.coasterId && !c.coasterName) continue;
-          const creditId = c.id || generateId('cr');
+          const creditId = await resolveSafeImportId('credits', c.id, true);
           const alreadyExists = credits.find((existing) => existing.id === creditId);
 
           if (!alreadyExists) {
@@ -460,8 +496,8 @@ export const importDataAction = async (
               ownerId: uid,
               date: c.date || new Date().toISOString(),
               rideCount: c.rideCount || 1,
-              photoUrl: c.photoUrl,
-              gallery: c.gallery,
+              photoUrl: isFirestoreAllowedUrl(c.photoUrl) ? c.photoUrl : undefined,
+              gallery: sanitizeGallery(c.gallery),
               notes: c.notes,
               restraints: c.restraints,
               variant: c.variant,
@@ -478,7 +514,7 @@ export const importDataAction = async (
       if (data.wishlist && Array.isArray(data.wishlist)) {
         for (const w of data.wishlist) {
           if (!w.coasterId) continue;
-          const wishlistId = w.id || generateId('w');
+          const wishlistId = await resolveSafeImportId('wishlist', w.id, true);
           const alreadyExists = wishlist.find((existing) => existing.id === wishlistId);
 
           if (!alreadyExists) {
