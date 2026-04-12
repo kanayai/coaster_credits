@@ -261,7 +261,11 @@ export const initializeAndSyncApp = async ({
         setIsSyncing(false);
       },
       (err) => {
-        handleFirestoreError(err, OperationType.LIST, 'users');
+        try {
+          handleFirestoreError(err, OperationType.LIST, 'users');
+        } catch (logged) {
+          console.error(logged);
+        }
         onSyncError();
         setIsSyncing(false);
       }
@@ -273,8 +277,16 @@ export const initializeAndSyncApp = async ({
         const loadedCoasters = snapshot.docs.map((docSnapshot) => docSnapshot.data() as Coaster);
         const customOnes = loadedCoasters.filter((coaster) => coaster.isCustom);
         setCoasters([...INITIAL_COASTERS, ...customOnes]);
+        onSyncSuccess();
       },
-      (err) => handleFirestoreError(err, OperationType.LIST, 'coasters')
+      (err) => {
+        try {
+          handleFirestoreError(err, OperationType.LIST, 'coasters');
+        } catch (logged) {
+          console.error(logged);
+        }
+        onSyncError();
+      }
     );
 
     const qCredits = query(collection(db, 'credits'), where('ownerId', '==', uid));
@@ -282,8 +294,16 @@ export const initializeAndSyncApp = async ({
       qCredits,
       (snapshot) => {
         setCredits(snapshot.docs.map((docSnapshot) => docSnapshot.data() as Credit));
+        onSyncSuccess();
       },
-      (err) => handleFirestoreError(err, OperationType.LIST, 'credits')
+      (err) => {
+        try {
+          handleFirestoreError(err, OperationType.LIST, 'credits');
+        } catch (logged) {
+          console.error(logged);
+        }
+        onSyncError();
+      }
     );
 
     const qWishlist = query(collection(db, 'wishlist'), where('ownerId', '==', uid));
@@ -291,8 +311,16 @@ export const initializeAndSyncApp = async ({
       qWishlist,
       (snapshot) => {
         setWishlist(snapshot.docs.map((docSnapshot) => docSnapshot.data() as WishlistEntry));
+        onSyncSuccess();
       },
-      (err) => handleFirestoreError(err, OperationType.LIST, 'wishlist')
+      (err) => {
+        try {
+          handleFirestoreError(err, OperationType.LIST, 'wishlist');
+        } catch (logged) {
+          console.error(logged);
+        }
+        onSyncError();
+      }
     );
 
     setIsInitialized(true);
