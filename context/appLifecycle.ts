@@ -6,6 +6,7 @@ import {
   db,
   doc,
   FirebaseUser,
+  getDoc,
   googleProvider,
   handleFirestoreError,
   onAuthStateChanged,
@@ -57,6 +58,9 @@ interface InitializationParams {
 const isFirestoreAllowedUrl = (value: unknown): value is string =>
   typeof value === 'string' &&
   (/^https?:\/\//.test(value) || /^data:image\//.test(value) || /^\//.test(value));
+
+const generateScopedId = (prefix: string, uid: string) =>
+  `${prefix}_${uid.slice(0, 8)}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 
 export const subscribeToAuthState = ({
   setCurrentUser,
@@ -172,19 +176,53 @@ export const initializeAndSyncApp = async ({
 
     if (hasDataToMigrate) {
       showNotification('Syncing your local data to the cloud...', 'info');
-      const batch = writeBatch(db);
+      let batch = writeBatch(db);
+      let batchCount = 0;
+      const userIdMap: Record<string, string> = {};
+
+      const commitBatchIfNeeded = async (force = false) => {
+        if (batchCount >= 450 || (force && batchCount > 0)) {
+          await batch.commit();
+          batch = writeBatch(db);
+          batchCount = 0;
+        }
+      };
+
+      const resolveSafeId = async (
+        collectionName: 'users' | 'credits' | 'wishlist',
+        incomingId: unknown,
+        prefix: string,
+        ownerScoped: boolean
+      ) => {
+        const fallback = () => generateScopedId(prefix, uid);
+        if (!isValidFirestoreDocId(incomingId)) return fallback();
+        const candidate = String(incomingId);
+        try {
+          const existingSnap = await getDoc(doc(db, collectionName, candidate));
+          if (!existingSnap.exists()) return candidate;
+          const existingData = existingSnap.data() as { ownerId?: string } | undefined;
+          if (ownerScoped && existingData?.ownerId === uid) return candidate;
+          return fallback();
+        } catch {
+          return fallback();
+        }
+      };
 
       for (const user of usersToMigrate) {
-        if (!isValidFirestoreDocId(user.id)) continue;
-        const userRef = doc(db, 'users', user.id);
+        const userId = await resolveSafeId('users', user.id, 'u', true);
+        userIdMap[user.id] = userId;
+        const userRef = doc(db, 'users', userId);
         batch.set(
           userRef,
           cleanForFirestore({
             ...user,
+            id: userId,
             ownerId: uid,
             avatarUrl: isFirestoreAllowedUrl(user.avatarUrl) ? user.avatarUrl : undefined,
           })
         );
+        batchCount++;
+        await commitBatchIfNeeded();
       }
 
       if (localCoasters) {
@@ -198,34 +236,54 @@ export const initializeAndSyncApp = async ({
               imageUrl: isFirestoreAllowedUrl(coaster.imageUrl) ? coaster.imageUrl : undefined,
             })
           );
+          batchCount++;
+          await commitBatchIfNeeded();
         }
       }
 
       if (localCredits) {
         for (const credit of localCredits) {
-          if (!isValidFirestoreDocId(credit.id)) continue;
-          const creditRef = doc(db, 'credits', credit.id);
+          const creditId = await resolveSafeId('credits', credit.id, 'cr', true);
+          const remappedUserId = userIdMap[credit.userId] || credit.userId;
+          if (!isValidFirestoreDocId(remappedUserId)) continue;
+          const creditRef = doc(db, 'credits', creditId);
           batch.set(
             creditRef,
             cleanForFirestore({
               ...credit,
+              id: creditId,
+              userId: remappedUserId,
               ownerId: uid,
               photoUrl: isFirestoreAllowedUrl(credit.photoUrl) ? credit.photoUrl : undefined,
             })
           );
+          batchCount++;
+          await commitBatchIfNeeded();
         }
       }
 
       if (localWishlist) {
         for (const wishlistEntry of localWishlist) {
-          if (!isValidFirestoreDocId(wishlistEntry.id)) continue;
-          const wishlistRef = doc(db, 'wishlist', wishlistEntry.id);
-          batch.set(wishlistRef, cleanForFirestore({ ...wishlistEntry, ownerId: uid }));
+          const wishlistId = await resolveSafeId('wishlist', wishlistEntry.id, 'w', true);
+          const remappedUserId = userIdMap[wishlistEntry.userId] || wishlistEntry.userId;
+          if (!isValidFirestoreDocId(remappedUserId)) continue;
+          const wishlistRef = doc(db, 'wishlist', wishlistId);
+          batch.set(
+            wishlistRef,
+            cleanForFirestore({
+              ...wishlistEntry,
+              id: wishlistId,
+              userId: remappedUserId,
+              ownerId: uid,
+            })
+          );
+          batchCount++;
+          await commitBatchIfNeeded();
         }
       }
 
       try {
-        await batch.commit();
+        await commitBatchIfNeeded(true);
         await storage.set('cc_users', null);
         await storage.set('cc_coasters', null);
         await storage.set('cc_credits', null);
@@ -235,7 +293,11 @@ export const initializeAndSyncApp = async ({
       } catch (err) {
         console.error('Migration failed', err);
         onSyncError();
-        showNotification('Cloud sync encountered an issue. Some data might not be synced yet.', 'error');
+        const reason = err instanceof Error ? err.message : String(err);
+        showNotification(
+          `Cloud sync encountered an issue. Some data might not be synced yet. (${reason})`,
+          'error'
+        );
       }
     }
 
