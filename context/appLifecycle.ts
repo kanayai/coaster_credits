@@ -54,6 +54,10 @@ interface InitializationParams {
   onSyncError: () => void;
 }
 
+const isFirestoreAllowedUrl = (value: unknown): value is string =>
+  typeof value === 'string' &&
+  (/^https?:\/\//.test(value) || /^data:image\//.test(value) || /^\//.test(value));
+
 export const subscribeToAuthState = ({
   setCurrentUser,
   setIsAuthLoading,
@@ -173,14 +177,27 @@ export const initializeAndSyncApp = async ({
       for (const user of usersToMigrate) {
         if (!isValidFirestoreDocId(user.id)) continue;
         const userRef = doc(db, 'users', user.id);
-        batch.set(userRef, cleanForFirestore({ ...user, ownerId: uid }));
+        batch.set(
+          userRef,
+          cleanForFirestore({
+            ...user,
+            ownerId: uid,
+            avatarUrl: isFirestoreAllowedUrl(user.avatarUrl) ? user.avatarUrl : undefined,
+          })
+        );
       }
 
       if (localCoasters) {
         for (const coaster of localCoasters) {
           if (!coaster.isCustom || !isValidFirestoreDocId(coaster.id)) continue;
           const coasterRef = doc(db, 'coasters', coaster.id);
-          batch.set(coasterRef, cleanForFirestore(coaster));
+          batch.set(
+            coasterRef,
+            cleanForFirestore({
+              ...coaster,
+              imageUrl: isFirestoreAllowedUrl(coaster.imageUrl) ? coaster.imageUrl : undefined,
+            })
+          );
         }
       }
 
@@ -188,7 +205,14 @@ export const initializeAndSyncApp = async ({
         for (const credit of localCredits) {
           if (!isValidFirestoreDocId(credit.id)) continue;
           const creditRef = doc(db, 'credits', credit.id);
-          batch.set(creditRef, cleanForFirestore({ ...credit, ownerId: uid }));
+          batch.set(
+            creditRef,
+            cleanForFirestore({
+              ...credit,
+              ownerId: uid,
+              photoUrl: isFirestoreAllowedUrl(credit.photoUrl) ? credit.photoUrl : undefined,
+            })
+          );
         }
       }
 
