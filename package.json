@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "cleanup:json": "node scripts/cleanupExport.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.30.0",
