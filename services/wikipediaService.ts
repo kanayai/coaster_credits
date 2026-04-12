@@ -3,18 +3,14 @@ export const fetchCoasterImageFromWiki = async (coasterName: string, parkName: s
   
   const fetchImage = async (query: string): Promise<string | null> => {
       try {
-        const searchUrl = `https://en.wikipedia.org/w/api.php?origin=*&action=query&format=json&generator=search&gsrnamespace=0&gsrlimit=1&gsrsearch=${encodeURIComponent(query)}&prop=pageimages&pithumbsize=600`;
+        const searchUrl = `https://en.wikipedia.org/w/api.php?origin=*&action=query&format=json&generator=search&gsrnamespace=0&gsrlimit=5&gsrsearch=${encodeURIComponent(query)}&prop=pageimages&pithumbsize=900`;
         const res = await fetch(searchUrl);
         const data = await res.json();
 
         if (data.query && data.query.pages) {
-            const pages = Object.values(data.query.pages);
-            if (pages.length > 0) {
-                const page = pages[0] as any;
-                if (page.thumbnail && page.thumbnail.source) {
-                    return page.thumbnail.source;
-                }
-            }
+            const pages = Object.values(data.query.pages) as any[];
+            const withThumb = pages.find((page) => page?.thumbnail?.source);
+            if (withThumb?.thumbnail?.source) return withThumb.thumbnail.source;
         }
         return null;
       } catch (error) {
@@ -32,6 +28,16 @@ export const fetchCoasterImageFromWiki = async (coasterName: string, parkName: s
     // High success rate for unique coaster names
     if (!image) {
         image = await fetchImage(`${coasterName} roller coaster`);
+    }
+
+    // 3. Fallback: name + park without keyword
+    if (!image) {
+      image = await fetchImage(`${coasterName} ${parkName}`);
+    }
+
+    // 4. Fallback: just coaster name
+    if (!image) {
+      image = await fetchImage(`${coasterName}`);
     }
 
     return image;
