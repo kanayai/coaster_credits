@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { X, Calendar, MapPin, Tag, Edit2, Share2, Ruler, Zap, Activity, Repeat, Music, ExternalLink, Palmtree, PlusCircle, CheckCircle2 } from 'lucide-react';
+import { X, Calendar, MapPin, Tag, Edit2, Share2, Ruler, Zap, Activity, Repeat, Music, ExternalLink, Palmtree, PlusCircle, CheckCircle2, Loader2, ImageDown } from 'lucide-react';
 import { Credit, Coaster } from '../types';
 import clsx from 'clsx';
 
@@ -14,12 +14,13 @@ interface RideDetailModalProps {
 }
 
 const RideDetailModal: React.FC<RideDetailModalProps> = ({ credit, coaster, onClose, onEdit, onShare }) => {
-  const { editCoaster, showNotification } = useAppContext();
+  const { editCoaster, showNotification, fetchWebPhotoForCredit } = useAppContext();
   const [activeTab, setActiveTab] = useState<'DETAILS' | 'STATS' | 'AUDIO'>('DETAILS');
   
   // State for adding audio if missing
   const [isAddingAudio, setIsAddingAudio] = useState(false);
   const [newAudioUrl, setNewAudioUrl] = useState('');
+  const [isFetchingWebPhoto, setIsFetchingWebPhoto] = useState(false);
 
   const hasAudio = !!coaster.audioUrl;
   
@@ -147,6 +148,22 @@ const RideDetailModal: React.FC<RideDetailModalProps> = ({ credit, coaster, onCl
                                     {credit.notes ? `"${credit.notes}"` : <span className="text-slate-600 not-italic">No notes logged for this ride.</span>}
                                 </p>
                             </div>
+
+                            <button
+                                onClick={async () => {
+                                    setIsFetchingWebPhoto(true);
+                                    try {
+                                        await fetchWebPhotoForCredit(credit.id, coaster.id);
+                                    } finally {
+                                        setIsFetchingWebPhoto(false);
+                                    }
+                                }}
+                                disabled={isFetchingWebPhoto}
+                                className="w-full bg-slate-900/50 border border-slate-700/50 hover:bg-slate-900 text-slate-200 py-3 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 disabled:opacity-60"
+                            >
+                                {isFetchingWebPhoto ? <Loader2 size={14} className="animate-spin" /> : <ImageDown size={14} />}
+                                {isFetchingWebPhoto ? 'Fetching Photo...' : 'Fetch Web Photo For This Entry'}
+                            </button>
 
                             {/* Gallery */}
                             {credit.gallery && credit.gallery.length > 0 && (

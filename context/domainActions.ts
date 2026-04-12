@@ -477,6 +477,63 @@ export const autoFetchCoasterImageAction = async (
   return url;
 };
 
+const isGenericImageUrl = (url?: string | null) =>
+  !!url &&
+  (url.includes('picsum.photos') || url.includes('images.unsplash.com/photo-1544669049-29177114210d'));
+
+export const fetchWebPhotoForCreditAction = async (
+  context: Pick<
+    DomainContext,
+    'coasters' | 'credits' | 'currentUser' | 'setCoasters' | 'setCredits' | 'showNotification'
+  >,
+  creditId: string,
+  coasterId: string
+) => {
+  const { coasters, credits, currentUser, setCredits, showNotification } = context;
+  const coaster = coasters.find((item) => item.id === coasterId);
+  if (!coaster) {
+    showNotification('Coaster not found for this log entry.', 'error');
+    return null;
+  }
+
+  const url = await fetchCoasterImageFromWiki(coaster.name, coaster.park);
+  if (!url) {
+    showNotification('No web photo found for this coaster right now.', 'info');
+    return null;
+  }
+
+  await updateCoasterImageAction(context, coasterId, url);
+
+  const credit = credits.find((item) => item.id === creditId);
+  const shouldUpdateCreditPhoto = !!credit && (!credit.photoUrl || isGenericImageUrl(credit.photoUrl));
+
+  if (shouldUpdateCreditPhoto) {
+    if (currentUser) {
+      if (!isValidFirestoreDocId(creditId)) {
+        showNotification('Invalid credit ID; could not update log photo.', 'error');
+        return url;
+      }
+      try {
+        await updateDoc(doc(db, 'credits', creditId), { photoUrl: url });
+      } catch (err) {
+        handleFirestoreError(err, OperationType.UPDATE, `credits/${creditId}`);
+      }
+      setCredits((prev) =>
+        prev.map((item) => (item.id === creditId ? { ...item, photoUrl: url } : item))
+      );
+    } else {
+      const updatedCredits = credits.map((item) =>
+        item.id === creditId ? { ...item, photoUrl: url } : item
+      );
+      setCredits(updatedCredits);
+      await storage.set('cc_credits', updatedCredits);
+    }
+  }
+
+  showNotification('Fetched a web photo for this entry.', 'success');
+  return url;
+};
+
 export const enrichDatabaseImagesAction = async (
   context: Pick<DomainContext, 'coasters' | 'showNotification'>,
   editCoaster: (id: string, updates: Partial<Coaster>) => Promise<void>

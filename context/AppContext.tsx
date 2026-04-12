@@ -18,6 +18,7 @@ import {
   editCoasterAction as editCoasterDomainAction,
   enrichDatabaseImagesAction as enrichDatabaseImagesDomainAction,
   extractFromUrlAction as extractFromUrlDomainAction,
+  fetchWebPhotoForCreditAction as fetchWebPhotoForCreditDomainAction,
   generateIconAction as generateIconDomainAction,
   isInWishlistForUser as isInWishlistForUserDomain,
   removeFromWishlistAction as removeFromWishlistDomainAction,
@@ -109,6 +110,7 @@ interface AppContextType {
   enrichDatabaseImages: () => Promise<void>;
   updateCoasterImage: (coasterId: string, imageUrl: string) => void;
   autoFetchCoasterImage: (coasterId: string) => Promise<string | null>;
+  fetchWebPhotoForCredit: (creditId: string, coasterId: string) => Promise<string | null>;
   importData: (jsonData: any) => void;
   exportData: () => void;
   standardizeDatabase: () => void;
@@ -414,6 +416,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return updateCoasterImageDomainAction(mutationContext, coasterId, imageUrl);
   };
 
+  const fetchWebPhotoForCredit = async (creditId: string, coasterId: string) => {
+      return fetchWebPhotoForCreditDomainAction(mutationContext, creditId, coasterId);
+  };
+
   const standardizeDatabase = async () => {
       return standardizeDatabaseAction(userDataContext);
   };
@@ -498,6 +504,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       enrichDatabaseImages,
       updateCoasterImage,
       autoFetchCoasterImage,
+      fetchWebPhotoForCredit,
       importData,
       exportData,
       standardizeDatabase,
