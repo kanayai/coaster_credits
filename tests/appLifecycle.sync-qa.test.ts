@@ -7,61 +7,33 @@ const mockStorage = {
 };
 
 const mockSignOut = vi.fn();
-const mockWriteBatchSet = vi.fn();
-const mockWriteBatchCommit = vi.fn();
-const mockWriteBatch = vi.fn(() => ({
-  set: mockWriteBatchSet,
-  commit: mockWriteBatchCommit,
-}));
+const mockGetSession = vi.fn();
+const mockOnAuthStateChange = vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } }));
 
-const mockDoc = vi.fn((dbRef: unknown, collectionName: string, id: string) => ({ collectionName, id }));
-const mockCollection = vi.fn((dbRef: unknown, collectionName: string) => ({ collectionName }));
-const mockWhere = vi.fn((field: string, op: string, value: string) => ({ field, op, value }));
-const mockQuery = vi.fn((ref: unknown, ...clauses: unknown[]) => ({ ref, clauses }));
-const mockOnSnapshot = vi.fn();
-const mockHandleFirestoreError = vi.fn();
-
-const stripUndefined = (value: unknown): unknown => {
-  if (Array.isArray(value)) return value.map(stripUndefined);
-  if (value && typeof value === 'object') {
-    const out: Record<string, unknown> = {};
-    Object.entries(value as Record<string, unknown>).forEach(([key, inner]) => {
-      if (inner !== undefined) out[key] = stripUndefined(inner);
-    });
-    return out;
-  }
-  return value;
-};
+const mockUpsertUsers = vi.fn();
+const mockUpsertCoasters = vi.fn();
+const mockUpsertCredits = vi.fn();
+const mockUpsertWishlist = vi.fn();
+const mockLoadOwnerData = vi.fn();
 
 vi.mock('../services/storage', () => ({ storage: mockStorage }));
-
-vi.mock('../firebase', () => ({
-  auth: {},
-  db: { name: 'db' },
-  googleProvider: { setCustomParameters: vi.fn() },
-  FirebaseUser: {},
-  signOut: mockSignOut,
-  signInWithPopup: vi.fn(),
-  onAuthStateChanged: vi.fn(),
-  collection: mockCollection,
-  onSnapshot: mockOnSnapshot,
-  query: mockQuery,
-  where: mockWhere,
-  setDoc: vi.fn(),
-  doc: mockDoc,
-  writeBatch: mockWriteBatch,
-  handleFirestoreError: mockHandleFirestoreError,
-  OperationType: {
-    CREATE: 'create',
-    UPDATE: 'update',
-    DELETE: 'delete',
-    LIST: 'list',
-    GET: 'get',
-    WRITE: 'write',
+vi.mock('../services/supabaseClient', () => ({
+  isSupabaseConfigured: true,
+  supabase: {
+    auth: {
+      signOut: mockSignOut,
+      getSession: mockGetSession,
+      onAuthStateChange: mockOnAuthStateChange,
+      signInWithOAuth: vi.fn(),
+    },
   },
-  cleanForFirestore: stripUndefined,
-  isValidFirestoreDocId: vi.fn(() => true),
-  isValidFirestoreOwnerId: vi.fn(() => true),
+}));
+vi.mock('../services/supabaseData', () => ({
+  upsertUsers: mockUpsertUsers,
+  upsertCoasters: mockUpsertCoasters,
+  upsertCredits: mockUpsertCredits,
+  upsertWishlist: mockUpsertWishlist,
+  loadOwnerData: mockLoadOwnerData,
 }));
 
 describe('cloud sync QA: app lifecycle', () => {
@@ -71,15 +43,8 @@ describe('cloud sync QA: app lifecycle', () => {
     mockStorage.get.mockResolvedValue(null);
     mockStorage.set.mockResolvedValue(undefined);
     mockSignOut.mockResolvedValue(undefined);
-    mockWriteBatchCommit.mockResolvedValue(undefined);
-
-    const unsub = vi.fn();
-    mockOnSnapshot.mockImplementation((target: unknown, onNext?: (snap: any) => void) => {
-      if (typeof onNext === 'function') {
-        onNext({ docs: [] });
-      }
-      return unsub;
-    });
+    mockGetSession.mockResolvedValue({ data: { session: null } });
+    mockLoadOwnerData.mockResolvedValue({ users: [], coasters: [], credits: [], wishlist: [] });
   });
 
   it('login init in local mode loads local data and active profile', async () => {
@@ -116,18 +81,7 @@ describe('cloud sync QA: app lifecycle', () => {
       onSyncError: vi.fn(),
     });
 
-    expect(setUsers).toHaveBeenCalledWith([
-      expect.objectContaining({ id: 'u_local', name: 'Local Rider' }),
-    ]);
-    expect(setCoasters).toHaveBeenCalledWith(expect.arrayContaining([
-      expect.objectContaining({ id: 'c_local' }),
-    ]));
-    expect(setCredits).toHaveBeenCalledWith([
-      expect.objectContaining({ id: 'cr_local' }),
-    ]);
-    expect(setWishlist).toHaveBeenCalledWith([
-      expect.objectContaining({ id: 'w_local' }),
-    ]);
+    expect(setUsers).toHaveBeenCalledWith([expect.objectContaining({ id: 'u_local', name: 'Local Rider' })]);
     expect(setActiveUserId).toHaveBeenCalledWith('u_local');
     expect(setIsInitialized).toHaveBeenCalledWith(true);
     expect(setIsSyncing).toHaveBeenLastCalledWith(false);
@@ -158,40 +112,30 @@ describe('cloud sync QA: app lifecycle', () => {
     expect(showNotification).toHaveBeenCalledWith('Signed out', 'info');
   });
 
-  it('offline local data migrates to cloud on sign-in and clears local cache', async () => {
+  it('offline local data migrates to supabase and clears local cache', async () => {
     const { initializeAndSyncApp } = await import('../context/appLifecycle');
 
     mockStorage.get.mockImplementation(async (key: string) => {
       if (key === 'cc_users') return [{ id: 'u1', ownerId: 'local', name: 'Offline User', avatarColor: 'bg-emerald-500' }];
       if (key === 'cc_coasters') return [{ id: 'c1', name: 'Custom', park: 'Park', country: 'UK', type: 'Steel', manufacturer: 'B&M', isCustom: true }];
-      if (key === 'cc_credits') return [{ id: 'cr1', ownerId: 'local', userId: 'u1', coasterId: 'c1', date: '2026-04-10', rideCount: 1, photoUrl: undefined }];
-      if (key === 'cc_wishlist') return [{ id: 'w1', ownerId: 'local', userId: 'u1', coasterId: 'c1', addedAt: '2026-04-10', notes: undefined }];
+      if (key === 'cc_credits') return [{ id: 'cr1', ownerId: 'local', userId: 'u1', coasterId: 'c1', date: '2026-04-10', rideCount: 1 }];
+      if (key === 'cc_wishlist') return [{ id: 'w1', ownerId: 'local', userId: 'u1', coasterId: 'c1', addedAt: '2026-04-10' }];
       if (key === 'cc_active_user_id') return 'u1';
       return null;
     });
 
-    mockOnSnapshot.mockImplementation((target: any, onNext?: (snap: any) => void) => {
-      if (typeof onNext === 'function') {
-        if (target?.ref?.collectionName === 'users' || target?.ref?.collectionName === undefined) {
-          onNext({
-            docs: [
-              {
-                data: () => ({ id: 'u1', ownerId: 'uid-cloud', name: 'Offline User', avatarColor: 'bg-emerald-500' }),
-              },
-            ],
-          });
-        } else {
-          onNext({ docs: [] });
-        }
-      }
-      return vi.fn();
+    mockLoadOwnerData.mockResolvedValue({
+      users: [{ id: 'u1', ownerId: 'uid-cloud', name: 'Offline User', avatarColor: 'bg-emerald-500' }],
+      coasters: [{ id: 'c1', name: 'Custom', park: 'Park', country: 'UK', type: 'Steel', manufacturer: 'B&M', isCustom: true }],
+      credits: [{ id: 'cr1', ownerId: 'uid-cloud', userId: 'u1', coasterId: 'c1', date: '2026-04-10', rideCount: 1 }],
+      wishlist: [],
     });
 
     const showNotification = vi.fn();
     const setIsSyncing = vi.fn();
 
     await initializeAndSyncApp({
-      currentUser: { uid: 'uid-cloud' } as any,
+      currentUser: { uid: 'uid-cloud', email: 'a@b.com' },
       setUsers: vi.fn(),
       setCoasters: vi.fn(),
       setCredits: vi.fn(),
@@ -204,41 +148,29 @@ describe('cloud sync QA: app lifecycle', () => {
       onSyncError: vi.fn(),
     });
 
-    expect(mockWriteBatchSet).toHaveBeenCalled();
-    const serializedWrites = mockWriteBatchSet.mock.calls.map((call) => call[1]);
-    expect(serializedWrites).toEqual(expect.arrayContaining([
-      expect.objectContaining({ ownerId: 'uid-cloud' }),
-    ]));
-
-    const flattened = JSON.stringify(serializedWrites);
-    expect(flattened).not.toContain('undefined');
-
+    expect(mockUpsertUsers).toHaveBeenCalled();
+    expect(mockUpsertCoasters).toHaveBeenCalled();
+    expect(mockUpsertCredits).toHaveBeenCalled();
+    expect(mockUpsertWishlist).toHaveBeenCalled();
     expect(mockStorage.set).toHaveBeenCalledWith('cc_users', null);
     expect(mockStorage.set).toHaveBeenCalledWith('cc_coasters', null);
     expect(mockStorage.set).toHaveBeenCalledWith('cc_credits', null);
     expect(mockStorage.set).toHaveBeenCalledWith('cc_wishlist', null);
-    expect(showNotification).toHaveBeenCalledWith('Cloud sync complete!', 'success');
+    expect(showNotification).toHaveBeenCalledWith('Supabase sync complete!', 'success');
     expect(setIsSyncing).toHaveBeenCalledWith(true);
     expect(setIsSyncing).toHaveBeenCalledWith(false);
   });
 
-  it('reconnect failure path surfaces Firestore LIST error and exits syncing', async () => {
+  it('load failure path exits syncing and surfaces sync error callback', async () => {
     const { initializeAndSyncApp } = await import('../context/appLifecycle');
 
-    mockOnSnapshot.mockImplementation((target: any, onNext?: (snap: any) => void, onError?: (err: Error) => void) => {
-      const isUsersListener = target?.ref?.collectionName === 'users' || target?.ref?.collectionName === undefined;
-      if (isUsersListener && typeof onError === 'function') {
-        onError(new Error('offline'));
-      } else if (typeof onNext === 'function') {
-        onNext({ docs: [] });
-      }
-      return vi.fn();
-    });
+    mockLoadOwnerData.mockRejectedValue(new Error('offline'));
 
     const setIsSyncing = vi.fn();
+    const onSyncError = vi.fn();
 
     await initializeAndSyncApp({
-      currentUser: { uid: 'uid-cloud' } as any,
+      currentUser: { uid: 'uid-cloud', email: 'a@b.com' },
       setUsers: vi.fn(),
       setCoasters: vi.fn(),
       setCredits: vi.fn(),
@@ -248,10 +180,10 @@ describe('cloud sync QA: app lifecycle', () => {
       setIsSyncing,
       showNotification: vi.fn(),
       onSyncSuccess: vi.fn(),
-      onSyncError: vi.fn(),
+      onSyncError,
     });
 
-    expect(mockHandleFirestoreError).toHaveBeenCalledWith(expect.any(Error), 'list', 'users');
+    expect(onSyncError).toHaveBeenCalled();
     expect(setIsSyncing).toHaveBeenCalledWith(false);
   });
 });

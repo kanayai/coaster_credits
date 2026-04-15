@@ -66,7 +66,7 @@ Status:
 Expected:
 - Migration success notification.
 - No duplicate writes.
-- No undefined-field Firestore errors.
+- No undefined-field cloud data errors.
 
 ## 4) Manual Refresh/Reconnect Behavior
 Status:

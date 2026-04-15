@@ -4,6 +4,7 @@ import { useAppContext } from '../context/AppContext';
 import { UserPlus, CheckCircle2, Edit2, Save, X, FileSpreadsheet, Database, Cloud, Loader2, FileJson, Trophy, Calendar, Gamepad2, Ticket, Info, AlertCircle, ShieldAlert } from 'lucide-react';
 import { AppTheme } from '../context/AppContext';
 import clsx from 'clsx';
+import { getDataBackend } from '../services/backend';
 
 const ActivityHeatmap = () => {
     const { credits, activeUser } = useAppContext();
@@ -98,6 +99,8 @@ const ProfileManager: React.FC = () => {
   const [localStats, setLocalStats] = useState<{ users: number, credits: number, wishlist: number, coasters: number } | null>(null);
   const [isCheckingLocal, setIsCheckingLocal] = useState(false);
   const isAdmin = currentUser?.email === 'k.anaya.izquierdo@gmail.com';
+  const backend = getDataBackend();
+  const backendLabel = 'Supabase';
 
   useEffect(() => {
     const checkLocal = async () => {
@@ -152,9 +155,14 @@ const ProfileManager: React.FC = () => {
         currentUser ? "bg-emerald-500/5 border-emerald-500/20" : "bg-slate-900 border-slate-800"
       )}>
         <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
-            <Cloud size={14} className={currentUser ? "text-emerald-400" : "text-primary"} /> 
-            {currentUser ? "Cloud Connected" : "Local Mode"}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
+              <Cloud size={14} className={currentUser ? "text-emerald-400" : "text-primary"} /> 
+              {currentUser ? "Cloud Connected" : "Local Mode"}
+            </div>
+            <div className="px-2 py-1 rounded-full bg-slate-800 border border-slate-700 text-[9px] font-black text-slate-300 uppercase tracking-widest">
+              Backend: {backendLabel}
+            </div>
           </div>
           {currentUser && (
             <div className="flex items-center gap-2 px-2 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
@@ -178,18 +186,15 @@ const ProfileManager: React.FC = () => {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="relative">
-                <img 
-                  src={currentUser.photoURL || ''} 
-                  alt="Account" 
-                  className="w-12 h-12 rounded-full border-2 border-emerald-500/30 shadow-lg shadow-emerald-500/10"
-                  referrerPolicy="no-referrer"
-                />
+                <div className="w-12 h-12 rounded-full border-2 border-emerald-500/30 shadow-lg shadow-emerald-500/10 bg-slate-800 flex items-center justify-center text-emerald-300 font-black text-sm">
+                  {(currentUser.email?.[0] || 'U').toUpperCase()}
+                </div>
                 <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-white p-0.5 rounded-full border-2 border-slate-900">
                   <CheckCircle2 size={10} />
                 </div>
               </div>
               <div>
-                <h3 className="font-bold text-white tracking-tight">{currentUser.displayName}</h3>
+                <h3 className="font-bold text-white tracking-tight">{currentUser.email?.split('@')[0] || 'Cloud User'}</h3>
                 <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{currentUser.email}</p>
               </div>
             </div>

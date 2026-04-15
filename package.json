@@ -9,12 +9,13 @@
     "preview": "vite preview",
     "lint": "tsc --noEmit",
     "test": "vitest run",
-    "cleanup:json": "node scripts/cleanupExport.mjs"
+    "cleanup:json": "node scripts/cleanupExport.mjs",
+    "migrate:supabase": "node scripts/importToSupabase.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.30.0",
+    "@supabase/supabase-js": "^2.57.4",
     "clsx": "^2.1.1",
-    "firebase": "^12.11.0",
     "html2canvas": "latest",
     "lucide-react": "^0.554.0",
     "react": "^19.2.0",

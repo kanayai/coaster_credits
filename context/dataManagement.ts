@@ -1,21 +1,16 @@
 import type { Dispatch, SetStateAction } from 'react';
 import { CoasterType, type Coaster, type Credit, type RankingList, type User, type WishlistEntry } from '../types';
 import { INITIAL_USERS, cleanName, normalizeCountry, normalizeManufacturer, normalizeParkName } from '../constants';
+import type { AppAuthUser } from '../services/authTypes';
 import {
-  collection,
-  db,
-  doc,
-  getDoc,
-  handleFirestoreError,
-  OperationType,
-  setDoc,
-  updateDoc,
-  writeBatch,
-  type FirebaseUser,
-  cleanForFirestore,
-  isValidFirestoreDocId,
-  isValidFirestoreOwnerId,
-} from '../firebase';
+  upsertCoasters,
+  upsertCredits,
+  upsertUsers,
+  upsertWishlist,
+  updateUser as updateSupabaseUser,
+  updateCredit as updateSupabaseCredit,
+  loadOwnerData,
+} from '../services/supabaseData';
 import { storage } from '../services/storage';
 
 type NotificationType = 'success' | 'error' | 'info';
@@ -24,7 +19,7 @@ type GenerateId = (prefix: string) => string;
 type CompressImage = (file: File) => Promise<string>;
 
 interface BaseDataContext {
-  currentUser: FirebaseUser | null;
+  currentUser: AppAuthUser | null;
   activeUser: User | null;
   users: User[];
   coasters: Coaster[];
@@ -97,15 +92,18 @@ const trimRankings = (rankings: any) => {
   };
 };
 
-const isFirestoreAllowedUrl = (value: unknown): value is string =>
+const isAllowedUrl = (value: unknown): value is string =>
   typeof value === 'string' &&
   (/^https?:\/\//.test(value) || /^data:image\//.test(value) || /^\//.test(value));
 
 const sanitizeGallery = (value: unknown): string[] | undefined => {
   if (!Array.isArray(value)) return undefined;
-  const cleaned = value.filter((item): item is string => isFirestoreAllowedUrl(item));
+  const cleaned = value.filter((item): item is string => isAllowedUrl(item));
   return cleaned.length > 0 ? cleaned : undefined;
 };
+
+const validId = (value: unknown): value is string =>
+  typeof value === 'string' && value.trim().length > 0 && !value.includes('/');
 
 export const addUserAction = async (
   context: Pick<
@@ -130,18 +128,19 @@ export const addUserAction = async (
 
   if (currentUser) {
     try {
-      await setDoc(doc(db, 'users', newUser.id), cleanForFirestore(newUser));
+      await upsertUsers([newUser]);
       switchUser(newUser.id);
     } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, `users/${newUser.id}`);
+      showNotification(`Supabase profile create failed: ${err instanceof Error ? err.message : String(err)}`, 'error');
     }
-  } else {
-    const updatedUsers = [...users, newUser];
-    setUsers(updatedUsers);
-    await storage.set('cc_users', updatedUsers);
-    switchUser(newUser.id);
-    showNotification('Local profile created!');
+    return;
   }
+
+  const updatedUsers = [...users, newUser];
+  setUsers(updatedUsers);
+  await storage.set('cc_users', updatedUsers);
+  switchUser(newUser.id);
+  showNotification('Local profile created!');
 };
 
 export const updateUserAction = async (
@@ -159,22 +158,23 @@ export const updateUserAction = async (
 
   if (currentUser) {
     try {
-      await updateDoc(doc(db, 'users', userId), {
+      await updateSupabaseUser(userId, {
         name: newName,
         ...(avatarUrl ? { avatarUrl } : {}),
       });
       showNotification('Profile updated');
     } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `users/${userId}`);
+      showNotification(`Supabase profile update failed: ${err instanceof Error ? err.message : String(err)}`, 'error');
     }
-  } else {
-    const updatedUsers = users.map((user) =>
-      user.id === userId ? { ...user, name: newName, ...(avatarUrl ? { avatarUrl } : {}) } : user
-    );
-    setUsers(updatedUsers);
-    await storage.set('cc_users', updatedUsers);
-    showNotification('Local profile updated');
+    return;
   }
+
+  const updatedUsers = users.map((user) =>
+    user.id === userId ? { ...user, name: newName, ...(avatarUrl ? { avatarUrl } : {}) } : user
+  );
+  setUsers(updatedUsers);
+  await storage.set('cc_users', updatedUsers);
+  showNotification('Local profile updated');
 };
 
 export const saveHighScoreAction = async (
@@ -188,17 +188,18 @@ export const saveHighScoreAction = async (
 
   if (currentUser) {
     try {
-      await updateDoc(doc(db, 'users', activeUser.id), { highScore: score });
+      await updateSupabaseUser(activeUser.id, { highScore: score });
     } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `users/${activeUser.id}`);
+      console.error('Supabase high score update failed', err);
     }
-  } else {
-    const updatedUsers = users.map((user) =>
-      user.id === activeUser.id ? { ...user, highScore: score } : user
-    );
-    setUsers(updatedUsers);
-    await storage.set('cc_users', updatedUsers);
+    return;
   }
+
+  const updatedUsers = users.map((user) =>
+    user.id === activeUser.id ? { ...user, highScore: score } : user
+  );
+  setUsers(updatedUsers);
+  await storage.set('cc_users', updatedUsers);
 };
 
 export const updateRankingsAction = async (
@@ -207,21 +208,23 @@ export const updateRankingsAction = async (
 ) => {
   const { activeUser, currentUser, setUsers, showNotification, users } = context;
   if (!activeUser) return;
+
   if (currentUser) {
     try {
-      await updateDoc(doc(db, 'users', activeUser.id), { rankings });
+      await updateSupabaseUser(activeUser.id, { rankings });
       showNotification('Rankings saved!', 'success');
     } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `users/${activeUser.id}`);
+      showNotification(`Supabase rankings update failed: ${err instanceof Error ? err.message : String(err)}`, 'error');
     }
-  } else {
-    const updatedUsers = users.map((user) =>
-      user.id === activeUser.id ? { ...user, rankings } : user
-    );
-    setUsers(updatedUsers);
-    await storage.set('cc_users', updatedUsers);
-    showNotification('Local rankings saved!', 'success');
+    return;
   }
+
+  const updatedUsers = users.map((user) =>
+    user.id === activeUser.id ? { ...user, rankings } : user
+  );
+  setUsers(updatedUsers);
+  await storage.set('cc_users', updatedUsers);
+  showNotification('Local rankings saved!', 'success');
 };
 
 export const standardizeDatabaseAction = async (
@@ -237,34 +240,17 @@ export const standardizeDatabaseAction = async (
 
   if (!currentUser) {
     setCoasters(standardizedCoasters);
-    await storage.set(
-      'cc_coasters',
-      standardizedCoasters.filter((coaster) => coaster.isCustom)
-    );
+    await storage.set('cc_coasters', standardizedCoasters.filter((coaster) => coaster.isCustom));
     showNotification('Local coaster database standardized.', 'success');
     return;
   }
 
-  const batch = writeBatch(db);
-  let count = 0;
-  standardizedCoasters.forEach((coaster) => {
-    if (coaster.isCustom) {
-      batch.update(doc(db, 'coasters', coaster.id), {
-        manufacturer: coaster.manufacturer,
-        park: coaster.park,
-        country: coaster.country,
-      });
-      count++;
-    }
-  });
-
-  if (count > 0) {
-    try {
-      await batch.commit();
-      showNotification('Database standardized.', 'success');
-    } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, 'coasters (standardize batch)');
-    }
+  try {
+    const customCoasters = standardizedCoasters.filter((coaster) => coaster.isCustom);
+    await upsertCoasters(customCoasters);
+    showNotification('Database standardized.', 'success');
+  } catch (err) {
+    showNotification(`Supabase standardize failed: ${err instanceof Error ? err.message : String(err)}`, 'error');
   }
 };
 
@@ -278,22 +264,20 @@ export const clearStoragePhotosAction = async (
     )
   ) {
     if (!currentUser) {
-      const updatedCredits = credits.map((credit) => ({ ...credit, photoUrl: null, gallery: [] }));
+      const updatedCredits = credits.map((credit) => ({ ...credit, photoUrl: undefined, gallery: [] }));
       setCredits(updatedCredits);
       await storage.set('cc_credits', updatedCredits);
       showNotification('Local storage cleared.', 'success');
       return;
     }
 
-    const batch = writeBatch(db);
-    credits.forEach((credit) => {
-      batch.update(doc(db, 'credits', credit.id), { photoUrl: null, gallery: [] });
-    });
     try {
-      await batch.commit();
+      for (const credit of credits) {
+        await updateSupabaseCredit(credit.id, { photoUrl: undefined, gallery: [] });
+      }
       showNotification('Storage cleared.', 'success');
     } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, 'credits (clear photos batch)');
+      showNotification(`Supabase storage clear failed: ${err instanceof Error ? err.message : String(err)}`, 'error');
     }
   }
 };
@@ -358,198 +342,72 @@ export const importDataAction = async (
 
     if (currentUser) {
       const uid = currentUser.uid;
-      const coasterIdMap: Record<string, string> = {};
-      const userIdMap: Record<string, string> = {};
-      const collectionPrefixes: Record<'users' | 'coasters' | 'credits' | 'wishlist', string> = {
-        users: 'u',
-        coasters: 'c',
-        credits: 'cr',
-        wishlist: 'w',
-      };
+      const usersToImport: User[] = (Array.isArray(data.users) ? data.users : [])
+        .filter((u: any) => validId(u?.id) && typeof u?.name === 'string')
+        .map((u: any) => ({
+          id: u.id,
+          ownerId: uid,
+          name: u.name,
+          avatarColor: u.avatarColor || 'bg-blue-500',
+          avatarUrl: isAllowedUrl(u.avatarUrl) ? u.avatarUrl : undefined,
+          rankings: trimRankings(u.rankings),
+          highScore: Number.isFinite(Number(u.highScore)) ? Math.floor(Number(u.highScore)) : undefined,
+        }));
 
-      const resolveSafeImportId = async (
-        collectionName: 'users' | 'coasters' | 'credits' | 'wishlist',
-        incomingId: unknown,
-        ownerScoped: boolean
-      ) => {
-        const fallback = () => generateId(collectionPrefixes[collectionName]);
-        if (!isValidFirestoreDocId(incomingId)) return fallback();
-        try {
-          const existingSnap = await getDoc(doc(db, collectionName, incomingId));
-          if (!existingSnap.exists()) return incomingId;
-          const existingData = existingSnap.data() as { ownerId?: string } | undefined;
-          if (ownerScoped && existingData?.ownerId === uid) return incomingId;
-          return fallback();
-        } catch {
-          return fallback();
-        }
-      };
+      const coastersToImport: Coaster[] = (Array.isArray(data.coasters) ? data.coasters : [])
+        .filter((c: any) => validId(c?.id) && c?.name && c?.park)
+        .map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          park: normalizeParkName(c.park),
+          manufacturer: normalizeManufacturer(c.manufacturer || 'Unknown'),
+          country: normalizeCountry(c.country || 'Unknown'),
+          type: c.type || CoasterType.Steel,
+          isCustom: true,
+          imageUrl: isAllowedUrl(c.imageUrl) ? c.imageUrl : undefined,
+          specs: c.specs,
+          variants: c.variants,
+          audioUrl: isAllowedUrl(c.audioUrl) ? c.audioUrl : undefined,
+        }));
 
-      let coastersAdded = 0;
-      let usersAdded = 0;
-      let creditsAdded = 0;
-      let wishlistAdded = 0;
+      const knownUserIds = new Set(usersToImport.map((u) => u.id).concat(users.map((u) => u.id)));
+      const knownCoasterIds = new Set(coastersToImport.map((c) => c.id).concat(coasters.map((c) => c.id)));
 
-      let batch = writeBatch(db);
-      let batchCount = 0;
-      const commitBatchIfNeeded = async (force = false) => {
-        if (batchCount >= 450 || (force && batchCount > 0)) {
-          await batch.commit();
-          batch = writeBatch(db);
-          batchCount = 0;
-        }
-      };
+      const creditsToImport: Credit[] = (Array.isArray(data.credits) ? data.credits : [])
+        .filter((c: any) => validId(c?.id) && knownUserIds.has(c.userId) && knownCoasterIds.has(c.coasterId))
+        .map((c: any) => ({
+          id: c.id,
+          ownerId: uid,
+          userId: c.userId,
+          coasterId: c.coasterId,
+          date: c.date || new Date().toISOString(),
+          rideCount: c.rideCount || 1,
+          photoUrl: isAllowedUrl(c.photoUrl) ? c.photoUrl : undefined,
+          gallery: sanitizeGallery(c.gallery),
+          notes: c.notes,
+          restraints: c.restraints,
+          variant: c.variant,
+        }));
 
-      if (data.users && Array.isArray(data.users)) {
-        for (const u of data.users) {
-          if (!u.name) continue;
-          const existing = users.find((e) => e.name.toLowerCase() === u.name.toLowerCase());
+      const wishlistToImport: WishlistEntry[] = (Array.isArray(data.wishlist) ? data.wishlist : [])
+        .filter((w: any) => validId(w?.id) && knownUserIds.has(w.userId) && knownCoasterIds.has(w.coasterId))
+        .map((w: any) => ({
+          id: w.id,
+          ownerId: uid,
+          userId: w.userId,
+          coasterId: w.coasterId,
+          addedAt: w.addedAt || new Date().toISOString(),
+          notes: w.notes,
+        }));
 
-          if (existing) {
-            userIdMap[u.id] = existing.id;
-          } else {
-            const newId = await resolveSafeImportId('users', u.id, true);
-            userIdMap[u.id || newId] = newId;
-
-            let avatarUrl = u.avatarUrl;
-            if (!isFirestoreAllowedUrl(avatarUrl)) {
-              avatarUrl = undefined;
-            }
-            if (avatarUrl && avatarUrl.startsWith('data:image') && avatarUrl.length > 102400) {
-              console.warn(
-                `Avatar for user ${u.name} is too large (${avatarUrl.length} bytes), skipping to prevent document size errors.`
-              );
-              avatarUrl = undefined;
-            }
-
-            const newUser = cleanImportedData({
-              id: newId,
-              ownerId: uid,
-              name: u.name,
-              avatarColor: u.avatarColor || 'bg-blue-500',
-              avatarUrl,
-              rankings: trimRankings(u.rankings),
-              highScore: u.highScore,
-            });
-
-            batch.set(doc(db, 'users', newId), cleanForFirestore(newUser));
-            batchCount++;
-            usersAdded++;
-            await commitBatchIfNeeded();
-          }
-        }
-      }
-
-      if (data.coasters && Array.isArray(data.coasters)) {
-        for (const c of data.coasters) {
-          if (!c.name || !c.park) continue;
-          const existing = coasters.find(
-            (e) =>
-              cleanName(e.name).toLowerCase() === cleanName(c.name).toLowerCase() &&
-              cleanName(e.park).toLowerCase() === cleanName(c.park).toLowerCase()
-          );
-
-          if (existing) {
-            coasterIdMap[c.id] = existing.id;
-          } else {
-            const newId = await resolveSafeImportId('coasters', c.id, false);
-            coasterIdMap[c.id || newId] = newId;
-            const newCoaster = cleanImportedData({
-              id: newId,
-              name: c.name,
-              park: normalizeParkName(c.park),
-              manufacturer: normalizeManufacturer(c.manufacturer || 'Unknown'),
-              country: normalizeCountry(c.country || 'Unknown'),
-              type: c.type || CoasterType.Steel,
-              isCustom: true,
-              imageUrl: isFirestoreAllowedUrl(c.imageUrl) ? c.imageUrl : undefined,
-              specs: c.specs,
-              variants: c.variants,
-              audioUrl: isFirestoreAllowedUrl(c.audioUrl) ? c.audioUrl : undefined,
-            });
-
-            batch.set(doc(db, 'coasters', newId), cleanForFirestore(newCoaster));
-            batchCount++;
-            coastersAdded++;
-            await commitBatchIfNeeded();
-          }
-        }
-      }
-
-      if (data.credits && Array.isArray(data.credits)) {
-        for (const c of data.credits) {
-          if (!c.coasterId && !c.coasterName) continue;
-          const creditId = await resolveSafeImportId('credits', c.id, true);
-          const alreadyExists = credits.find((existing) => existing.id === creditId);
-
-          if (!alreadyExists) {
-            const newCoasterId = coasterIdMap[c.coasterId] || c.coasterId || 'unknown_coaster';
-            const newUserId =
-              userIdMap[c.userId] ||
-              (users.find((u) => u.id === c.userId) ? c.userId : activeUser?.id || users[0]?.id);
-            if (!newCoasterId || !newUserId) continue;
-
-            const newCredit = cleanImportedData({
-              id: creditId,
-              coasterId: newCoasterId,
-              userId: newUserId,
-              ownerId: uid,
-              date: c.date || new Date().toISOString(),
-              rideCount: c.rideCount || 1,
-              photoUrl: isFirestoreAllowedUrl(c.photoUrl) ? c.photoUrl : undefined,
-              gallery: sanitizeGallery(c.gallery),
-              notes: c.notes,
-              restraints: c.restraints,
-              variant: c.variant,
-            });
-
-            batch.set(doc(db, 'credits', creditId), cleanForFirestore(newCredit));
-            batchCount++;
-            creditsAdded++;
-            await commitBatchIfNeeded();
-          }
-        }
-      }
-
-      if (data.wishlist && Array.isArray(data.wishlist)) {
-        for (const w of data.wishlist) {
-          if (!w.coasterId) continue;
-          const wishlistId = await resolveSafeImportId('wishlist', w.id, true);
-          const alreadyExists = wishlist.find((existing) => existing.id === wishlistId);
-
-          if (!alreadyExists) {
-            const newCoasterId = coasterIdMap[w.coasterId] || w.coasterId || 'unknown_coaster';
-            const newUserId =
-              userIdMap[w.userId] ||
-              (users.find((u) => u.id === w.userId) ? w.userId : activeUser?.id || users[0]?.id);
-            if (!newCoasterId || !newUserId) continue;
-
-            const newWishlist = cleanImportedData({
-              id: wishlistId,
-              coasterId: newCoasterId,
-              userId: newUserId,
-              ownerId: uid,
-              addedAt: w.addedAt || new Date().toISOString(),
-              notes: w.notes,
-            });
-
-            batch.set(doc(db, 'wishlist', wishlistId), cleanForFirestore(newWishlist));
-            batchCount++;
-            wishlistAdded++;
-            await commitBatchIfNeeded();
-          }
-        }
-      }
-
-      await commitBatchIfNeeded(true);
-      if (coastersAdded > 0 || usersAdded > 0 || creditsAdded > 0 || wishlistAdded > 0) {
-        showNotification(
-          `Import successful! Added ${usersAdded} users, ${coastersAdded} coasters, ${creditsAdded} credits, and ${wishlistAdded} wishlist items to your cloud account.`,
-          'success'
-        );
-      } else {
-        showNotification('No new data found to import.', 'info');
-      }
+      await upsertUsers(usersToImport);
+      await upsertCoasters(coastersToImport);
+      await upsertCredits(creditsToImport);
+      await upsertWishlist(wishlistToImport);
+      showNotification(
+        `Import successful! Added ${usersToImport.length} users, ${coastersToImport.length} coasters, ${creditsToImport.length} credits, and ${wishlistToImport.length} wishlist items to your Supabase account.`,
+        'success'
+      );
       return;
     }
 
@@ -764,10 +622,6 @@ export const forceMigrateLocalDataAction = async (
     showNotification('You must be signed in to migrate data to the cloud.', 'error');
     return;
   }
-  if (!isValidFirestoreOwnerId(currentUser.uid)) {
-    showNotification('Invalid account state. Please sign in again.', 'error');
-    return;
-  }
 
   setIsSyncing(true);
   try {
@@ -783,104 +637,60 @@ export const forceMigrateLocalDataAction = async (
     const localCredits = await storage.get<Credit[]>('cc_credits');
     const localWishlist = await storage.get<WishlistEntry[]>('cc_wishlist');
 
-    const batch = writeBatch(db);
-    const usersToMigrate = localUsers || INITIAL_USERS;
-    const { getDoc: loadDoc, doc: makeDoc } = await import('firebase/firestore');
+    const usersToMigrate = (localUsers || INITIAL_USERS).map((user) => ({ ...user, ownerId: uid }));
+    const coastersToMigrate = (localCoasters || [])
+      .filter((coaster) => coaster.isCustom)
+      .map((coaster) => ({ ...coaster, isCustom: true }));
+    const creditsToMigrate = (localCredits || []).map((credit) => ({ ...credit, ownerId: uid }));
+    const wishlistToMigrate = (localWishlist || []).map((entry) => ({ ...entry, ownerId: uid }));
 
-    for (const user of usersToMigrate) {
-      if (!isValidFirestoreDocId(user.id)) continue;
-      const userRef = makeDoc(db, 'users', user.id);
-      const userSnap = await loadDoc(userRef);
-      if (!userSnap.exists() || userSnap.data()?.ownerId === uid) {
-        batch.set(userRef, cleanForFirestore({ ...user, ownerId: uid }));
-      }
-    }
+    await upsertUsers(usersToMigrate);
+    await upsertCoasters(coastersToMigrate);
+    await upsertCredits(creditsToMigrate);
+    await upsertWishlist(wishlistToMigrate);
 
-    if (localCoasters) {
-      for (const coaster of localCoasters) {
-        if (!coaster.isCustom || !isValidFirestoreDocId(coaster.id)) continue;
-        const coasterRef = makeDoc(db, 'coasters', coaster.id);
-        const coasterSnap = await loadDoc(coasterRef);
-        if (!coasterSnap.exists()) {
-          batch.set(coasterRef, cleanForFirestore(coaster));
-        }
-      }
-    }
-
-    if (localCredits) {
-      for (const credit of localCredits) {
-        if (!isValidFirestoreDocId(credit.id)) continue;
-        const creditRef = makeDoc(db, 'credits', credit.id);
-        const creditSnap = await loadDoc(creditRef);
-        if (!creditSnap.exists() || creditSnap.data()?.ownerId === uid) {
-          batch.set(creditRef, cleanForFirestore({ ...credit, ownerId: uid }));
-        }
-      }
-    }
-
-    if (localWishlist) {
-      for (const wishlistEntry of localWishlist) {
-        if (!isValidFirestoreDocId(wishlistEntry.id)) continue;
-        const wishlistRef = makeDoc(db, 'wishlist', wishlistEntry.id);
-        const wishlistSnap = await loadDoc(wishlistRef);
-        if (!wishlistSnap.exists() || wishlistSnap.data()?.ownerId === uid) {
-          batch.set(wishlistRef, cleanForFirestore({ ...wishlistEntry, ownerId: uid }));
-        }
-      }
-    }
-
-    await batch.commit();
     await storage.set('cc_users', null);
     await storage.set('cc_coasters', null);
     await storage.set('cc_credits', null);
     await storage.set('cc_wishlist', null);
-    showNotification('Manual migration successful!', 'success');
+    showNotification('Manual Supabase migration successful!', 'success');
     manualRefresh();
   } catch (err) {
     console.error('Manual migration failed', err);
-    showNotification('Migration failed. Some data might be already owned by another account.', 'error');
+    showNotification('Migration failed. Some data might be invalid.', 'error');
   } finally {
     setIsSyncing(false);
   }
 };
 
 export const repairDatabaseAction = async (
-  context: Pick<BaseDataContext, 'currentUser' | 'setIsSyncing' | 'showNotification' | 'users' | 'manualRefresh'>
+  context: Pick<
+    BaseDataContext,
+    'coasters' | 'credits' | 'currentUser' | 'setIsSyncing' | 'showNotification' | 'users' | 'wishlist' | 'manualRefresh'
+  >
 ) => {
-  const { currentUser, manualRefresh, setIsSyncing, showNotification, users } = context;
+  const { coasters, credits, currentUser, manualRefresh, setIsSyncing, showNotification, users, wishlist } =
+    context;
   if (!currentUser) return;
   setIsSyncing(true);
   showNotification('Repairing database links...', 'info');
 
   try {
     const uid = currentUser.uid;
-    const batch = writeBatch(db);
-    let repairedCount = 0;
-    const userProfileIds = new Set(users.map((u) => u.id));
-    const { getDocs, query, where } = await import('firebase/firestore');
+    const fixedUsers = users.map((user) => ({ ...user, ownerId: uid }));
+    const fixedCredits = credits.map((credit) => ({ ...credit, ownerId: uid }));
+    const fixedWishlist = wishlist.map((entry) => ({ ...entry, ownerId: uid }));
+    const customCoasters = coasters.filter((coaster) => coaster.isCustom);
 
-    for (const profileId of userProfileIds) {
-      const q = query(collection(db, 'credits'), where('userId', '==', profileId));
-      const snap = await getDocs(q);
-      snap.docs.forEach((docSnap) => {
-        const data = docSnap.data();
-        if (data.ownerId !== uid) {
-          batch.update(docSnap.ref, { ownerId: uid });
-          repairedCount++;
-        }
-      });
-    }
-
-    if (repairedCount > 0) {
-      await batch.commit();
-      showNotification(`Repaired ${repairedCount} data links!`, 'success');
-      manualRefresh();
-    } else {
-      showNotification('No repairable data found.', 'info');
-    }
+    await upsertUsers(fixedUsers);
+    await upsertCredits(fixedCredits);
+    await upsertWishlist(fixedWishlist);
+    await upsertCoasters(customCoasters);
+    showNotification('Supabase ownership repair complete.', 'success');
+    manualRefresh();
   } catch (err) {
     console.error('Repair failed', err);
-    showNotification('Repair failed. Try the Global Scan.', 'error');
+    showNotification('Repair failed.', 'error');
   } finally {
     setIsSyncing(false);
   }
@@ -916,26 +726,20 @@ export const reconstructMissingProfilesAction = async (
     }
 
     const newUsersList: User[] = [];
-    const batch = writeBatch(db);
     for (const id of Array.from(missingUserIds)) {
-      const userRef = doc(db, 'users', id);
-      const userSnap = await getDoc(userRef);
-      if (!userSnap.exists()) {
-        const newUser: User = {
-          id,
-          name: `Recovered Profile (${id.length > 4 ? id.slice(-4) : id})`,
-          ownerId: currentUser.uid,
-          avatarColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'][
-            Math.floor(Math.random() * 6)
-          ],
-        };
-        newUsersList.push(newUser);
-        batch.set(userRef, cleanForFirestore(newUser));
-      }
+      const newUser: User = {
+        id,
+        name: `Recovered Profile (${id.length > 4 ? id.slice(-4) : id})`,
+        ownerId: currentUser.uid,
+        avatarColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'][
+          Math.floor(Math.random() * 6)
+        ],
+      };
+      newUsersList.push(newUser);
     }
 
     if (newUsersList.length > 0) {
-      await batch.commit();
+      await upsertUsers(newUsersList);
       setUsers((prev) => [...prev, ...newUsersList]);
       showNotification(`Successfully reconstructed ${newUsersList.length} profiles!`, 'success');
     } else {
@@ -966,7 +770,7 @@ export const nuclearResetAction = async (
       await storage.set('cc_credits', null);
       await storage.set('cc_wishlist', null);
       window.location.reload();
-    } catch (err) {
+    } catch {
       showNotification('Reset failed', 'error');
     }
   }
@@ -990,27 +794,15 @@ export const scanAllCreditsAction = async (
   showNotification('Performing deep global data scan...', 'info');
 
   try {
-    const { getDocs, collection: loadCollection } = await import('firebase/firestore');
-    const allCreditsSnapshot = await getDocs(loadCollection(db, 'credits'));
-    const allCredits = allCreditsSnapshot.docs.map((docSnap) => ({ ...docSnap.data(), id: docSnap.id } as Credit));
-
-    const allUsersSnapshot = await getDocs(loadCollection(db, 'users'));
-    const allUsers = allUsersSnapshot.docs.map((docSnap) => ({ ...docSnap.data(), id: docSnap.id } as User));
-
-    const existingUserIds = new Set(allUsers.map((u) => u.id));
-    const orphanedCredits = allCredits.filter((credit) => !existingUserIds.has(credit.userId));
-
-    setCredits(allCredits);
-    setUsers(allUsers.length > 0 ? allUsers : INITIAL_USERS);
-
-    if (orphanedCredits.length > 0) {
-      showNotification(
-        `Scan complete. Found ${allCredits.length} credits, including ${orphanedCredits.length} orphaned ones!`,
-        'success'
-      );
-    } else {
-      showNotification(`Scan complete. Found ${allCredits.length} total credits.`, 'success');
-    }
+    // Client-side Supabase with RLS supports owner-scoped deep reload.
+    const loaded = await loadOwnerData(currentUser.uid);
+    const ownerUsers = loaded.users.length > 0 ? loaded.users : INITIAL_USERS;
+    setCredits(loaded.credits);
+    setUsers(ownerUsers);
+    showNotification(
+      `Supabase scan complete (owner scope). Found ${loaded.credits.length} credits across ${ownerUsers.length} profiles.`,
+      'success'
+    );
   } catch (err) {
     console.error('Global scan failed', err);
     showNotification('Global scan failed. Please try again.', 'error');

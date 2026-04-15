@@ -5,21 +5,15 @@ import {
   normalizeManufacturer,
   normalizeParkName,
 } from '../constants';
+import type { AppAuthUser } from '../services/authTypes';
 import {
-  db,
-  deleteDoc,
-  doc,
-  handleFirestoreError,
-  OperationType,
-  setDoc,
-  updateDoc,
-  writeBatch,
-  type FirebaseUser,
-  cleanForFirestore,
-  isValidFirestoreDocId,
-  isValidFirestoreOwnerId,
-  isValidIsoDate,
-} from '../firebase';
+  deleteById,
+  updateCoaster,
+  updateCredit,
+  upsertCoasters,
+  upsertCredits,
+  upsertWishlist,
+} from '../services/supabaseData';
 import { generateAppIcon, generateCoasterInfo, extractCoasterFromUrl } from '../services/geminiService';
 import { storage } from '../services/storage';
 import { fetchCoasterImageFromWiki } from '../services/wikipediaService';
@@ -31,7 +25,7 @@ type GenerateId = (prefix: string) => string;
 type CompressImage = (file: File) => Promise<string>;
 
 interface DomainContext {
-  currentUser: FirebaseUser | null;
+  currentUser: AppAuthUser | null;
   activeUser: User | null;
   coasters: Coaster[];
   credits: Credit[];
@@ -112,18 +106,8 @@ export const addCreditAction = async (
   };
 
   if (currentUser) {
-    if (
-      !isValidFirestoreDocId(newCredit.id) ||
-      !isValidFirestoreDocId(newCredit.userId) ||
-      !isValidFirestoreDocId(newCredit.coasterId) ||
-      !isValidFirestoreOwnerId(newCredit.ownerId) ||
-      !isValidIsoDate(newCredit.date)
-    ) {
-      showNotification('Unable to save this credit due to invalid data.', 'error');
-      return;
-    }
     try {
-      await setDoc(doc(db, 'credits', newCredit.id), cleanForFirestore(newCredit));
+      await upsertCredits([newCredit]);
       await removeFromWishlistAction(
         { ...context, credits, wishlist, setWishlist },
         coasterId,
@@ -131,20 +115,21 @@ export const addCreditAction = async (
       );
       return newCredit;
     } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, `credits/${newCredit.id}`);
+      showNotification(`Failed to save credit in Supabase: ${err instanceof Error ? err.message : String(err)}`, 'error');
+      return;
     }
-  } else {
-    const updatedCredits = [...credits, newCredit];
-    setCredits(updatedCredits);
-    await storage.set('cc_credits', updatedCredits);
-    await removeFromWishlistAction(
-      { ...context, credits: updatedCredits, wishlist, setWishlist },
-      coasterId,
-      false
-    );
-    showNotification('Credit logged locally!');
-    return newCredit;
   }
+
+  const updatedCredits = [...credits, newCredit];
+  setCredits(updatedCredits);
+  await storage.set('cc_credits', updatedCredits);
+  await removeFromWishlistAction(
+    { ...context, credits: updatedCredits, wishlist, setWishlist },
+    coasterId,
+    false
+  );
+  showNotification('Credit logged locally!');
+  return newCredit;
 };
 
 export const updateCreditAction = async (
@@ -174,58 +159,56 @@ export const updateCreditAction = async (
   }
 
   if (currentUser) {
-    if (!isValidFirestoreDocId(creditId) || !isValidIsoDate(date)) {
-      showNotification('Unable to update this credit due to invalid data.', 'error');
-      return;
-    }
     try {
-      await updateDoc(doc(db, 'credits', creditId), cleanForFirestore({
+      await updateCredit(creditId, {
         date,
         notes,
         restraints,
         photoUrl: mainPhotoUrl,
         gallery: newGallery,
         variant,
-      }));
+      });
       showNotification('Log updated successfully', 'success');
     } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `credits/${creditId}`);
+      showNotification(`Failed to update Supabase log: ${err instanceof Error ? err.message : String(err)}`, 'error');
     }
-  } else {
-    const updatedCredits = credits.map((credit) =>
-      credit.id === creditId
-        ? {
-            ...credit,
-            date,
-            notes,
-            restraints,
-            photoUrl: mainPhotoUrl,
-            gallery: newGallery,
-            variant,
-          }
-        : credit
-    );
-    setCredits(updatedCredits);
-    await storage.set('cc_credits', updatedCredits);
-    showNotification('Local log updated successfully', 'success');
+    return;
   }
+
+  const updatedCredits = credits.map((credit) =>
+    credit.id === creditId
+      ? {
+          ...credit,
+          date,
+          notes,
+          restraints,
+          photoUrl: mainPhotoUrl,
+          gallery: newGallery,
+          variant,
+        }
+      : credit
+  );
+  setCredits(updatedCredits);
+  await storage.set('cc_credits', updatedCredits);
+  showNotification('Local log updated successfully', 'success');
 };
 
 export const deleteCreditAction = async (context: DomainContext, creditId: string) => {
   const { credits, currentUser, setCredits, showNotification } = context;
   if (currentUser) {
     try {
-      await deleteDoc(doc(db, 'credits', creditId));
+      await deleteById('credits', creditId);
       showNotification('Ride log deleted', 'info');
     } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, `credits/${creditId}`);
+      showNotification(`Failed to delete Supabase log: ${err instanceof Error ? err.message : String(err)}`, 'error');
     }
-  } else {
-    const updatedCredits = credits.filter((credit) => credit.id !== creditId);
-    setCredits(updatedCredits);
-    await storage.set('cc_credits', updatedCredits);
-    showNotification('Local ride log deleted', 'info');
+    return;
   }
+
+  const updatedCredits = credits.filter((credit) => credit.id !== creditId);
+  setCredits(updatedCredits);
+  await storage.set('cc_credits', updatedCredits);
+  showNotification('Local ride log deleted', 'info');
 };
 
 export const addNewCoasterAction = async (
@@ -257,15 +240,11 @@ export const addNewCoasterAction = async (
   };
 
   if (currentUser) {
-    if (!isValidFirestoreDocId(newCoaster.id)) {
-      showNotification('Unable to save this coaster due to invalid data.', 'error');
-      return newCoaster;
-    }
     try {
-      await setDoc(doc(db, 'coasters', newCoaster.id), cleanForFirestore(newCoaster));
+      await upsertCoasters([newCoaster]);
       return newCoaster;
     } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, `coasters/${newCoaster.id}`);
+      showNotification(`Failed to save Supabase coaster: ${err instanceof Error ? err.message : String(err)}`, 'error');
       return newCoaster;
     }
   }
@@ -292,15 +271,11 @@ export const editCoasterAction = async (
   if (updates.country) updated.country = normalizeCountry(updates.country);
 
   if (currentUser) {
-    if (!isValidFirestoreDocId(id)) {
-      showNotification('Unable to update coaster due to invalid data.', 'error');
-      return;
-    }
     try {
-      await updateDoc(doc(db, 'coasters', id), updated);
+      await updateCoaster(id, updated);
       showNotification('Coaster details updated', 'success');
     } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `coasters/${id}`);
+      showNotification(`Failed to update Supabase coaster: ${err instanceof Error ? err.message : String(err)}`, 'error');
     }
     return;
   }
@@ -349,22 +324,11 @@ export const addMultipleCoastersAction = async (
     return;
   }
 
-  const batch = writeBatch(db);
-  let count = 0;
-
-  createdCoasters.forEach((coaster) => {
-    if (!isValidFirestoreDocId(coaster.id)) return;
-    batch.set(doc(db, 'coasters', coaster.id), cleanForFirestore(coaster));
-    count++;
-  });
-
-  if (count > 0) {
-    try {
-      await batch.commit();
-      showNotification(`Imported ${count} new coasters!`, 'success');
-    } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, 'coasters (batch)');
-    }
+  try {
+    await upsertCoasters(createdCoasters);
+    showNotification(`Imported ${createdCoasters.length} new coasters!`, 'success');
+  } catch (err) {
+    showNotification(`Failed to import to Supabase: ${err instanceof Error ? err.message : String(err)}`, 'error');
   }
 };
 
@@ -385,28 +349,19 @@ export const addToWishlistAction = async (context: DomainContext, coasterId: str
     };
 
     if (currentUser) {
-      if (
-        !isValidFirestoreDocId(newEntry.id) ||
-        !isValidFirestoreDocId(newEntry.userId) ||
-        !isValidFirestoreDocId(newEntry.coasterId) ||
-        !isValidFirestoreOwnerId(newEntry.ownerId) ||
-        !isValidIsoDate(newEntry.addedAt)
-      ) {
-        showNotification('Unable to add this wishlist entry due to invalid data.', 'error');
-        return;
-      }
       try {
-        await setDoc(doc(db, 'wishlist', newEntry.id), cleanForFirestore(newEntry));
+        await upsertWishlist([newEntry]);
         showNotification('Added to Bucket List', 'success');
       } catch (err) {
-        handleFirestoreError(err, OperationType.CREATE, `wishlist/${newEntry.id}`);
+        showNotification(`Failed to add Supabase wishlist entry: ${err instanceof Error ? err.message : String(err)}`, 'error');
       }
-    } else {
-      const updatedWishlist = [...wishlist, newEntry];
-      setWishlist(updatedWishlist);
-      await storage.set('cc_wishlist', updatedWishlist);
-      showNotification('Added to local Bucket List', 'success');
+      return;
     }
+
+    const updatedWishlist = [...wishlist, newEntry];
+    setWishlist(updatedWishlist);
+    await storage.set('cc_wishlist', updatedWishlist);
+    showNotification('Added to local Bucket List', 'success');
   }
 };
 
@@ -421,21 +376,22 @@ export const removeFromWishlistAction = async (
     (wishlistEntry) => wishlistEntry.userId === activeUser.id && wishlistEntry.coasterId === coasterId
   );
 
-  if (entry) {
-    if (currentUser) {
-      try {
-        await deleteDoc(doc(db, 'wishlist', entry.id));
-        if (notify) showNotification('Removed from Bucket List', 'info');
-      } catch (err) {
-        handleFirestoreError(err, OperationType.DELETE, `wishlist/${entry.id}`);
-      }
-    } else {
-      const updatedWishlist = wishlist.filter((wishlistEntry) => wishlistEntry.id !== entry.id);
-      setWishlist(updatedWishlist);
-      await storage.set('cc_wishlist', updatedWishlist);
-      if (notify) showNotification('Removed from local Bucket List', 'info');
+  if (!entry) return;
+
+  if (currentUser) {
+    try {
+      await deleteById('wishlist', entry.id);
+      if (notify) showNotification('Removed from Bucket List', 'info');
+    } catch (err) {
+      showNotification(`Failed to remove Supabase wishlist entry: ${err instanceof Error ? err.message : String(err)}`, 'error');
     }
+    return;
   }
+
+  const updatedWishlist = wishlist.filter((wishlistEntry) => wishlistEntry.id !== entry.id);
+  setWishlist(updatedWishlist);
+  await storage.set('cc_wishlist', updatedWishlist);
+  if (notify) showNotification('Removed from local Bucket List', 'info');
 };
 
 export const updateCoasterImageAction = async (
@@ -445,13 +401,10 @@ export const updateCoasterImageAction = async (
 ) => {
   const { coasters, currentUser, setCoasters } = context;
   if (currentUser) {
-    if (!isValidFirestoreDocId(coasterId)) {
-      return;
-    }
     try {
-      await updateDoc(doc(db, 'coasters', coasterId), { imageUrl });
+      await updateCoaster(coasterId, { imageUrl });
     } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `coasters/${coasterId}`);
+      console.error('Supabase coaster image update failed', err);
     }
     return;
   }
@@ -501,29 +454,30 @@ export const fetchWebPhotoForCreditAction = async (
   await updateCoasterImageAction(context, coasterId, url);
 
   const credit = credits.find((item) => item.id === creditId);
-  if (credit) {
-    if (currentUser) {
-      if (!isValidFirestoreDocId(creditId)) {
-        showNotification('Invalid credit ID; could not update log photo.', 'error');
-        return url;
-      }
-      try {
-        await updateDoc(doc(db, 'credits', creditId), { photoUrl: url });
-      } catch (err) {
-        handleFirestoreError(err, OperationType.UPDATE, `credits/${creditId}`);
-      }
-      setCredits((prev) =>
-        prev.map((item) => (item.id === creditId ? { ...item, photoUrl: url } : item))
-      );
-    } else {
-      const updatedCredits = credits.map((item) =>
-        item.id === creditId ? { ...item, photoUrl: url } : item
-      );
-      setCredits(updatedCredits);
-      await storage.set('cc_credits', updatedCredits);
-    }
+  if (!credit) {
+    showNotification('Fetched a web photo for this entry.', 'success');
+    return url;
   }
 
+  if (currentUser) {
+    try {
+      await updateCredit(creditId, { photoUrl: url });
+    } catch (err) {
+      showNotification(`Failed to update Supabase log photo: ${err instanceof Error ? err.message : String(err)}`, 'error');
+      return url;
+    }
+    setCredits((prev) =>
+      prev.map((item) => (item.id === creditId ? { ...item, photoUrl: url } : item))
+    );
+    showNotification('Fetched a web photo for this entry.', 'success');
+    return url;
+  }
+
+  const updatedCredits = credits.map((item) =>
+    item.id === creditId ? { ...item, photoUrl: url } : item
+  );
+  setCredits(updatedCredits);
+  await storage.set('cc_credits', updatedCredits);
   showNotification('Fetched a web photo for this entry.', 'success');
   return url;
 };

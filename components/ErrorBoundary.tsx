@@ -36,14 +36,14 @@ class ErrorBoundary extends React.Component<Props, State> {
   public render() {
     if (this.state.hasError) {
       let errorMessage = "An unexpected error occurred.";
-      let isFirestoreError = false;
+      let isCloudDataError = false;
 
       try {
         if (this.state.error?.message) {
           const parsed = JSON.parse(this.state.error.message);
           if (parsed.error && parsed.operationType) {
             errorMessage = `Database Error: ${parsed.error} during ${parsed.operationType} on ${parsed.path || 'unknown path'}`;
-            isFirestoreError = true;
+            isCloudDataError = true;
           }
         }
       } catch (e) {
@@ -61,9 +61,9 @@ class ErrorBoundary extends React.Component<Props, State> {
             <p className="text-slate-400 text-sm mb-8 leading-relaxed">
               {errorMessage}
             </p>
-            {isFirestoreError && (
+            {isCloudDataError && (
               <p className="text-xs text-slate-500 mb-8 italic">
-                This might be due to missing permissions or a connection issue.
+                This might be due to cloud permissions or a connection issue.
               </p>
             )}
             <button

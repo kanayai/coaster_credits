@@ -20,6 +20,17 @@ View your app in AI Studio: https://ai.studio/apps/c55a05e7-31ba-44fc-89d3-48f0d
 3. Run the app:
    `npm run dev`
 
+## Supabase Migration
+
+- Runbook: `docs/SUPABASE_MIGRATION.md`
+- Schema SQL: `supabase/schema.sql`
+- Import command:
+  `npm run migrate:supabase -- --in ./family_export.two-profiles.cleaned.json --owner-id <supabase_auth_uid>`
+- Runtime backend toggle (Vite env):
+  - `VITE_DATA_BACKEND=supabase`
+  - `VITE_SUPABASE_URL=https://<project-ref>.supabase.co`
+  - `VITE_SUPABASE_ANON_KEY=<anon-key>`
+
 ## Deployment Security Note
 
 - Do not pass `GEMINI_API_KEY` as a Docker build argument or Dockerfile `ENV`.

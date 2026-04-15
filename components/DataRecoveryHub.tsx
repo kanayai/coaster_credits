@@ -22,7 +22,6 @@ import {
   Wrench,
   Loader2
 } from 'lucide-react';
-import { db } from '../firebase';
 import clsx from 'clsx';
 
 const DataRecoveryHub: React.FC = () => {
@@ -101,24 +100,11 @@ const DataRecoveryHub: React.FC = () => {
     }
     setIsRepairing(true);
     try {
-      // We'll use the repairDatabase logic but for a specific ID
-      const { getDocs, query, where, collection, writeBatch, doc } = await import('firebase/firestore');
-      const q = query(collection(db, 'credits'), where('userId', '==', manualUserId.trim()));
-      const snap = await getDocs(q);
-      
-      if (snap.empty) {
-        showNotification("No credits found for this User ID", "info");
-      } else {
-        const batch = writeBatch(db);
-        snap.docs.forEach(docSnap => {
-          batch.update(docSnap.ref, { ownerId: currentUser?.uid });
-        });
-        await batch.commit();
-        showNotification(`Successfully reclaimed ${snap.size} credits!`, "success");
-        manualRefresh();
-      }
-    } catch (err) {
-      showNotification("Repair failed", "error");
+      await repairDatabase();
+      showNotification(
+        "Owner-scoped repair completed. Manual user-id targeting is not supported in Supabase client mode.",
+        "info"
+      );
     } finally {
       setIsRepairing(false);
     }

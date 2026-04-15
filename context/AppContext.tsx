@@ -43,9 +43,7 @@ import {
   updateUserAction,
 } from './dataManagement';
 import { storage } from '../services/storage';
-import { 
-  FirebaseUser
-} from '../firebase';
+import type { AppAuthUser } from '../services/authTypes';
 
 export interface Notification {
   id: string;
@@ -58,7 +56,7 @@ export type SyncStatus = 'idle' | 'syncing' | 'ok' | 'error';
 
 interface AppContextType {
   // Auth
-  currentUser: FirebaseUser | null;
+  currentUser: AppAuthUser | null;
   signIn: () => Promise<void>;
   logout: () => Promise<void>;
   isAuthLoading: boolean;
@@ -168,7 +166,7 @@ const compressImage = (file: File): Promise<string> => {
 };
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
+  const [currentUser, setCurrentUser] = useState<AppAuthUser | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
@@ -224,7 +222,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // --- INITIALIZATION & REAL-TIME SYNC ---
   useEffect(() => {
-    const cleanupPromise = initializeAndSyncApp({
+    void initializeAndSyncApp({
       currentUser,
       setIsSyncing,
       setUsers,
@@ -242,9 +240,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setSyncStatus('error');
       },
     });
-    return () => {
-      cleanupPromise.then(cleanup => cleanup && typeof cleanup === 'function' && cleanup());
-    };
+    return () => {};
   }, [currentUser, refreshKey]);
 
   useEffect(() => {
