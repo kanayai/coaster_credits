@@ -31,6 +31,19 @@ View your app in AI Studio: https://ai.studio/apps/c55a05e7-31ba-44fc-89d3-48f0d
   - `VITE_SUPABASE_URL=https://<project-ref>.supabase.co`
   - `VITE_SUPABASE_ANON_KEY=<anon-key>`
 
+## Import Large Coaster Catalog CSV
+
+Use this to import the RobMulla/Kaggle roller coaster dataset into Supabase `coasters`.
+
+1. Download `coaster_db.csv` from:
+   - https://www.kaggle.com/datasets/robikscube/rollercoaster-database
+2. Dry run parse + normalize + dedupe:
+   - `npm run import:coasters:csv -- --in ./coaster_db.csv --out-json ./coasters.import.preview.json`
+3. Apply to Supabase:
+   - `export SUPABASE_URL=https://<project-ref>.supabase.co`
+   - `export SUPABASE_SERVICE_ROLE_KEY=<service-role-key>`
+   - `npm run import:coasters:csv -- --in ./coaster_db.csv --apply`
+
 ## Deployment Security Note
 
 - Do not pass `GEMINI_API_KEY` as a Docker build argument or Dockerfile `ENV`.

@@ -8,6 +8,8 @@ import ShareCardModal from './ShareCardModal';
 import clsx from 'clsx';
 
 const normalizeText = (text: string) => cleanName(text).toLowerCase();
+const coasterIdentityKey = (coaster: Pick<Coaster, 'name' | 'park' | 'country'>) =>
+  `${normalizeText(coaster.name)}|${normalizeText(coaster.park)}|${normalizeText(coaster.country)}`;
 
 // Helper to get local date string YYYY-MM-DD
 const getLocalDateString = () => {
@@ -84,6 +86,34 @@ const AddCredit: React.FC = () => {
   const [photos, setPhotos] = useState<File[]>([]);
   const submitTapGuardRef = useRef(false);
 
+  const dedupedCoasters = useMemo(() => {
+    const riddenIds = new Set(
+      credits.filter((credit) => credit.userId === activeUser.id).map((credit) => credit.coasterId)
+    );
+    const byIdentity = new Map<string, Coaster>();
+    const score = (coaster: Coaster) => {
+      let value = 0;
+      if (riddenIds.has(coaster.id)) value += 100;
+      if (!coaster.isCustom) value += 10;
+      if (coaster.imageUrl) value += 1;
+      return value;
+    };
+
+    for (const coaster of coasters) {
+      const key = coasterIdentityKey(coaster);
+      const existing = byIdentity.get(key);
+      if (!existing) {
+        byIdentity.set(key, coaster);
+        continue;
+      }
+      if (score(coaster) > score(existing)) {
+        byIdentity.set(key, coaster);
+      }
+    }
+
+    return [...byIdentity.values()];
+  }, [coasters, credits, activeUser.id]);
+
   // Effect: Handle Deep Link from Wishlist/Other views
   useEffect(() => {
       if (coasterToLog) {
@@ -118,7 +148,7 @@ const AddCredit: React.FC = () => {
   
   // Logic to filter coasters
   const filteredCoasters = useMemo(() => {
-    let result = coasters;
+    let result = dedupedCoasters;
 
     // 1. Filter by Park (Park Mode)
     if (activeParkFilter) {
@@ -142,15 +172,15 @@ const AddCredit: React.FC = () => {
     if (hideRidden) result = result.filter(c => !credits.some(cr => cr.userId === activeUser.id && cr.coasterId === c.id));
 
     return result.sort((a, b) => a.name.localeCompare(b.name));
-  }, [coasters, searchTerm, filterType, hideRidden, credits, activeUser.id, activeParkFilter]);
+  }, [dedupedCoasters, searchTerm, filterType, hideRidden, credits, activeUser.id, activeParkFilter]);
 
   // Park Stats for the Header
   const parkStats = useMemo(() => {
       if (!activeParkFilter) return null;
-      const parkCoasters = coasters.filter(c => c.park === activeParkFilter);
+      const parkCoasters = dedupedCoasters.filter(c => c.park === activeParkFilter);
       const riddenCount = parkCoasters.filter(c => credits.some(cr => cr.userId === activeUser.id && cr.coasterId === c.id)).length;
       return { total: parkCoasters.length, ridden: riddenCount };
-  }, [activeParkFilter, coasters, credits, activeUser.id]);
+  }, [activeParkFilter, dedupedCoasters, credits, activeUser.id]);
 
   // Reset log state when selecting a coaster
   useEffect(() => {
@@ -276,11 +306,13 @@ const AddCredit: React.FC = () => {
       }
   };
 
-  const handleQuickLogOneTap = (e: React.MouseEvent, coasterId: string) => {
+  const handleQuickLogOneTap = async (e: React.MouseEvent, coasterId: string) => {
     e.stopPropagation();
-    addCredit(coasterId, getLocalDateString(), '', '');
-    triggerConfetti();
-    showNotification("Lap logged!", "success");
+    const created = await addCredit(coasterId, getLocalDateString(), '', '');
+    if (created) {
+      triggerConfetti();
+      showNotification("Lap logged!", "success");
+    }
   };
 
   const handleQuickWishlistToggle = (e: React.MouseEvent, coasterId: string) => {
@@ -314,13 +346,16 @@ const AddCredit: React.FC = () => {
     setSelectedIds(newSet);
   };
 
-  const handleBulkLog = () => {
+  const handleBulkLog = async () => {
       if (selectedIds.size === 0) return;
-      selectedIds.forEach(id => {
-          addCredit(id, bulkDate, '', '');
-      });
-      triggerConfetti();
-      showNotification(`Bulk logged ${selectedIds.size} rides!`, 'success');
+      const results = await Promise.all(
+        Array.from(selectedIds).map((id) => addCredit(id, bulkDate, '', ''))
+      );
+      const loggedCount = results.filter(Boolean).length;
+      if (loggedCount > 0) {
+        triggerConfetti();
+        showNotification(`Bulk logged ${loggedCount} rides!`, 'success');
+      }
       setSelectedIds(new Set());
       setIsMultiSelectMode(false);
   };
@@ -339,21 +374,23 @@ const AddCredit: React.FC = () => {
 
         const newCredit = await addCredit(selectedCoaster.id, date, notes, restraints, photos, selectedVariant);
         
-        // Trigger Effects
-        if (isUnique) {
-            const newTotal = currentCount + 1;
-            const milestones = [1, 10, 25, 50, 100, 250, 500, 1000];
-            if (milestones.includes(newTotal)) {
-                triggerFireworks();
-                showNotification(`🏆 MILESTONE UNLOCKED: ${newTotal} CREDITS!`, 'success');
-            } else {
-                triggerConfetti();
-            }
-        } else {
-            triggerConfetti();
+        if (newCredit) {
+          // Trigger Effects
+          if (isUnique) {
+              const newTotal = currentCount + 1;
+              const milestones = [1, 10, 25, 50, 100, 250, 500, 1000];
+              if (milestones.includes(newTotal)) {
+                  triggerFireworks();
+                  showNotification(`🏆 MILESTONE UNLOCKED: ${newTotal} CREDITS!`, 'success');
+              } else {
+                  triggerConfetti();
+              }
+          } else {
+              triggerConfetti();
+          }
+          
+          setSelectedCoaster(null);
         }
-        
-        setSelectedCoaster(null); 
     }
   };
 

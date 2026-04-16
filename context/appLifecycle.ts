@@ -218,15 +218,29 @@ export const initializeAndSyncApp = async ({
       }
     }
 
+    // Ensure required FK targets exist for cloud writes:
+    // - base coaster catalog (credits.coaster_id FK)
+    // - at least one owner-scoped app user (credits.user_id FK)
+    await upsertCoasters(INITIAL_COASTERS.map((coaster) => ({ ...coaster, isCustom: Boolean(coaster.isCustom) })));
+
     const loaded = await loadOwnerData(uid);
-    const loadedUsers = loaded.users.length > 0 ? loaded.users : INITIAL_USERS;
+    if (loaded.users.length === 0) {
+      const defaultUsers = INITIAL_USERS.map((user) => ({ ...user, ownerId: uid }));
+      await upsertUsers(defaultUsers);
+      loaded.users = defaultUsers;
+    }
+    const loadedUsers = loaded.users;
     const localActiveId = await storage.get<string>('cc_active_user_id');
 
     setUsers(loadedUsers);
-    setCoasters([
-      ...INITIAL_COASTERS,
-      ...loaded.coasters.filter((coaster) => coaster.isCustom),
-    ]);
+    const mergedCoastersById = new Map<string, Coaster>();
+    for (const coaster of INITIAL_COASTERS) {
+      mergedCoastersById.set(coaster.id, coaster);
+    }
+    for (const coaster of loaded.coasters) {
+      mergedCoastersById.set(coaster.id, coaster);
+    }
+    setCoasters([...mergedCoastersById.values()]);
     setCredits(loaded.credits);
     setWishlist(loaded.wishlist);
     setActiveUserId(
