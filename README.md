@@ -44,6 +44,17 @@ Use this to import the RobMulla/Kaggle roller coaster dataset into Supabase `coa
    - `export SUPABASE_SERVICE_ROLE_KEY=<service-role-key>`
    - `npm run import:coasters:csv -- --in ./coaster_db.csv --apply`
 
+## Dedupe Exact Coaster Duplicates In Supabase
+
+Use this to merge exact duplicate coaster identities by normalized `name + park + country`.
+
+1. Dry run:
+   - `export SUPABASE_URL=https://<project-ref>.supabase.co`
+   - `export SUPABASE_SERVICE_ROLE_KEY=<service-role-key>`
+   - `npm run dedupe:coasters:supabase`
+2. Apply changes:
+   - `npm run dedupe:coasters:supabase -- --apply`
+
 ## Deployment Security Note
 
 - Do not pass `GEMINI_API_KEY` as a Docker build argument or Dockerfile `ENV`.

@@ -26,3 +26,5 @@ dist-ssr
 # Local data exports
 family_export*.json
 *.duplicates-report.json
+coaster_db.csv
+coasters.import.preview.json
