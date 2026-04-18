@@ -7,6 +7,7 @@ const mockStorage = {
 };
 
 const mockSignOut = vi.fn();
+const mockSignInWithOAuth = vi.fn();
 const mockGetSession = vi.fn();
 const mockOnAuthStateChange = vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } }));
 
@@ -19,12 +20,13 @@ const mockLoadOwnerData = vi.fn();
 vi.mock('../services/storage', () => ({ storage: mockStorage }));
 vi.mock('../services/supabaseClient', () => ({
   isSupabaseConfigured: true,
+  supabaseOAuthRedirectUrl: 'https://coastercount-pro-my5my4q2dq-uw.a.run.app',
   supabase: {
     auth: {
       signOut: mockSignOut,
       getSession: mockGetSession,
       onAuthStateChange: mockOnAuthStateChange,
-      signInWithOAuth: vi.fn(),
+      signInWithOAuth: mockSignInWithOAuth,
     },
   },
 }));
@@ -43,6 +45,7 @@ describe('cloud sync QA: app lifecycle', () => {
     mockStorage.get.mockResolvedValue(null);
     mockStorage.set.mockResolvedValue(undefined);
     mockSignOut.mockResolvedValue(undefined);
+    mockSignInWithOAuth.mockResolvedValue({ error: null });
     mockGetSession.mockResolvedValue({ data: { session: null } });
     mockLoadOwnerData.mockResolvedValue({ users: [], coasters: [], credits: [], wishlist: [] });
   });
@@ -185,5 +188,53 @@ describe('cloud sync QA: app lifecycle', () => {
 
     expect(onSyncError).toHaveBeenCalled();
     expect(setIsSyncing).toHaveBeenCalledWith(false);
+  });
+
+  it('google sign-in uses fixed supabase redirect env var', async () => {
+    const { signInWithGoogle } = await import('../context/appLifecycle');
+    const showNotification = vi.fn();
+
+    await signInWithGoogle(showNotification);
+
+    expect(mockSignInWithOAuth).toHaveBeenCalledWith({
+      provider: 'google',
+      options: { redirectTo: 'https://coastercount-pro-my5my4q2dq-uw.a.run.app' },
+    });
+    expect(showNotification).toHaveBeenCalledWith('Opening Google sign-in...', 'info');
+  });
+
+  it('blocks google sign-in when fixed redirect env var is missing', async () => {
+    vi.resetModules();
+    vi.doMock('../services/storage', () => ({ storage: mockStorage }));
+    vi.doMock('../services/supabaseData', () => ({
+      upsertUsers: mockUpsertUsers,
+      upsertCoasters: mockUpsertCoasters,
+      upsertCredits: mockUpsertCredits,
+      upsertWishlist: mockUpsertWishlist,
+      loadOwnerData: mockLoadOwnerData,
+    }));
+    vi.doMock('../services/supabaseClient', () => ({
+      isSupabaseConfigured: true,
+      supabaseOAuthRedirectUrl: '',
+      supabase: {
+        auth: {
+          signOut: mockSignOut,
+          getSession: mockGetSession,
+          onAuthStateChange: mockOnAuthStateChange,
+          signInWithOAuth: mockSignInWithOAuth,
+        },
+      },
+    }));
+
+    const { signInWithGoogle } = await import('../context/appLifecycle');
+    const showNotification = vi.fn();
+
+    await signInWithGoogle(showNotification);
+
+    expect(mockSignInWithOAuth).not.toHaveBeenCalled();
+    expect(showNotification).toHaveBeenCalledWith(
+      'Supabase OAuth redirect URL is not configured in this environment.',
+      'error'
+    );
   });
 });

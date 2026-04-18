@@ -1,7 +1,7 @@
 import type { Dispatch, SetStateAction } from 'react';
 import { INITIAL_COASTERS, INITIAL_USERS } from '../constants';
 import { storage } from '../services/storage';
-import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
+import { supabase, isSupabaseConfigured, supabaseOAuthRedirectUrl } from '../services/supabaseClient';
 import { loadOwnerData, upsertCoasters, upsertCredits, upsertUsers, upsertWishlist } from '../services/supabaseData';
 import type { AppAuthUser } from '../services/authTypes';
 import type { Coaster, Credit, User, WishlistEntry } from '../types';
@@ -105,12 +105,15 @@ export const signInWithGoogle = async (showNotification: ShowNotification) => {
     showNotification('Supabase is not configured in this environment.', 'error');
     return;
   }
+  if (!supabaseOAuthRedirectUrl) {
+    showNotification('Supabase OAuth redirect URL is not configured in this environment.', 'error');
+    return;
+  }
 
   try {
-    const redirectTo = window.location.origin;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo },
+      options: { redirectTo: supabaseOAuthRedirectUrl },
     });
     if (error) throw error;
     showNotification('Opening Google sign-in...', 'info');

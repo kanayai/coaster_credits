@@ -30,8 +30,9 @@ View your app in AI Studio: https://ai.studio/apps/c55a05e7-31ba-44fc-89d3-48f0d
   - `VITE_DATA_BACKEND=supabase`
   - `VITE_SUPABASE_URL=https://<project-ref>.supabase.co`
   - `VITE_SUPABASE_ANON_KEY=<anon-key>`
+  - `VITE_SUPABASE_REDIRECT_URL=https://<your-live-domain>`
   - For Cloud Build deploys, pass them as substitutions so Docker build gets Vite vars:
-    - `gcloud builds submit --config cloudbuild.yaml --substitutions _VITE_SUPABASE_URL=https://<project-ref>.supabase.co,_VITE_SUPABASE_ANON_KEY=<anon-key>`
+    - `gcloud builds submit --config cloudbuild.yaml --substitutions _VITE_SUPABASE_URL=https://<project-ref>.supabase.co,_VITE_SUPABASE_ANON_KEY=<anon-key>,_VITE_SUPABASE_REDIRECT_URL=https://<your-live-domain>`
 
 ## Import Large Coaster Catalog CSV
 
