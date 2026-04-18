@@ -108,11 +108,13 @@ export const addCreditAction = async (
   if (currentUser) {
     try {
       await upsertCredits([newCredit]);
+      setCredits((prev) => [...prev, newCredit]);
       await removeFromWishlistAction(
-        { ...context, credits, wishlist, setWishlist },
+        { ...context, credits: [...credits, newCredit], wishlist, setWishlist },
         coasterId,
         false
       );
+      showNotification('Credit logged successfully!', 'success');
       return newCredit;
     } catch (err) {
       showNotification(`Failed to save credit in Supabase: ${err instanceof Error ? err.message : String(err)}`, 'error');
@@ -168,6 +170,13 @@ export const updateCreditAction = async (
         gallery: newGallery,
         variant,
       });
+      setCredits((prev) =>
+        prev.map((credit) =>
+          credit.id === creditId
+            ? { ...credit, date, notes, restraints, photoUrl: mainPhotoUrl, gallery: newGallery, variant }
+            : credit
+        )
+      );
       showNotification('Log updated successfully', 'success');
     } catch (err) {
       showNotification(`Failed to update Supabase log: ${err instanceof Error ? err.message : String(err)}`, 'error');
@@ -198,6 +207,7 @@ export const deleteCreditAction = async (context: DomainContext, creditId: strin
   if (currentUser) {
     try {
       await deleteById('credits', creditId);
+      setCredits((prev) => prev.filter((credit) => credit.id !== creditId));
       showNotification('Ride log deleted', 'info');
     } catch (err) {
       showNotification(`Failed to delete Supabase log: ${err instanceof Error ? err.message : String(err)}`, 'error');
@@ -242,6 +252,8 @@ export const addNewCoasterAction = async (
   if (currentUser) {
     try {
       await upsertCoasters([newCoaster]);
+      setCoasters((prev) => [...prev, newCoaster]);
+      showNotification('Custom coaster saved!', 'success');
       return newCoaster;
     } catch (err) {
       showNotification(`Failed to save Supabase coaster: ${err instanceof Error ? err.message : String(err)}`, 'error');
@@ -273,6 +285,7 @@ export const editCoasterAction = async (
   if (currentUser) {
     try {
       await updateCoaster(id, updated);
+      setCoasters((prev) => prev.map((item) => (item.id === id ? updated : item)));
       showNotification('Coaster details updated', 'success');
     } catch (err) {
       showNotification(`Failed to update Supabase coaster: ${err instanceof Error ? err.message : String(err)}`, 'error');
@@ -326,6 +339,7 @@ export const addMultipleCoastersAction = async (
 
   try {
     await upsertCoasters(createdCoasters);
+    setCoasters((prev) => [...prev, ...createdCoasters]);
     showNotification(`Imported ${createdCoasters.length} new coasters!`, 'success');
   } catch (err) {
     showNotification(`Failed to import to Supabase: ${err instanceof Error ? err.message : String(err)}`, 'error');
@@ -351,6 +365,7 @@ export const addToWishlistAction = async (context: DomainContext, coasterId: str
     if (currentUser) {
       try {
         await upsertWishlist([newEntry]);
+        setWishlist((prev) => [...prev, newEntry]);
         showNotification('Added to Bucket List', 'success');
       } catch (err) {
         showNotification(`Failed to add Supabase wishlist entry: ${err instanceof Error ? err.message : String(err)}`, 'error');
@@ -381,6 +396,7 @@ export const removeFromWishlistAction = async (
   if (currentUser) {
     try {
       await deleteById('wishlist', entry.id);
+      setWishlist((prev) => prev.filter((wishlistEntry) => wishlistEntry.id !== entry.id));
       if (notify) showNotification('Removed from Bucket List', 'info');
     } catch (err) {
       showNotification(`Failed to remove Supabase wishlist entry: ${err instanceof Error ? err.message : String(err)}`, 'error');
@@ -403,6 +419,9 @@ export const updateCoasterImageAction = async (
   if (currentUser) {
     try {
       await updateCoaster(coasterId, { imageUrl });
+      setCoasters((prev) =>
+        prev.map((coaster) => (coaster.id === coasterId ? { ...coaster, imageUrl } : coaster))
+      );
     } catch (err) {
       console.error('Supabase coaster image update failed', err);
     }
