@@ -4,6 +4,10 @@ steps:
       - build
       - -t
       - $_IMAGE
+      - --build-arg
+      - VITE_SUPABASE_URL=$_VITE_SUPABASE_URL
+      - --build-arg
+      - VITE_SUPABASE_ANON_KEY=$_VITE_SUPABASE_ANON_KEY
       - .
 
   - name: gcr.io/cloud-builders/docker
@@ -32,5 +36,7 @@ substitutions:
   _REGION: us-west1
   _SERVICE: coastercount-pro
   _IMAGE: us-west1-docker.pkg.dev/gen-lang-client-0691213576/coastercount/coastercount-pro:latest
+  _VITE_SUPABASE_URL: ""
+  _VITE_SUPABASE_ANON_KEY: ""
 options:
   logging: CLOUD_LOGGING_ONLY
