@@ -3,6 +3,7 @@ import { CoasterType, type Coaster, type Credit, type RankingList, type User, ty
 import { INITIAL_USERS, cleanName, normalizeCountry, normalizeManufacturer, normalizeParkName } from '../constants';
 import type { AppAuthUser } from '../services/authTypes';
 import {
+  deleteById,
   upsertCoasters,
   upsertCredits,
   upsertUsers,
@@ -129,7 +130,9 @@ export const addUserAction = async (
   if (currentUser) {
     try {
       await upsertUsers([newUser]);
+      setUsers((prev) => [...prev, newUser]);
       switchUser(newUser.id);
+      showNotification('Profile created', 'success');
     } catch (err) {
       showNotification(`Supabase profile create failed: ${err instanceof Error ? err.message : String(err)}`, 'error');
     }
@@ -158,10 +161,14 @@ export const updateUserAction = async (
 
   if (currentUser) {
     try {
+      const updatedUsers = users.map((user) =>
+        user.id === userId ? { ...user, name: newName, ...(avatarUrl ? { avatarUrl } : {}) } : user
+      );
       await updateSupabaseUser(userId, {
         name: newName,
         ...(avatarUrl ? { avatarUrl } : {}),
       });
+      setUsers(updatedUsers);
       showNotification('Profile updated');
     } catch (err) {
       showNotification(`Supabase profile update failed: ${err instanceof Error ? err.message : String(err)}`, 'error');
@@ -175,6 +182,55 @@ export const updateUserAction = async (
   setUsers(updatedUsers);
   await storage.set('cc_users', updatedUsers);
   showNotification('Local profile updated');
+};
+
+export const deleteUserAction = async (
+  context: Pick<
+    BaseDataContext,
+    'activeUser' | 'credits' | 'currentUser' | 'setCredits' | 'setUsers' | 'setWishlist' | 'showNotification' | 'switchUser' | 'users' | 'wishlist'
+  >,
+  userId: string
+) => {
+  const { activeUser, credits, currentUser, setCredits, setUsers, setWishlist, showNotification, switchUser, users, wishlist } = context;
+  if (users.length <= 1) {
+    showNotification('Cannot delete the only profile', 'error');
+    return;
+  }
+
+  const user = users.find((u) => u.id === userId);
+  if (!user) return;
+  if (!window.confirm(`Delete profile "${user.name}" and all its credits/wishlist entries?`)) return;
+
+  const updatedUsers = users.filter((u) => u.id !== userId);
+  const updatedCredits = credits.filter((c) => c.userId !== userId);
+  const updatedWishlist = wishlist.filter((w) => w.userId !== userId);
+
+  if (currentUser) {
+    try {
+      await deleteById('app_users', userId);
+      setUsers(updatedUsers);
+      setCredits(updatedCredits);
+      setWishlist(updatedWishlist);
+      if (activeUser?.id === userId && updatedUsers[0]) {
+        switchUser(updatedUsers[0].id);
+      }
+      showNotification('Profile deleted', 'success');
+    } catch (err) {
+      showNotification(`Supabase profile delete failed: ${err instanceof Error ? err.message : String(err)}`, 'error');
+    }
+    return;
+  }
+
+  setUsers(updatedUsers);
+  setCredits(updatedCredits);
+  setWishlist(updatedWishlist);
+  await storage.set('cc_users', updatedUsers);
+  await storage.set('cc_credits', updatedCredits);
+  await storage.set('cc_wishlist', updatedWishlist);
+  if (activeUser?.id === userId && updatedUsers[0]) {
+    switchUser(updatedUsers[0].id);
+  }
+  showNotification('Local profile deleted', 'success');
 };
 
 export const saveHighScoreAction = async (

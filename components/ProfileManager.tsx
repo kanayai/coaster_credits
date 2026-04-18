@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { UserPlus, CheckCircle2, Edit2, Save, X, FileSpreadsheet, Database, Cloud, Loader2, FileJson, Trophy, Calendar, Gamepad2, Ticket, Info, AlertCircle, ShieldAlert } from 'lucide-react';
+import { UserPlus, CheckCircle2, Edit2, Save, X, FileSpreadsheet, Database, Cloud, Loader2, FileJson, Trophy, Calendar, Gamepad2, Ticket, Info, AlertCircle, ShieldAlert, Trash2 } from 'lucide-react';
 import { AppTheme } from '../context/AppContext';
 import clsx from 'clsx';
 import { getDataBackend } from '../services/backend';
@@ -75,6 +75,7 @@ const ProfileManager: React.FC = () => {
     switchUser, 
     addUser, 
     updateUser, 
+    deleteUser,
     credits, 
     coasters, 
     exportData,
@@ -243,7 +244,30 @@ const ProfileManager: React.FC = () => {
                         ) : (
                             <div className="flex justify-between items-center w-full">
                                 <h3 className="font-semibold text-lg truncate">{user.name}</h3>
-                                <button onClick={(e) => { e.stopPropagation(); setEditingUserId(user.id); setEditName(user.name); }} className="p-2 text-slate-500 hover:text-white"><Edit2 size={16} /></button>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingUserId(user.id);
+                                      setEditName(user.name);
+                                    }}
+                                    className="p-2 text-slate-500 hover:text-white"
+                                    title="Edit profile"
+                                  >
+                                    <Edit2 size={16} />
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      void deleteUser(user.id);
+                                    }}
+                                    disabled={users.length <= 1}
+                                    className="p-2 text-slate-500 hover:text-rose-400 disabled:opacity-40 disabled:cursor-not-allowed"
+                                    title={users.length <= 1 ? 'Cannot delete the only profile' : 'Delete profile'}
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </div>
                             </div>
                         )}
                         {editingUserId !== user.id && <p className="text-xs text-slate-500 font-bold uppercase">{user.id === activeUser?.id ? 'Active Rider' : 'Switch Profile'}</p>}

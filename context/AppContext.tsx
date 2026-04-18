@@ -29,6 +29,7 @@ import {
 import {
   addUserAction,
   clearStoragePhotosAction,
+  deleteUserAction,
   exportDataAction,
   forceMigrateLocalDataAction,
   getLocalDataStatsAction,
@@ -86,6 +87,7 @@ interface AppContextType {
   switchUser: (userId: string) => void;
   addUser: (name: string, photo?: File, id?: string) => void;
   updateUser: (userId: string, newName: string, photo?: File) => void;
+  deleteUser: (userId: string) => void;
   saveHighScore: (score: number) => void;
   addCredit: (coasterId: string, date: string, notes: string, restraints: string, photos?: File[], variant?: string) => Promise<Credit | undefined>;
   updateCredit: (creditId: string, date: string, notes: string, restraints: string, mainPhotoUrl: string | undefined, gallery: string[], newPhotos?: File[], variant?: string) => Promise<void>;
@@ -344,6 +346,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return updateUserAction(userDataContext, userId, newName, photo);
   };
 
+  const deleteUser = async (userId: string) => {
+    return deleteUserAction(userDataContext, userId);
+  };
+
   const saveHighScore = async (score: number) => {
       return saveHighScoreAction(userDataContext, score);
   };
@@ -475,6 +481,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       switchUser,
       addUser,
       updateUser,
+      deleteUser,
       saveHighScore,
       addCredit,
       updateCredit,
