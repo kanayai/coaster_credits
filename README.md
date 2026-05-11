@@ -23,6 +23,7 @@ View your app in AI Studio: https://ai.studio/apps/c55a05e7-31ba-44fc-89d3-48f0d
 ## Supabase Migration
 
 - Runbook: `docs/SUPABASE_MIGRATION.md`
+- Ops env workflow: `docs/ENV_OPS_WORKFLOW.md`
 - Schema SQL: `supabase/schema.sql`
 - Import command:
   `npm run migrate:supabase -- --in ./family_export.two-profiles.cleaned.json --owner-id <supabase_auth_uid>`

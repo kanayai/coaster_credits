@@ -75,7 +75,9 @@ const usersRows = users
   .filter((u) => typeof u?.id === 'string' && typeof u?.name === 'string')
   .map((u) => ({
     id: u.id,
-    owner_id: typeof u.ownerId === 'string' && u.ownerId.length > 0 ? u.ownerId : ownerId,
+    owner_id:
+      ownerIdOverride ||
+      (typeof u.ownerId === 'string' && u.ownerId.length > 0 ? u.ownerId : ownerId),
     name: u.name,
     avatar_color: typeof u.avatarColor === 'string' ? u.avatarColor : 'bg-emerald-500',
     avatar_url: typeof u.avatarUrl === 'string' ? u.avatarUrl : null,
@@ -109,13 +111,37 @@ const coastersRows = coasters
 
 const userIds = new Set(usersRows.map((u) => u.id));
 const coasterIds = new Set(coastersRows.map((c) => c.id));
+const referencedCoasterIds = new Set(
+  [...credits, ...wishlist]
+    .map((row) => (typeof row?.coasterId === 'string' ? row.coasterId : null))
+    .filter(Boolean)
+);
+const missingCoasterIds = [...referencedCoasterIds].filter((id) => !coasterIds.has(id));
+const placeholderCoastersRows = missingCoasterIds.map((id) => ({
+  id,
+  // Keep placeholders explicit so imports can preserve credit history
+  // even when source export lacks full coaster metadata.
+  name: `Unknown coaster (${id})`,
+  park: 'Unknown Park',
+  country: 'Unknown',
+  type: 'Unknown',
+  manufacturer: 'Unknown',
+  image_url: null,
+  is_custom: true,
+  specs: null,
+  variants: null,
+  audio_url: null,
+}));
+const allowedCoasterIds = new Set([...coasterIds, ...missingCoasterIds]);
 
 const creditsRows = credits
   .filter((cr) => typeof cr?.id === 'string' && typeof cr?.userId === 'string' && typeof cr?.coasterId === 'string')
-  .filter((cr) => userIds.has(cr.userId) && coasterIds.has(cr.coasterId))
+  .filter((cr) => userIds.has(cr.userId) && allowedCoasterIds.has(cr.coasterId))
   .map((cr) => ({
     id: cr.id,
-    owner_id: typeof cr.ownerId === 'string' && cr.ownerId.length > 0 ? cr.ownerId : ownerId,
+    owner_id:
+      ownerIdOverride ||
+      (typeof cr.ownerId === 'string' && cr.ownerId.length > 0 ? cr.ownerId : ownerId),
     user_id: cr.userId,
     coaster_id: cr.coasterId,
     date: toDateOnly(cr.date) || new Date().toISOString().slice(0, 10),
@@ -129,10 +155,12 @@ const creditsRows = credits
 
 const wishlistRows = wishlist
   .filter((w) => typeof w?.id === 'string' && typeof w?.userId === 'string' && typeof w?.coasterId === 'string')
-  .filter((w) => userIds.has(w.userId) && coasterIds.has(w.coasterId))
+  .filter((w) => userIds.has(w.userId) && allowedCoasterIds.has(w.coasterId))
   .map((w) => ({
     id: w.id,
-    owner_id: typeof w.ownerId === 'string' && w.ownerId.length > 0 ? w.ownerId : ownerId,
+    owner_id:
+      ownerIdOverride ||
+      (typeof w.ownerId === 'string' && w.ownerId.length > 0 ? w.ownerId : ownerId),
     user_id: w.userId,
     coaster_id: w.coasterId,
     added_at: toDate(w.addedAt) || new Date().toISOString(),
@@ -142,6 +170,7 @@ const wishlistRows = wishlist
 console.log('Prepared row counts:');
 console.log(`  app_users: ${usersRows.length}`);
 console.log(`  coasters: ${coastersRows.length}`);
+console.log(`  placeholder_coasters: ${placeholderCoastersRows.length}`);
 console.log(`  credits: ${creditsRows.length}`);
 console.log(`  wishlist: ${wishlistRows.length}`);
 
@@ -172,10 +201,25 @@ const upsertInChunks = async (table, rows, onConflict = 'id') => {
   }
 };
 
+const insertIgnoreDuplicatesInChunks = async (table, rows, onConflict = 'id') => {
+  const batches = chunk(rows, 500);
+  for (let i = 0; i < batches.length; i += 1) {
+    const batch = batches[i];
+    const { error } = await supabase.from(table).upsert(batch, { onConflict, ignoreDuplicates: true });
+    if (error) {
+      throw new Error(`Insert failed for ${table} batch ${i + 1}/${batches.length}: ${error.message}`);
+    }
+    console.log(`  ${table}: batch ${i + 1}/${batches.length} ok (${batch.length} rows)`);
+  }
+};
+
 try {
   // Dependency order for FKs.
   await upsertInChunks('app_users', usersRows);
   await upsertInChunks('coasters', coastersRows);
+  if (placeholderCoastersRows.length > 0) {
+    await insertIgnoreDuplicatesInChunks('coasters', placeholderCoastersRows);
+  }
   await upsertInChunks('credits', creditsRows);
   await upsertInChunks('wishlist', wishlistRows);
   console.log('Supabase import complete.');

@@ -184,21 +184,24 @@ export const updateUser = async (userId: string, patch: Partial<User>) => {
 export const loadOwnerData = async (ownerId: string) => {
   const client = assertClient();
 
-  const [usersRes, coastersRes, creditsRes, wishlistRes] = await Promise.all([
+  const [usersRes, creditsRes, wishlistRes] = await Promise.all([
     client.from('app_users').select('*').eq('owner_id', ownerId),
-    client.from('coasters').select('*'),
     client.from('credits').select('*').eq('owner_id', ownerId),
     client.from('wishlist').select('*').eq('owner_id', ownerId),
   ]);
+  const coastersRes = await client.from('coasters').select('*');
 
   if (usersRes.error) throw new Error(usersRes.error.message);
-  if (coastersRes.error) throw new Error(coastersRes.error.message);
   if (creditsRes.error) throw new Error(creditsRes.error.message);
   if (wishlistRes.error) throw new Error(wishlistRes.error.message);
+  if (coastersRes.error) {
+    // Do not fail owner-data load if public coaster catalog fetch is blocked.
+    console.warn('Coaster catalog load failed; continuing with owner data only.', coastersRes.error.message);
+  }
 
   return {
     users: (usersRes.data || []).map(rowToUser),
-    coasters: (coastersRes.data || []).map(rowToCoaster),
+    coasters: ((coastersRes.error ? [] : coastersRes.data) || []).map(rowToCoaster),
     credits: (creditsRes.data || []).map(rowToCredit),
     wishlist: (wishlistRes.data || []).map(rowToWishlist),
   };

@@ -99,7 +99,6 @@ const ProfileManager: React.FC = () => {
   const [editName, setEditName] = useState('');
   const [localStats, setLocalStats] = useState<{ users: number, credits: number, wishlist: number, coasters: number } | null>(null);
   const [isCheckingLocal, setIsCheckingLocal] = useState(false);
-  const isAdmin = currentUser?.email === 'k.anaya.izquierdo@gmail.com';
   const backend = getDataBackend();
   const backendLabel = 'Supabase';
 
@@ -384,7 +383,7 @@ const ProfileManager: React.FC = () => {
       </div>
 
       {/* Cloud Data Audit */}
-      {currentUser && isAdmin && (
+      {currentUser && (
         <div className="bg-slate-900/50 rounded-3xl p-6 border border-slate-800/50 mb-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">

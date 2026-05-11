@@ -41,6 +41,14 @@ const toAppAuthUser = (input: { id?: string | null; email?: string | null } | nu
   return { uid: input.id, email: input.email ?? null };
 };
 
+const ownerScopedDefaultUsers = (ownerId: string): User[] =>
+  INITIAL_USERS.map((user, index) => ({
+    ...user,
+    // Avoid global ID collisions in Supabase for fresh accounts.
+    id: `u_${ownerId.replace(/[^a-zA-Z0-9_-]/g, '_')}_${index + 1}`,
+    ownerId,
+  }));
+
 const initializeLocalMode = async ({
   setUsers,
   setCoasters,
@@ -190,15 +198,28 @@ export const initializeAndSyncApp = async ({
     if (hasDataToMigrate) {
       try {
         showNotification('Syncing your local data to Supabase...', 'info');
-        const usersToMigrate = (localUsers && localUsers.length > 0 ? localUsers : INITIAL_USERS).map((u) => ({
-          ...u,
-          ownerId: uid,
-        }));
+        const useDefaultUsers = !localUsers || localUsers.length === 0;
+        const usersToMigrate = useDefaultUsers
+          ? ownerScopedDefaultUsers(uid)
+          : localUsers.map((u) => ({ ...u, ownerId: uid }));
+        const defaultUserIdMap = new Map<string, string>(
+          useDefaultUsers
+            ? INITIAL_USERS.map((user, index) => [user.id, usersToMigrate[index]?.id || user.id])
+            : []
+        );
         const coastersToMigrate = (localCoasters || [])
           .filter((coaster) => coaster.isCustom)
           .map((coaster) => ({ ...coaster, isCustom: true }));
-        const creditsToMigrate = (localCredits || []).map((credit) => ({ ...credit, ownerId: uid }));
-        const wishlistToMigrate = (localWishlist || []).map((entry) => ({ ...entry, ownerId: uid }));
+        const creditsToMigrate = (localCredits || []).map((credit) => ({
+          ...credit,
+          ownerId: uid,
+          userId: defaultUserIdMap.get(credit.userId) || credit.userId,
+        }));
+        const wishlistToMigrate = (localWishlist || []).map((entry) => ({
+          ...entry,
+          ownerId: uid,
+          userId: defaultUserIdMap.get(entry.userId) || entry.userId,
+        }));
 
         await upsertUsers(usersToMigrate);
         await upsertCoasters(coastersToMigrate);
@@ -223,12 +244,21 @@ export const initializeAndSyncApp = async ({
 
     // Ensure required FK targets exist for cloud writes:
     // - base coaster catalog (credits.coaster_id FK)
-    // - at least one owner-scoped app user (credits.user_id FK)
-    await upsertCoasters(INITIAL_COASTERS.map((coaster) => ({ ...coaster, isCustom: Boolean(coaster.isCustom) })));
+    // Do not abort sync if this write is blocked in production policies.
+    try {
+      await upsertCoasters(
+        INITIAL_COASTERS.map((coaster) => ({ ...coaster, isCustom: Boolean(coaster.isCustom) }))
+      );
+    } catch (seedErr) {
+      console.warn(
+        'Failed to seed base coaster catalog during init; continuing to load owner data.',
+        seedErr
+      );
+    }
 
     const loaded = await loadOwnerData(uid);
     if (loaded.users.length === 0) {
-      const defaultUsers = INITIAL_USERS.map((user) => ({ ...user, ownerId: uid }));
+      const defaultUsers = ownerScopedDefaultUsers(uid);
       await upsertUsers(defaultUsers);
       loaded.users = defaultUsers;
     }
@@ -257,6 +287,10 @@ export const initializeAndSyncApp = async ({
     onSyncSuccess();
   } catch (err) {
     console.error('Initialization failed', err);
+    showNotification(
+      `Cloud sync issue: ${err instanceof Error ? err.message : String(err)}`,
+      'error'
+    );
     onSyncError();
     setIsSyncing(false);
     setIsInitialized(true);

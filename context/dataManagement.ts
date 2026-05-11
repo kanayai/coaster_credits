@@ -38,6 +38,13 @@ interface BaseDataContext {
   switchUser: (userId: string) => void;
 }
 
+const ownerScopedDefaultUsers = (ownerId: string): User[] =>
+  INITIAL_USERS.map((user, index) => ({
+    ...user,
+    id: `u_${ownerId.replace(/[^a-zA-Z0-9_-]/g, '_')}_${index + 1}`,
+    ownerId,
+  }));
+
 const cleanImportedData = (obj: any): any => {
   if (obj === null || obj === undefined) return undefined;
   if (Array.isArray(obj)) {
@@ -693,12 +700,28 @@ export const forceMigrateLocalDataAction = async (
     const localCredits = await storage.get<Credit[]>('cc_credits');
     const localWishlist = await storage.get<WishlistEntry[]>('cc_wishlist');
 
-    const usersToMigrate = (localUsers || INITIAL_USERS).map((user) => ({ ...user, ownerId: uid }));
+    const useDefaultUsers = !localUsers || localUsers.length === 0;
+    const usersToMigrate = useDefaultUsers
+      ? ownerScopedDefaultUsers(uid)
+      : localUsers.map((user) => ({ ...user, ownerId: uid }));
+    const defaultUserIdMap = new Map<string, string>(
+      useDefaultUsers
+        ? INITIAL_USERS.map((user, index) => [user.id, usersToMigrate[index]?.id || user.id])
+        : []
+    );
     const coastersToMigrate = (localCoasters || [])
       .filter((coaster) => coaster.isCustom)
       .map((coaster) => ({ ...coaster, isCustom: true }));
-    const creditsToMigrate = (localCredits || []).map((credit) => ({ ...credit, ownerId: uid }));
-    const wishlistToMigrate = (localWishlist || []).map((entry) => ({ ...entry, ownerId: uid }));
+    const creditsToMigrate = (localCredits || []).map((credit) => ({
+      ...credit,
+      ownerId: uid,
+      userId: defaultUserIdMap.get(credit.userId) || credit.userId,
+    }));
+    const wishlistToMigrate = (localWishlist || []).map((entry) => ({
+      ...entry,
+      ownerId: uid,
+      userId: defaultUserIdMap.get(entry.userId) || entry.userId,
+    }));
 
     await upsertUsers(usersToMigrate);
     await upsertCoasters(coastersToMigrate);
