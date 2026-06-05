@@ -35,7 +35,11 @@ This makes your app accessible via a URL (e.g., `coastercount.com`) and installa
 ### 2. Steps to Deploy
 1.  Push your code to **GitHub**.
 2.  Log in to Vercel/Netlify and import the repository.
-3.  **Environment Variables:** In the dashboard settings, add your `GEMINI_API_KEY`.
+3.  **Environment Variables:** In the dashboard settings, add the following variables from your `.env.local`:
+    *   `VITE_SUPABASE_URL`
+    *   `VITE_SUPABASE_ANON_KEY`
+    *   `VITE_SUPABASE_REDIRECT_URL` (Set this to your live production URL, e.g., `https://coastercount.com`)
+    *   `GEMINI_API_KEY`
 4.  Click **Deploy**.
 5.  **Result:** You now have a live URL. Users can open it on Safari (iOS) or Chrome (Android) and tap "Add to Home Screen" to install it.
 
