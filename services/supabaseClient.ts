@@ -1,9 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 
-const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env;
-const supabaseUrl = env?.VITE_SUPABASE_URL;
-const supabaseAnonKey = env?.VITE_SUPABASE_ANON_KEY;
-export const supabaseOAuthRedirectUrl = env?.VITE_SUPABASE_REDIRECT_URL;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+export const supabaseOAuthRedirectUrl = import.meta.env.VITE_SUPABASE_REDIRECT_URL || window.location.origin;
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
