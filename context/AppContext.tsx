@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
 import { User, Coaster, Credit, ViewState, WishlistEntry, RankingList } from '../types';
 import { INITIAL_COASTERS } from '../constants';
 import {
@@ -61,6 +61,7 @@ interface AppContextType {
   signIn: () => Promise<void>;
   logout: () => Promise<void>;
   isAuthLoading: boolean;
+  isInitialized: boolean;
   isSyncing: boolean;
   syncStatus: SyncStatus;
   lastSyncAt: string | null;
@@ -186,13 +187,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [coasterToLog, setCoasterToLog] = useState<Coaster | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [bootError, setBootError] = useState<Error | null>(null);
+
+  const showNotification = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    const id = Date.now().toString();
+    setNotification({ id, message, type });
+    setTimeout(() => {
+      setNotification(prev => prev?.id === id ? null : prev);
+    }, 3000);
+  }, []);
 
   const manualRefresh = useCallback(() => {
     setRefreshKey(prev => prev + 1);
     setIsSyncing(true);
     setSyncStatus('syncing');
     showNotification("Refreshing cloud data...", "info");
-  }, []);
+  }, [showNotification]);
   const [appTheme, setAppTheme] = useState<AppTheme>('sky');
   
   // Animations
@@ -240,6 +250,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // --- INITIALIZATION & REAL-TIME SYNC ---
   useEffect(() => {
+    setBootError(null);
     void initializeAndSyncApp({
       currentUser,
       setIsSyncing,
@@ -257,9 +268,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       onSyncError: () => {
         setSyncStatus('error');
       },
+    }).catch((error) => {
+      console.error('App initialization failed', error);
+      setSyncStatus('error');
+      setIsSyncing(false);
+      setBootError(error instanceof Error ? error : new Error(String(error)));
     });
     return () => {};
-  }, [currentUser, refreshKey]);
+  }, [currentUser, refreshKey, showNotification]);
 
   useEffect(() => {
     if (!currentUser) {
@@ -273,20 +289,32 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Theme persistence
   useEffect(() => {
-    storage.get<AppTheme>('cc_theme').then(theme => {
-      if (theme) setAppTheme(theme);
-    });
+    void storage.get<AppTheme>('cc_theme')
+      .then(theme => {
+        if (theme) setAppTheme(theme);
+      })
+      .catch((error) => {
+        console.error('Failed to load theme from storage', error);
+      });
   }, []);
 
   useEffect(() => {
       if (!isInitialized) return;
-      storage.set('cc_theme', appTheme);
+      void storage.set('cc_theme', appTheme).catch((error) => {
+        console.error('Failed to persist theme', error);
+      });
   }, [appTheme, isInitialized]);
 
   useEffect(() => {
       if (!isInitialized || !activeUserId) return;
-      storage.set('cc_active_user_id', activeUserId);
+      void storage.set('cc_active_user_id', activeUserId).catch((error) => {
+        console.error('Failed to persist active user', error);
+      });
   }, [activeUserId, isInitialized]);
+
+  if (bootError) {
+    throw bootError;
+  }
 
   const activeUser = users.find(u => u.id === activeUserId) || users[0] || null;
 
@@ -309,14 +337,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const triggerFireworks = () => {
       setShowFireworks(true);
       setTimeout(() => setShowFireworks(false), 4000);
-  };
-
-  const showNotification = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
-    const id = Date.now().toString();
-    setNotification({ id, message, type });
-    setTimeout(() => {
-      setNotification(prev => prev?.id === id ? null : prev);
-    }, 3000);
   };
 
   const hideNotification = () => setNotification(null);
@@ -484,6 +504,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       signIn,
       logout,
       isAuthLoading,
+      isInitialized,
       isSyncing,
       syncStatus,
       lastSyncAt,

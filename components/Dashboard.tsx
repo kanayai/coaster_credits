@@ -45,6 +45,11 @@ const Dashboard: React.FC = () => {
   
   // Smart Button State
   const [isLocatingSession, setIsLocatingSession] = useState(false);
+  const isMobileSafari = useMemo(() => {
+    if (typeof navigator === 'undefined') return false;
+    const ua = navigator.userAgent;
+    return /iP(hone|ad|od)/.test(ua) && /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua);
+  }, []);
 
   const userCredits = useMemo(() => {
     if (!activeUser) return [];
@@ -473,6 +478,44 @@ const Dashboard: React.FC = () => {
 
               {/* Visualization */}
               <div className="flex flex-col gap-6">
+                  {isMobileSafari ? (
+                      <div className="space-y-3">
+                          <div className="rounded-2xl border border-slate-700/60 bg-slate-900/40 p-4">
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">
+                                  Mobile Safari Compatibility Mode
+                              </p>
+                              <p className="text-xs text-slate-400 leading-relaxed">
+                                  Advanced charts are simplified on iPhone Safari to keep the signed-in dashboard stable.
+                              </p>
+                          </div>
+                          <div className="space-y-2">
+                              {chartData.length > 0 ? chartData.slice(0, 5).map((entry, idx) => (
+                                  <button
+                                    key={idx}
+                                    onClick={() => handleDeepLink(entry.name)}
+                                    className="w-full bg-slate-900/40 hover:bg-slate-700/50 p-3 rounded-xl border border-slate-700/50 flex items-center gap-3 transition-colors group active:scale-[0.99]"
+                                  >
+                                      <div className="w-2 h-8 rounded-full" style={{ backgroundColor: COLORS[idx % COLORS.length] }} />
+                                      <div className="flex-1 min-w-0 text-left">
+                                          <div className="flex justify-between items-center mb-1">
+                                              <span className="font-bold text-sm text-slate-200 truncate pr-2 group-hover:text-white transition-colors">{entry.name}</span>
+                                              <span className="font-bold text-white text-sm">{entry.value}</span>
+                                          </div>
+                                          <div className="text-[10px] text-slate-500 uppercase tracking-wider">
+                                              {entry.percent.toFixed(0)}% of tracked categories
+                                          </div>
+                                      </div>
+                                      <ChevronRight size={16} className="text-slate-600 group-hover:text-white shrink-0" />
+                                  </button>
+                              )) : (
+                                  <div className="rounded-2xl border border-slate-700/60 bg-slate-900/40 p-4 text-sm text-slate-500">
+                                      No data yet.
+                                  </div>
+                              )}
+                          </div>
+                      </div>
+                  ) : (
+                    <>
                   {/* Donut */}
                   <div className="h-48 relative shrink-0">
                       {chartData.length > 0 ? (
@@ -552,6 +595,8 @@ const Dashboard: React.FC = () => {
                           ))}
                       </div>
                   </div>
+                    </>
+                  )}
               </div>
           </div>
       </div>
@@ -565,20 +610,33 @@ const Dashboard: React.FC = () => {
                      <TrendingUp size={16} className="text-primary" />
                      <span className="text-sm font-bold text-white">Credits per Year</span>
                  </div>
-                 <div className="h-40 w-full">
-                     <ResponsiveContainer width="100%" height="100%">
-                         <BarChart data={yearlyData}>
-                             <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                             <XAxis dataKey="year" stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
-                             <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
-                             <Tooltip 
-                                contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', color: '#fff', fontSize: '12px' }}
-                                cursor={{ fill: '#334155', opacity: 0.4 }}
-                             />
-                             <Bar dataKey="count" fill="rgb(var(--color-primary))" radius={[4, 4, 0, 0]} />
-                         </BarChart>
-                     </ResponsiveContainer>
-                 </div>
+                 {isMobileSafari ? (
+                    <div className="space-y-2">
+                      {yearlyData.slice(-6).reverse().map((entry) => (
+                        <div key={entry.year} className="flex items-center justify-between rounded-xl border border-slate-700/50 bg-slate-900/40 px-3 py-2">
+                          <span className="text-sm font-bold text-white">{entry.year}</span>
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                            {entry.count} rides
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                 ) : (
+                    <div className="h-40 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={yearlyData}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                                <XAxis dataKey="year" stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
+                                <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
+                                <Tooltip 
+                                   contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', color: '#fff', fontSize: '12px' }}
+                                   cursor={{ fill: '#334155', opacity: 0.4 }}
+                                />
+                                <Bar dataKey="count" fill="rgb(var(--color-primary))" radius={[4, 4, 0, 0]} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                 )}
              </div>
           </div>
       )}

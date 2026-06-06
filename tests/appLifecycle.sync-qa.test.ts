@@ -20,7 +20,7 @@ const mockLoadOwnerData = vi.fn();
 vi.mock('../services/storage', () => ({ storage: mockStorage }));
 vi.mock('../services/supabaseClient', () => ({
   isSupabaseConfigured: true,
-  supabaseOAuthRedirectUrl: 'https://coastercount-pro-my5my4q2dq-uw.a.run.app',
+  supabaseOAuthRedirectUrl: 'https://coastercount-pro-187913305316.us-west1.run.app',
   supabase: {
     auth: {
       signOut: mockSignOut,
@@ -198,7 +198,7 @@ describe('cloud sync QA: app lifecycle', () => {
 
     expect(mockSignInWithOAuth).toHaveBeenCalledWith({
       provider: 'google',
-      options: { redirectTo: 'https://coastercount-pro-my5my4q2dq-uw.a.run.app' },
+      options: { redirectTo: 'https://coastercount-pro-187913305316.us-west1.run.app' },
     });
     expect(showNotification).toHaveBeenCalledWith('Opening Google sign-in...', 'info');
   });

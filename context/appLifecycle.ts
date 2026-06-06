@@ -6,6 +6,17 @@ import { loadOwnerData, upsertCoasters, upsertCredits, upsertUsers, upsertWishli
 import type { AppAuthUser } from '../services/authTypes';
 import type { Coaster, Credit, User, WishlistEntry } from '../types';
 
+const setBootStage = (stage: string, note?: string) => {
+  if (typeof window === 'undefined') return;
+  window.__ccDebug = {
+    ...window.__ccDebug,
+    stage,
+    note,
+    href: window.location.href,
+    updatedAt: new Date().toISOString(),
+  };
+};
+
 type NotificationType = 'success' | 'error' | 'info';
 type ShowNotification = (message: string, type?: NotificationType) => void;
 
@@ -85,8 +96,49 @@ const initializeLocalMode = async ({
   setIsSyncing(false);
 };
 
+const fallbackToLocalModeAfterCloudError = async ({
+  setUsers,
+  setCoasters,
+  setCredits,
+  setWishlist,
+  setActiveUserId,
+  setIsInitialized,
+  setIsSyncing,
+}: Pick<
+  InitializationParams,
+  | 'setUsers'
+  | 'setCoasters'
+  | 'setCredits'
+  | 'setWishlist'
+  | 'setActiveUserId'
+  | 'setIsInitialized'
+  | 'setIsSyncing'
+>) => {
+  try {
+    await initializeLocalMode({
+      setUsers,
+      setCoasters,
+      setCredits,
+      setWishlist,
+      setActiveUserId,
+      setIsInitialized,
+      setIsSyncing,
+    });
+  } catch (fallbackError) {
+    console.error('Local fallback initialization failed', fallbackError);
+    setUsers(INITIAL_USERS);
+    setCoasters(INITIAL_COASTERS);
+    setCredits([]);
+    setWishlist([]);
+    setActiveUserId(INITIAL_USERS[0]?.id ?? null);
+    setIsInitialized(true);
+    setIsSyncing(false);
+  }
+};
+
 export const subscribeToAuthState = ({ setCurrentUser, setIsAuthLoading }: AuthSubscriptionParams) => {
   if (!isSupabaseConfigured || !supabase) {
+    setBootStage('auth:local-only');
     console.warn('Supabase is not configured. Running in local-only mode.');
     setCurrentUser(null);
     setIsAuthLoading(false);
@@ -94,6 +146,7 @@ export const subscribeToAuthState = ({ setCurrentUser, setIsAuthLoading }: AuthS
   }
 
   supabase.auth.getSession().then(({ data }) => {
+    setBootStage('auth:get-session', data.session?.user?.id || 'no-session');
     setCurrentUser(toAppAuthUser(data.session?.user ?? null));
     setIsAuthLoading(false);
   });
@@ -101,6 +154,7 @@ export const subscribeToAuthState = ({ setCurrentUser, setIsAuthLoading }: AuthS
   const {
     data: { subscription },
   } = supabase.auth.onAuthStateChange((_event, session) => {
+    setBootStage(`auth:state-change:${_event}`, session?.user?.id || 'no-session');
     setCurrentUser(toAppAuthUser(session?.user ?? null));
     setIsAuthLoading(false);
   });
@@ -119,6 +173,7 @@ export const signInWithGoogle = async (showNotification: ShowNotification) => {
   }
 
   try {
+    setBootStage('auth:sign-in:start', supabaseOAuthRedirectUrl);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: supabaseOAuthRedirectUrl },
@@ -166,9 +221,12 @@ export const initializeAndSyncApp = async ({
   onSyncError,
 }: InitializationParams): Promise<void> => {
   try {
+    setBootStage('init:start', currentUser?.uid || 'local');
     await storage.migrateFromLocalStorage();
+    setBootStage('init:storage-migrated');
 
     if (!currentUser) {
+      setBootStage('init:local-mode');
       await initializeLocalMode({
         setUsers,
         setCoasters,
@@ -183,11 +241,13 @@ export const initializeAndSyncApp = async ({
 
     const uid = currentUser.uid;
     setIsSyncing(true);
+    setBootStage('init:cloud-mode', uid);
 
     const localUsers = await storage.get<User[]>('cc_users');
     const localCoasters = await storage.get<Coaster[]>('cc_coasters');
     const localCredits = await storage.get<Credit[]>('cc_credits');
     const localWishlist = await storage.get<WishlistEntry[]>('cc_wishlist');
+    setBootStage('init:local-data-loaded');
 
     const hasDataToMigrate =
       (localCoasters && localCoasters.length > 0) ||
@@ -197,6 +257,7 @@ export const initializeAndSyncApp = async ({
 
     if (hasDataToMigrate) {
       try {
+        setBootStage('init:migrate-local-data');
         showNotification('Syncing your local data to Supabase...', 'info');
         const useDefaultUsers = !localUsers || localUsers.length === 0;
         const usersToMigrate = useDefaultUsers
@@ -230,9 +291,11 @@ export const initializeAndSyncApp = async ({
         await storage.set('cc_coasters', null);
         await storage.set('cc_credits', null);
         await storage.set('cc_wishlist', null);
+        setBootStage('init:migrate-local-data:complete');
         onSyncSuccess();
         showNotification('Supabase sync complete!', 'success');
       } catch (err) {
+        setBootStage('init:migrate-local-data:error', err instanceof Error ? err.message : String(err));
         console.error('Supabase migration failed', err);
         onSyncError();
         showNotification(
@@ -246,18 +309,22 @@ export const initializeAndSyncApp = async ({
     // - base coaster catalog (credits.coaster_id FK)
     // Do not abort sync if this write is blocked in production policies.
     try {
+      setBootStage('init:seed-coasters');
       await upsertCoasters(
         INITIAL_COASTERS.map((coaster) => ({ ...coaster, isCustom: Boolean(coaster.isCustom) }))
       );
     } catch (seedErr) {
+      setBootStage('init:seed-coasters:error', seedErr instanceof Error ? seedErr.message : String(seedErr));
       console.warn(
         'Failed to seed base coaster catalog during init; continuing to load owner data.',
         seedErr
       );
     }
 
+    setBootStage('init:load-owner-data');
     const loaded = await loadOwnerData(uid);
     if (loaded.users.length === 0) {
+      setBootStage('init:create-default-cloud-users');
       const defaultUsers = ownerScopedDefaultUsers(uid);
       await upsertUsers(defaultUsers);
       loaded.users = defaultUsers;
@@ -284,15 +351,26 @@ export const initializeAndSyncApp = async ({
 
     setIsSyncing(false);
     setIsInitialized(true);
+    setBootStage('init:complete');
     onSyncSuccess();
   } catch (err) {
+    setBootStage('init:error', err instanceof Error ? err.message : String(err));
     console.error('Initialization failed', err);
     showNotification(
       `Cloud sync issue: ${err instanceof Error ? err.message : String(err)}`,
       'error'
     );
     onSyncError();
-    setIsSyncing(false);
-    setIsInitialized(true);
+    await fallbackToLocalModeAfterCloudError({
+      setUsers,
+      setCoasters,
+      setCredits,
+      setWishlist,
+      setActiveUserId,
+      setIsInitialized,
+      setIsSyncing,
+    });
+    setBootStage('init:fallback-local-mode');
+    showNotification('Signed in, but cloud data could not load. Showing local data instead.', 'info');
   }
 };

@@ -32,6 +32,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     isAuthLoading,
     isSyncing
   } = useAppContext();
+  const isMobileSafariCompat = useMemo(() => {
+    if (typeof navigator === 'undefined') return false;
+    const ua = navigator.userAgent;
+    return /iP(hone|ad|od)/.test(ua) && /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua);
+  }, []);
 
   const navItems = [
     { id: 'DASHBOARD', icon: LayoutDashboard, label: 'Dashboard' },
@@ -55,18 +60,20 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     <div className="relative h-screen bg-slate-950 text-white overflow-hidden font-sans selection:bg-primary/30" style={themeStyles}>
       {/* Dynamic Background Layer */}
       <div className="absolute inset-0 z-0 pointer-events-none select-none overflow-hidden">
-        <div 
-          className="absolute inset-0 bg-cover bg-center opacity-30 mix-blend-overlay"
-          style={{ 
-            backgroundImage: "url('https://images.unsplash.com/photo-1544669049-29177114210d?q=80&w=1080&auto=format&fit=crop')",
-            filter: 'grayscale(100%) brightness(0.5)'
-          }}
-        />
+        {!isMobileSafariCompat && (
+          <div 
+            className="absolute inset-0 bg-cover bg-center opacity-30 mix-blend-overlay"
+            style={{ 
+              backgroundImage: "url('https://images.unsplash.com/photo-1544669049-29177114210d?q=80&w=1080&auto=format&fit=crop')",
+              filter: 'grayscale(100%) brightness(0.5)'
+            }}
+          />
+        )}
         <div className="absolute inset-0 bg-gradient-to-b from-slate-900/60 via-slate-950/90 to-slate-950" />
       </div>
 
       {/* Confetti Overlay */}
-      {showConfetti && (
+      {showConfetti && !isMobileSafariCompat && (
           <div className="absolute inset-0 z-[100] pointer-events-none overflow-hidden">
               {[...Array(50)].map((_, i) => (
                   <div 
@@ -96,7 +103,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       )}
 
       {/* Fireworks Overlay */}
-      {showFireworks && (
+      {showFireworks && !isMobileSafariCompat && (
           <div className="absolute inset-0 z-[101] pointer-events-none overflow-hidden">
               {[...Array(5)].map((_, groupI) => (
                   <div key={`fw-group-${groupI}`} className="absolute" style={{ 
@@ -141,7 +148,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       <div className="relative z-10 flex flex-col h-full">
         {/* Compact Header */}
         {!isGameView && (
-            <header className="flex-none px-4 py-3 bg-slate-900/60 backdrop-blur-xl border-b border-slate-800/50 flex justify-between items-center animate-fade-in-down">
+            <header className={clsx(
+              "flex-none px-4 py-3 border-b border-slate-800/50 flex justify-between items-center animate-fade-in-down",
+              isMobileSafariCompat ? "bg-slate-900" : "bg-slate-900/60 backdrop-blur-xl"
+            )}>
               <div className="flex items-center gap-2">
                   <div className="bg-primary/20 p-1.5 rounded-lg">
                     <Zap size={18} className="text-primary fill-primary/30" />
@@ -219,7 +229,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
         {/* Native-style Floating Bottom Navigation */}
         {!isGameView && (
-            <nav className="fixed bottom-0 left-0 right-0 bg-slate-900/80 backdrop-blur-2xl border-t border-slate-800/50 pt-2 pb-safe z-50 animate-fade-in-up">
+            <nav className={clsx(
+              "fixed bottom-0 left-0 right-0 border-t border-slate-800/50 pt-2 pb-safe z-50 animate-fade-in-up",
+              isMobileSafariCompat ? "bg-slate-900" : "bg-slate-900/80 backdrop-blur-2xl"
+            )}>
               <div className="flex justify-around items-center h-16 max-w-xl mx-auto px-2">
                 {navItems.map((item) => {
                   const isActive = currentView === item.id;

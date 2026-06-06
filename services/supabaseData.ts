@@ -21,6 +21,9 @@ const toIso = (value: unknown): string => {
   return date.toISOString();
 };
 
+const safeString = (value: unknown, fallback: string): string =>
+  typeof value === 'string' && value.trim().length > 0 ? value.trim() : fallback;
+
 const userToRow = (user: User) => ({
   id: user.id,
   owner_id: user.ownerId,
@@ -69,13 +72,13 @@ const wishlistToRow = (entry: WishlistEntry) => ({
 });
 
 const rowToUser = (row: any): User => ({
-  id: row.id,
-  ownerId: row.owner_id,
-  name: row.name,
-  avatarColor: row.avatar_color,
+  id: safeString(row.id, `u_recovered_${Math.random().toString(36).slice(2, 8)}`),
+  ownerId: safeString(row.owner_id, 'local'),
+  name: safeString(row.name, 'Rider'),
+  avatarColor: safeString(row.avatar_color, 'bg-slate-700'),
   avatarUrl: row.avatar_url ?? undefined,
   rankings: row.rankings ?? undefined,
-  highScore: typeof row.high_score === 'number' ? row.high_score : undefined,
+  highScore: Number.isFinite(Number(row.high_score)) ? Number(row.high_score) : undefined,
 });
 
 const rowToCoaster = (row: any): Coaster => ({

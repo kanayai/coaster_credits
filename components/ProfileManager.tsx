@@ -100,6 +100,11 @@ const ProfileManager: React.FC = () => {
   const [editName, setEditName] = useState('');
   const [localStats, setLocalStats] = useState<{ users: number, credits: number, wishlist: number, coasters: number } | null>(null);
   const [isCheckingLocal, setIsCheckingLocal] = useState(false);
+  const isMobileSafariCompat = useMemo(() => {
+    if (typeof navigator === 'undefined') return false;
+    const ua = navigator.userAgent;
+    return /iP(hone|ad|od)/.test(ua) && /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua);
+  }, []);
   const backend = getDataBackend();
   const backendLabel = 'Supabase';
 
@@ -316,7 +321,15 @@ const ProfileManager: React.FC = () => {
             <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Activity</p>
             <h3 className="text-2xl font-bold text-white tracking-tight">Ride History</h3>
           </div>
-          <ActivityHeatmap />
+          {isMobileSafariCompat ? (
+            <div className="bg-slate-900 rounded-xl p-4 border border-slate-800">
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Ride history heatmap is simplified on iPhone Safari in compatibility mode.
+              </p>
+            </div>
+          ) : (
+            <ActivityHeatmap />
+          )}
         </section>
       )}
 
