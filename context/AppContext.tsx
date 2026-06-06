@@ -64,6 +64,7 @@ interface AppContextType {
   isSyncing: boolean;
   syncStatus: SyncStatus;
   lastSyncAt: string | null;
+  isStandalone: boolean;
 
   activeUser: User | null;
   users: User[];
@@ -206,7 +207,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return subscribeToAuthState({ setCurrentUser, setIsAuthLoading });
   }, []);
 
+  const isStandalone = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    return (
+      (window.navigator as any).standalone ||
+      window.matchMedia('(display-mode: standalone)').matches
+    );
+  }, []);
+
   const signIn = async () => {
+    if (isStandalone) {
+      showNotification(
+        "Google Sign-In is not supported in 'Add to Home Screen' mode. Please open this app in Safari to sign in.",
+        "error"
+      );
+      return;
+    }
     await signInWithGoogle(showNotification);
   };
 
@@ -471,6 +487,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       isSyncing,
       syncStatus,
       lastSyncAt,
+      isStandalone,
       activeUser,
       users,
       coasters,

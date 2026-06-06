@@ -87,6 +87,7 @@ const ProfileManager: React.FC = () => {
     signIn,
     logout,
     isAuthLoading,
+    isStandalone,
     isSyncing,
     syncStatus,
     lastSyncAt,
@@ -208,9 +209,19 @@ const ProfileManager: React.FC = () => {
         ) : (
           <div className="text-center py-4">
             <p className="text-sm text-slate-400 mb-4 italic font-medium leading-relaxed">Sign in to sync your credits across devices and never lose your data.</p>
+            {isStandalone && (
+              <div className="mb-4 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-left">
+                <p className="text-xs text-amber-200 leading-relaxed font-bold">
+                  ⚠️ Google Sign-In is not supported when launched from the Home Screen.
+                </p>
+                <p className="text-[10px] text-amber-300/80 leading-relaxed mt-1">
+                  To log in or sync, please open this website directly in Safari: <span className="underline select-all">https://coastercount-pro-187913305316.us-west1.run.app</span>
+                </p>
+              </div>
+            )}
             <button 
               onClick={signIn}
-              disabled={isAuthLoading}
+              disabled={isAuthLoading || isStandalone}
               className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-primary/20 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
             >
               {isAuthLoading ? <Loader2 size={18} className="animate-spin" /> : (

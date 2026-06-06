@@ -32,6 +32,7 @@ const Dashboard: React.FC = () => {
     currentUser,
     logout,
     signIn,
+    isStandalone,
   } = useAppContext();
 
   // Modal States
@@ -327,9 +328,20 @@ const Dashboard: React.FC = () => {
                       <div className="p-4 bg-primary/10 border border-primary/30 rounded-2xl">
                         <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-2">Cloud Sync Is Off</p>
                         <p className="text-[10px] text-slate-400 mb-3 italic">Sign in if you want this dashboard to load your synced riders and credits.</p>
+                        {isStandalone && (
+                          <div className="mb-3 p-3 rounded bg-amber-500/10 border border-amber-500/20 text-left">
+                            <p className="text-[10px] text-amber-200 leading-relaxed font-bold">
+                              ⚠️ Google Sign-In is not supported when launched from the Home Screen.
+                            </p>
+                            <p className="text-[9px] text-amber-300/80 leading-relaxed mt-1">
+                              Please open this website directly in Safari to sign in: <span className="underline select-all">https://coastercount-pro-187913305316.us-west1.run.app</span>
+                            </p>
+                          </div>
+                        )}
                         <button 
                           onClick={signIn}
-                          className="w-full bg-primary hover:bg-primary-hover text-white text-[10px] font-black py-2.5 px-4 rounded-lg transition-all shadow-lg shadow-primary/20"
+                          disabled={isStandalone}
+                          className="w-full bg-primary hover:bg-primary-hover text-white text-[10px] font-black py-2.5 px-4 rounded-lg transition-all shadow-lg shadow-primary/20 disabled:opacity-50"
                         >
                           Sign In with Google
                         </button>
