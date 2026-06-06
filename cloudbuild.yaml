@@ -4,7 +4,14 @@ steps:
       - build
       - -t
       - $_IMAGE
-
+      - --build-arg
+      - VITE_SUPABASE_URL=$_VITE_SUPABASE_URL
+      - --build-arg
+      - VITE_SUPABASE_ANON_KEY=$_VITE_SUPABASE_ANON_KEY
+      - --build-arg
+      - VITE_SUPABASE_REDIRECT_URL=$_VITE_SUPABASE_REDIRECT_URL
+      - --build-arg
+      - GEMINI_API_KEY=$_GEMINI_API_KEY
       - .
 
   - name: gcr.io/cloud-builders/docker
