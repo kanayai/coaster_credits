@@ -228,7 +228,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const signIn = async () => {
     if (isStandalone) {
       showNotification(
-        "Google Sign-In is not supported in 'Add to Home Screen' mode. Please open this app in Safari to sign in.",
+        "Sign in from Safari, not the Home Screen app. Safari is only needed for login — then return here for daily use.",
         "error"
       );
       return;
