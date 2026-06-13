@@ -5,6 +5,7 @@ import { UserPlus, CheckCircle2, Edit2, Save, X, FileSpreadsheet, Database, Clou
 import { AppTheme } from '../context/AppContext';
 import clsx from 'clsx';
 import { getDataBackend } from '../services/backend';
+import StandaloneSignInNotice from './StandaloneSignInNotice';
 
 const ActivityHeatmap = () => {
     const { credits, activeUser } = useAppContext();
@@ -215,23 +216,8 @@ const ProfileManager: React.FC = () => {
           <div className="text-center py-4">
             <p className="text-sm text-slate-400 mb-4 italic font-medium leading-relaxed">Sign in to sync your credits across devices and never lose your data.</p>
             {isStandalone && (
-              <div className="mb-4 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-left space-y-2">
-                <p className="text-xs text-amber-200 leading-relaxed font-bold">
-                  Sign in from Safari, not the Home Screen app
-                </p>
-                <ul className="text-[11px] text-amber-300/90 leading-relaxed list-disc pl-4 space-y-1">
-                  <li>Safari is only needed for login.</li>
-                  <li>After signing in, return here — the Home Screen app is for daily use.</li>
-                  <li>Safari does not need to stay open.</li>
-                  <li>If you sign out or your session expires, sign in again in Safari.</li>
-                </ul>
-                <button
-                  type="button"
-                  onClick={() => window.open(window.location.origin, '_blank')}
-                  className="mt-2 w-full bg-amber-500/20 hover:bg-amber-500/30 text-amber-100 text-[10px] font-black uppercase tracking-widest py-2 rounded-lg transition-all border border-amber-500/30"
-                >
-                  Open in Safari
-                </button>
+              <div className="mb-4">
+                <StandaloneSignInNotice />
               </div>
             )}
             <button 

@@ -6,6 +6,7 @@ import { Trophy, Palmtree, Layers, Factory, Flag, CalendarRange, MapPin, Navigat
 import EditCreditModal from './EditCreditModal';
 import RideDetailModal from './RideDetailModal';
 import ShareCardModal from './ShareCardModal';
+import StandaloneSignInNotice from './StandaloneSignInNotice';
 import { Credit, Coaster } from '../types';
 import { normalizeManufacturer } from '../constants';
 import { findNearbyParks } from '../services/geminiService';
@@ -334,23 +335,8 @@ const Dashboard: React.FC = () => {
                         <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-2">Cloud Sync Is Off</p>
                         <p className="text-[10px] text-slate-400 mb-3 italic">Sign in if you want this dashboard to load your synced riders and credits.</p>
                         {isStandalone && (
-                          <div className="mb-3 p-3 rounded bg-amber-500/10 border border-amber-500/20 text-left space-y-2">
-                            <p className="text-[10px] text-amber-200 leading-relaxed font-bold">
-                              Sign in from Safari, not the Home Screen app
-                            </p>
-                            <ul className="text-[10px] text-amber-300/90 leading-relaxed list-disc pl-4 space-y-0.5">
-                              <li>Safari is only needed for login.</li>
-                              <li>After signing in, return here for daily use.</li>
-                              <li>Safari does not need to stay open.</li>
-                              <li>If signed out, sign in again in Safari.</li>
-                            </ul>
-                            <button
-                              type="button"
-                              onClick={() => window.open(window.location.origin, '_blank')}
-                              className="mt-1 w-full bg-amber-500/20 hover:bg-amber-500/30 text-amber-100 text-[10px] font-black uppercase tracking-widest py-2 rounded transition-all border border-amber-500/30"
-                            >
-                              Open in Safari
-                            </button>
+                          <div className="mb-3">
+                            <StandaloneSignInNotice compact />
                           </div>
                         )}
                         <button 
